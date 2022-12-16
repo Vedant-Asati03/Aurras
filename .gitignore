@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+Songs
+test.py
+test2.py
+.cache
