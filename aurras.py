@@ -4,20 +4,25 @@ music player
 import os
 import sys
 import shutil
+import random
 import subprocess
 import urllib.request
 from time import sleep
+from pygame import mixer
+from pytube import Playlist
 import vlc
 import pafy
 import pyfiglet
+import keyboard
 import scrapetube
+
+# import lyricsgenius
 from pick import pick
 from rich.text import Text
 from rich.align import Align
 from rich.console import Console
 from spotdl import __main__ as spotdl
 from youtubesearchpython import Suggestions, VideoSortOrder
-from TrendingSongs.get_trending_songs import get_songs
 
 
 def main():
@@ -31,15 +36,12 @@ def main():
     console.print(aligned_text)
 
     while check_connection():
-        if os.path.exists(os.path.join("TrendingSongs", "trending_songs.txt")) is True:
-            pass
-        else:
-            get_songs()
 
         song = (
             console.input(
                 Text(
-                    "\nEnter song name | 'D' for downloading song : ", style="u #6D67E4"
+                    "\nEnter song name | 'D' for downloading song | 'P' for Playing downloaded songs | 'S' for Shuffle play\n>>> ",
+                    style="u #6D67E4",
                 )
             )
             .capitalize()
@@ -58,6 +60,9 @@ def main():
 
             case "P":
                 play_downloaded_songs()
+
+            case "S":
+                shuffle_play()
 
             case _:
 
@@ -82,6 +87,9 @@ def play_song(song_id):
     """
     plays music
     """
+    # genius = lyricsgenius.Genius(
+    #     "Hr8gNt1yrpalcnzSiydi0RuKALquFYKCQXR-EoDnHWo8CuWvbODJJuomiEzq8ogB"
+    # )
     audio = pafy.new(song_id).getbestaudio().url
 
     instance = vlc.Instance()
@@ -93,36 +101,27 @@ def play_song(song_id):
     sleep(5)
     while player.is_playing():
         sleep(1)
-        command = console.input(Text(">>> ", style="#FFBF00"))
-        match command:
-
-            case "p":
-                player.set_pause(1)
+        if keyboard.is_pressed("p"):
+            player.set_pause(1)
+        # elif keyboard.is_pressed("l"):
+        #     print(genius.search_song(song_name).lyrics)
 
 
 def shuffle_play():
     """
     Plays random songs
     """
-    """
-    https://www.youtube.com/watch?v=kJQP7kiw5Fk&list=PL15B1E77BB5708555
-    """
+    playlist_link = [
+        "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
+        "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+    ]
+    top_songs = Playlist(random.choice(playlist_link)).video_urls
 
-
-def download_song(songid: str):
-    """
-    Downloads song with video
-    """
-    try:
-        os.mkdir("Songs")
-    except FileExistsError:
-        pass
-
-    subprocess.check_call([sys.executable, spotdl.__file__, songid])
-
-    for file in os.listdir("Songs"):
-        if file.endswith(".mp3"):
-            shutil.move(file, os.path.join("Songs"))
+    for _ in range(len(top_songs)):
+        while keyboard.is_pressed("p") is False:
+            play_song(random.choice(top_songs))
+            if keyboard.is_pressed("p") is True:
+                break
 
 
 def search_song(song_name):
@@ -140,19 +139,46 @@ def search_song(song_name):
     return next(selected_song)["videoId"]
 
 
+def download_song(song_id: str):
+    """
+    Downloads song with video
+    """
+    try:
+        os.mkdir("Songs")
+    except FileExistsError:
+        pass
+
+    subprocess.check_call([sys.executable, spotdl.__file__, song_id])
+
+    for file in os.listdir():
+        if file.endswith(".mp3"):
+            shutil.move(file, os.path.join("Songs"))
+
+
 def play_downloaded_songs():
     """
     plays downloaded songs
     """
+    mixer.init()
 
     songs = []
-    for song in os.listdir():
+    for song in os.listdir("Songs"):
         songs.append(song)
 
     selected_song, _ = pick(songs)
-    print(selected_song)
+    console.print(
+        f"\nPlaying: {selected_song.removesuffix('.mp3')}", style="u b #F4EAD5"
+    )
 
-    vlc.MediaPlayer(os.path.dirname(os.path.abspath(selected_song))).play()
+    sound = mixer.Sound(os.path.join("Songs", selected_song))
+    mixer.Channel(5).play(sound)
+
+    while mixer.Channel(5).get_busy():
+        if keyboard.is_pressed("p"):
+            mixer.Channel(5).pause()
+
+        elif keyboard.is_pressed("r"):
+            mixer.Channel(5).unpause()
 
 
 if __name__ == "__main__":
