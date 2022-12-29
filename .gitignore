@@ -131,3 +131,7 @@ Songs
 test.py
 test2.py
 .cache
+load.py
+auth.json
+gnre.py
+.spotdl-cache
