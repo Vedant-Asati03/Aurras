@@ -24,7 +24,7 @@ try:
     from lyrics import show_lyrics
     from playlist import create_playlist, view_playlist, delete_playlist, add_inplaylist
 
-except Exception:
+except:
     pass
 
 
@@ -32,6 +32,7 @@ def main():
     """
     calls play_song and plays the song
     """
+    console = Console()
 
     while check_connection() is True:
 
@@ -133,7 +134,7 @@ def check_connection(host="http://google.com"):
     try:
         with urllib.request.urlopen(host):
             return True
-    except Exception:
+    except:
         return False
 
 
@@ -161,6 +162,8 @@ def play_song(song_name: str):
     """
     Searches for song
     """
+    console = Console()
+
     ydl_opts = {
         "format": "bestaudio",
         "noplaylist": "True",
@@ -171,7 +174,7 @@ def play_song(song_name: str):
     with YoutubeDL(ydl_opts) as ydl:
         try:
             get(song_name, timeout=20)
-        except Exception:
+        except:
             audio = ydl.extract_info(f"ytsearch:{song_name}", download=False)[
                 "entries"
             ][0]
@@ -207,6 +210,7 @@ def play_downloaded_songs():
     """
     plays downloaded songs
     """
+    console = Console()
 
     songs = []
     for song in os.listdir("Songs"):
@@ -221,5 +225,4 @@ def play_downloaded_songs():
 
 
 if __name__ == "__main__":
-    console = Console()
     main()

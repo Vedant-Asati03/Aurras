@@ -8,7 +8,7 @@ It lets you play any song you want
 
 
 # How to use
-
+![Alt text](assests/PlayingSong.png)
 
 # Features
 
@@ -18,3 +18,5 @@ It lets you play any song you want
 
 
 # Installation
+
+```pip install -r requirements.txt```
