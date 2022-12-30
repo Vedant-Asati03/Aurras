@@ -24,7 +24,7 @@ try:
     from lyrics import show_lyrics
     from playlist import create_playlist, view_playlist, delete_playlist, add_inplaylist
 
-except:
+except Exception:
     pass
 
 
@@ -133,7 +133,7 @@ def check_connection(host="http://google.com"):
     try:
         with urllib.request.urlopen(host):
             return True
-    except:
+    except Exception:
         return False
 
 
@@ -171,7 +171,7 @@ def play_song(song_name: str):
     with YoutubeDL(ydl_opts) as ydl:
         try:
             get(song_name, timeout=20)
-        except:
+        except Exception:
             audio = ydl.extract_info(f"ytsearch:{song_name}", download=False)[
                 "entries"
             ][0]
@@ -183,10 +183,7 @@ def play_song(song_name: str):
 
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
     show_lyrics(song_title)
-
     os.system("mpv " + song_url)
-
-    sys.stdout.write("\033[1A[\033[2K")
 
 
 def download_song(song_id: str):
