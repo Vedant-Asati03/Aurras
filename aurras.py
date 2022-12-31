@@ -11,22 +11,21 @@ import urllib.request
 
 from platform import system
 
-from requests import get
 from pick import pick
 from pytube import Playlist
 from rich.text import Text
 from rich.console import Console
 from rich.table import Table
-from youtube_dl import YoutubeDL
 from spotdl import __main__ as spotdl
 
-from lyrics import show_lyrics
+from playsong import play_song
 from playlist import (
     create_playlist,
-    play_playlist,
-    delete_playlist,
-    add_inplaylist,
     download_playlist,
+    delete_playlist,
+    play_playlist,
+    add_inplaylist,
+    remove_fromplaylist,
 )
 
 
@@ -135,6 +134,17 @@ def main():
                     sys.stdout.write("\033[1A[\033[2K\033[F")
                     add_inplaylist(playlist, song_names)
 
+                case "Y":
+
+                    playlist, _ = pick(
+                        os.listdir(
+                            os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS")
+                        ),
+                        title="Your Playlists\n\n",
+                        indicator=">",
+                    )
+                    remove_fromplaylist(playlist)
+
                 case "V":
 
                     play_playlist()
@@ -193,37 +203,6 @@ def shuffle_play():
     while True:
         song = random.choice(top_song)
         os.system("mpv " + song)
-
-
-def play_song(song_name: str):
-    """
-    Searches for song
-    """
-    console = Console()
-
-    ydl_opts = {
-        "format": "bestaudio",
-        "noplaylist": "True",
-        "skipdownload": "True",
-        "quiet": "True",
-    }
-
-    with YoutubeDL(ydl_opts) as ydl:
-        try:
-            get(song_name, timeout=20)
-        except:
-            audio = ydl.extract_info(f"ytsearch:{song_name}", download=False)[
-                "entries"
-            ][0]
-        else:
-            audio = ydl.extract_info(song_name, download=False)
-
-    song_title = audio["title"]
-    song_url = audio["webpage_url"]
-
-    console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
-    show_lyrics(song_title)
-    os.system("mpv " + song_url)
 
 
 def download_song(song_name: str):

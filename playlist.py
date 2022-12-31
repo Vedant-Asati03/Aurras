@@ -18,7 +18,7 @@ from rich.text import Text
 from rich.table import Table
 from spotdl import __main__ as spotdl
 
-from lyrics import show_lyrics
+from playsong import play_song
 
 
 console = Console()
@@ -82,7 +82,7 @@ def create_playlist(playlist_name: str, song_names: str):
     match ask_user:
 
         case "Y":
-            download_playlist(playlist_name+".txt")
+            download_playlist(playlist_name + ".txt")
         case _:
             pass
 
@@ -98,13 +98,6 @@ def play_playlist():
         .strip()
         .capitalize()
     )
-
-    ydl_opts = {
-        "format": "bestaudio",
-        "noplaylist": "True",
-        "skipdownload": "True",
-        "quiet": "True",
-    }
 
     match choose_playlist:
 
@@ -128,22 +121,7 @@ def play_playlist():
             index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
             for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
 
-                with YoutubeDL(ydl_opts) as ydl:
-                    try:
-                        get(song, timeout=20)
-                    except:
-                        audio = ydl.extract_info(f"ytsearch:{song}", download=False)[
-                            "entries"
-                        ][0]
-                    else:
-                        audio = ydl.extract_info(song, download=False)
-
-                song_title = audio["title"]
-                song_url = audio["webpage_url"]
-
-                console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
-                show_lyrics(song_title)
-                os.system("mpv " + song_url)
+                play_song(song)
                 subprocess.call(CLRSRC, shell=True)
 
         case "S":
@@ -181,24 +159,7 @@ def play_playlist():
 
                     song = song.replace("\n", "")
 
-                    with YoutubeDL(ydl_opts) as ydl:
-                        try:
-                            get(song, timeout=20)
-                        except:
-                            audio = ydl.extract_info(
-                                f"ytsearch:{song}", download=False
-                            )["entries"][0]
-                        else:
-                            audio = ydl.extract_info(song, download=False)
-
-                    song_title = audio["title"]
-                    song_url = audio["webpage_url"]
-
-                    console.print(
-                        f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6"
-                    )
-                    show_lyrics(song_title)
-                    os.system("mpv " + song_url)
+                    play_song(song)
                     subprocess.call(CLRSRC, shell=True)
 
 
@@ -267,6 +228,19 @@ def remove_fromplaylist(playlist_name: str):
     """
     Removes song from a playlist
     """
+    with open(
+        os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist_name),
+        "a",
+        encoding="UTF-8",
+    ) as playlist_songs:
+
+        # song_toremove = pick(
+        #     options=...,
+        #     title="Select Song[s] to remove",
+        #     multiselect=True,
+        #     indicator=">",
+        # )
+        print(playlist_songs.readlines())
 
 
 def download_playlist(playlist_name: str):
