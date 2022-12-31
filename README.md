@@ -12,6 +12,10 @@ It lets you play any song you want.
 
 
 # How It Works
+
+**Search Bar**
+
+![Alt text](assests/SearchBar.png)
 **Playing Song - Shape Of You**
 
 ![Alt text](assests/PlayingSong.png)
