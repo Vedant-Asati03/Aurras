@@ -19,7 +19,6 @@ def show_lyrics(song_name: str):
         temp = SongLyrics.get_lyrics(api_key, song_name)
         lyrics = temp["lyrics"]
 
-        # console.print(f"\n\n\n{lyrics}", style="#E5B8F4")
         table.add_row(lyrics)
         print("\n\n")
         console.print(table, style="#E5B8F4")

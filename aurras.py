@@ -2,30 +2,32 @@
 music player
 """
 
-try:
-    import os
-    import sys
-    import shutil
-    import random
-    import keyboard
-    import subprocess
-    import urllib.request
+import os
+import sys
+import shutil
+import random
+import subprocess
+import urllib.request
 
-    from time import sleep
-    from requests import get
-    from pick import pick
-    from platform import system
-    from pytube import Playlist
-    from rich.text import Text
-    from rich.console import Console
-    from youtube_dl import YoutubeDL
-    from spotdl import __main__ as spotdl
+from platform import system
 
-    from lyrics import show_lyrics
-    from playlist import create_playlist, view_playlist, delete_playlist, add_inplaylist
+from requests import get
+from pick import pick
+from pytube import Playlist
+from rich.text import Text
+from rich.console import Console
+from rich.table import Table
+from youtube_dl import YoutubeDL
+from spotdl import __main__ as spotdl
 
-except:
-    pass
+from lyrics import show_lyrics
+from playlist import (
+    create_playlist,
+    play_playlist,
+    delete_playlist,
+    add_inplaylist,
+    download_playlist,
+)
 
 
 def main():
@@ -47,9 +49,10 @@ def main():
                         style="i #6D67E4",
                     )
                 )
-                .capitalize()
                 .strip()
+                .capitalize()
             )
+
             subprocess.call(clear_src, shell=True)
 
             match song:
@@ -66,9 +69,11 @@ def main():
                     download_song(download_song_name)
 
                 case "P":
+
                     play_downloaded_songs()
 
                 case "S":
+
                     shuffle_play()
 
                 case "C":
@@ -93,11 +98,31 @@ def main():
                     create_playlist(playlist_name, song_names)
 
                 case "R":
-                    delete_playlist(view_playlist())
+
+                    delete_playlist()
 
                 case "A":
 
-                    playlist_name = view_playlist()
+                    table = Table(show_header=False, header_style="bold magenta")
+
+                    playlist, _ = pick(
+                        os.listdir(
+                            os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS")
+                        ),
+                        title="Your Playlists\n\n",
+                        indicator=">",
+                    )
+
+                    with open(
+                        os.path.join(
+                            os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist
+                        ),
+                        "r",
+                        encoding="UTF-8",
+                    ) as songs_inplaylist:
+                        table.add_row(songs_inplaylist.read())
+                    console.print(table)
+
                     song_names = (
                         console.input(
                             Text(
@@ -107,19 +132,31 @@ def main():
                         .strip()
                         .split(", ")
                     )
-                    sys.stdout.write("\033[1A[\033[2K[\033[F")
-                    add_inplaylist(playlist_name, song_names)
+                    sys.stdout.write("\033[1A[\033[2K\033[F")
+                    add_inplaylist(playlist, song_names)
 
                 case "V":
-                    path = os.path.join(
-                        os.path.expanduser("~"), "AURRAS", "PLAYLISTS", view_playlist()
-                    )
 
-                    with open(path, "r", encoding="UTF-8") as current_playlists:
-                        print(current_playlists.read())
-                        if keyboard.read_key() is True:
-                            sys.stdout.write("\033[F")
-                            subprocess.call(clear_src, shell=True)
+                    play_playlist()
+
+                case "X":
+
+                    try:
+                        playlist_todownload = pick(
+                            options=os.listdir(
+                                os.path.join(
+                                    os.path.expanduser("~"), "AURRAS", "PLAYLISTS"
+                                )
+                            ),
+                            multiselect=True,
+                            title="Select Playlist[s] to download",
+                            min_selection_count=1,
+                            indicator=">",
+                        )
+                        for playlist, _ in playlist_todownload:
+                            download_playlist(playlist)
+                    except:
+                        console.print("No Playlist Found!")
 
                 case _:
                     play_song(song)
@@ -189,21 +226,23 @@ def play_song(song_name: str):
     os.system("mpv " + song_url)
 
 
-def download_song(song_id: str):
+def download_song(song_name: str):
     """
     Downloads song without video
     """
+    clr_src = "cls" if system().lower().startswith("win") else "clear"
+
     try:
-        os.mkdir("Songs")
+        os.makedirs(os.path.join(os.path.expanduser("~"), "AURRAS", "SONGS"))
     except FileExistsError:
         pass
 
-    subprocess.check_call([sys.executable, spotdl.__file__, song_id])
+    subprocess.check_call([sys.executable, spotdl.__file__, song_name])
+    subprocess.call(clr_src, shell=True)
 
     for file in os.listdir():
         if file.endswith(".mp3"):
-            shutil.move(file, os.path.join("Songs"))
-    sleep(0.5)
+            shutil.move(file, os.path.join(os.path.expanduser("~"), "AURRAS", "SONGS"))
 
 
 def play_downloaded_songs():
