@@ -235,7 +235,7 @@ def shuffle_play():
 
     while True:
         song = random.choice(top_song)
-        os.system("mpv " + song)
+        play_song(song)
 
 
 def download_song(song_name: str):

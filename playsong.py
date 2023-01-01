@@ -3,11 +3,14 @@ Plays Song
 """
 
 import os
+import subprocess
 
 from requests import get
 from rich.console import Console
 from youtube_dl import YoutubeDL
+
 from lyrics import show_lyrics
+from mpvsetup import mpv_setup
 
 
 console = Console()
@@ -17,6 +20,8 @@ def play_song(song_name: str):
     """
     Searches for song
     """
+
+    mpv_setup()
 
     ydl_opts = {
         "format": "bestaudio",
@@ -38,6 +43,12 @@ def play_song(song_name: str):
     song_title = audio["title"]
     song_url = audio["webpage_url"]
 
+    conf_file = os.path.join(os.path.expanduser("~"), "AURRAS", "mpv", "mpv.conf")
+    input_file = os.path.join(os.path.expanduser("~"), "AURRAS", "mpv", "input.conf")
+
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
     show_lyrics(song_title)
-    os.system("mpv " + song_url)
+
+    subprocess.run(
+        (f"mpv --include={conf_file} --input-conf={input_file} {song_url}"), shell=True
+    )
