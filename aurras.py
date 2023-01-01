@@ -1,5 +1,5 @@
 """
-music player
+Music-Player
 """
 
 import os

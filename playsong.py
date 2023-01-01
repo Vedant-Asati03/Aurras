@@ -43,8 +43,8 @@ def play_song(song_name: str):
     song_title = audio["title"]
     song_url = audio["webpage_url"]
 
-    conf_file = os.path.join(os.path.expanduser("~"), "AURRAS", "mpv", "mpv.conf")
-    input_file = os.path.join(os.path.expanduser("~"), "AURRAS", "mpv", "input.conf")
+    conf_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "mpv.conf")
+    input_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "input.conf")
 
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
     show_lyrics(song_title)
