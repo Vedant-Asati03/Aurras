@@ -14,9 +14,9 @@ def mpv_setup():
     """
 
     try:
-        os.makedirs(os.path.join(os.path.expanduser("~"), "AURRAS", "mpv"))
+        os.makedirs(os.path.join(os.path.expanduser("~"), ".aurras", "mpv"))
 
-        path = os.path.join(os.path.expanduser("~"), "AURRAS", "mpv")
+        path = os.path.join(os.path.expanduser("~"), ".aurras", "mpv")
 
         # Creates a mpv.conf file
         with open(

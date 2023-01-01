@@ -41,8 +41,8 @@ def create_playlist(playlist_name: str, song_names: str):
         os.makedirs(
             os.path.join(
                 os.path.expanduser("~"),
-                "AURRAS",
-                "PLAYLISTS",
+                ".aurras",
+                "Playlists",
             )
         )
 
@@ -63,7 +63,7 @@ def create_playlist(playlist_name: str, song_names: str):
 
         with open(
             os.path.join(
-                os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist_name + ".txt"
+                os.path.expanduser("~"), ".aurras", "Playlists", playlist_name + ".txt"
             ),
             "a",
             encoding="UTF-8",
@@ -104,7 +104,7 @@ def play_playlist():
         case "D":
 
             path = os.path.join(
-                os.path.expanduser("~"), "AURRAS", "DOWNLAODED-PLAYLISTS"
+                os.path.expanduser("~"), ".aurras", "Downloaded-Playlists"
             )
             playlist, _ = pick(
                 os.listdir(path),
@@ -126,7 +126,7 @@ def play_playlist():
 
         case "S":
 
-            path = os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS")
+            path = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
             playlist, _ = pick(
                 os.listdir(path),
                 title="Your Saved Playlists\n\n",
@@ -214,7 +214,7 @@ def add_inplaylist(playlist_name: str, song_names: str):
                 audio = ydl.extract_info(song, download=False)
 
         with open(
-            os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist_name),
+            os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
             "a",
             encoding="UTF-8",
         ) as playlist_songs:
@@ -229,7 +229,7 @@ def remove_fromplaylist(playlist_name: str):
     Removes song from a playlist
     """
     with open(
-        os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist_name),
+        os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
         "a",
         encoding="UTF-8",
     ) as playlist_songs:
@@ -253,7 +253,7 @@ def download_playlist(playlist_name: str):
     )
 
     with open(
-        os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist_name),
+        os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
         "r",
         encoding="UTF-8",
     ) as playlist_todownload:
@@ -266,8 +266,8 @@ def download_playlist(playlist_name: str):
                 os.makedirs(
                     os.path.join(
                         os.path.expanduser("~"),
-                        "AURRAS",
-                        "DOWNLOADED-PLAYLISTS",
+                        ".aurras",
+                        "Downloaded-Playlists",
                         playlist_name,
                     )
                 )
@@ -282,8 +282,8 @@ def download_playlist(playlist_name: str):
                         file,
                         os.path.join(
                             os.path.expanduser("~"),
-                            "AURRAS",
-                            "DOWNLOADED-PLAYLISTS",
+                            ".aurras",
+                            "Downloaded-Playlists",
                             playlist_name,
                         ),
                     )

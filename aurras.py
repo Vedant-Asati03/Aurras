@@ -129,8 +129,8 @@ def main():
                                     options=os.listdir(
                                         os.path.join(
                                             os.path.expanduser("~"),
-                                            "AURRAS",
-                                            "PLAYLISTS",
+                                            ".aurras",
+                                            "Playlists",
                                         )
                                     ),
                                     multiselect=True,
@@ -152,7 +152,7 @@ def main():
                             playlist, _ = pick(
                                 os.listdir(
                                     os.path.join(
-                                        os.path.expanduser("~"), "AURRAS", "PLAYLISTS"
+                                        os.path.expanduser("~"), ".aurras", "Playlists"
                                     )
                                 ),
                                 title="Your Playlists\n\n",
@@ -162,8 +162,8 @@ def main():
                             with open(
                                 os.path.join(
                                     os.path.expanduser("~"),
-                                    "AURRAS",
-                                    "PLAYLISTS",
+                                    ".aurras",
+                                    "Playlists",
                                     playlist,
                                 ),
                                 "r",
@@ -190,7 +190,7 @@ def main():
                             playlist, _ = pick(
                                 os.listdir(
                                     os.path.join(
-                                        os.path.expanduser("~"), "AURRAS", "PLAYLISTS"
+                                        os.path.expanduser("~"), ".aurras", "Playlists"
                                     )
                                 ),
                                 title="Your Playlists\n\n",
@@ -245,7 +245,7 @@ def download_song(song_name: str):
     clr_src = "cls" if system().lower().startswith("win") else "clear"
 
     try:
-        os.makedirs(os.path.join(os.path.expanduser("~"), "AURRAS", "SONGS"))
+        os.makedirs(os.path.join(os.path.expanduser("~"), ".aurras", "Songs"))
     except FileExistsError:
         pass
 
@@ -254,7 +254,7 @@ def download_song(song_name: str):
 
     for file in os.listdir():
         if file.endswith(".mp3"):
-            shutil.move(file, os.path.join(os.path.expanduser("~"), "AURRAS", "SONGS"))
+            shutil.move(file, os.path.join(os.path.expanduser("~"), ".aurras", "Songs"))
 
 
 def play_downloaded_songs():
