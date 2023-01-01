@@ -1,10 +1,19 @@
-import mpv
+import curses
 
-# Create an instance of the MPV player
-player = mpv.MPV()
 
-# Set the path to the MP3 file you want to play
-player.play("D:\\PYTHON PROJECTS\\Aurras\\Songs\\Ed Sheeran - Perfect.mp3")
+from curses.textpad import Textbox, rectangle
 
-# Wait for the song to finish playing
-player.wait_for_playback()
+def main(stdscr):
+    stdscr.addstr(0, 0, "Enter IM message: (hit Ctrl-G to send)")
+
+    editwin = curses.newwin(5,30, 2,1)
+    rectangle(stdscr, 1,0, 1+5+1, 1+30+1)
+    stdscr.refresh()
+
+    box = Textbox(editwin)
+
+    # Let the user edit until Ctrl-G is struck.
+    box.edit()
+
+    # Get resulting contents
+    message = box.gather()

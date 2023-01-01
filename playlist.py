@@ -214,7 +214,9 @@ def add_inplaylist(playlist_name: str, song_names: str):
                 audio = ydl.extract_info(song, download=False)
 
         with open(
-            os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
+            os.path.join(
+                os.path.expanduser("~"), ".aurras", "Playlists", playlist_name
+            ),
             "a",
             encoding="UTF-8",
         ) as playlist_songs:

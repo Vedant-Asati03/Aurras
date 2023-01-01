@@ -45,7 +45,7 @@ def main():
                 console.input(
                     Text(
                         "Enter song name | 'O' For more Options\n",
-                        style="i #A555EC",
+                        style="b #A555EC",
                     )
                 )
                 .strip()

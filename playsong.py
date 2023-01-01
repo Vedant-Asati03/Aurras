@@ -5,6 +5,7 @@ Plays Song
 import os
 import subprocess
 
+from platform import system
 from requests import get
 from rich.console import Console
 from youtube_dl import YoutubeDL
@@ -14,6 +15,7 @@ from mpvsetup import mpv_setup
 
 
 console = Console()
+CLRSRC = "cls" if system().lower().startswith("win") else "clear"
 
 
 def play_song(song_name: str):
@@ -52,3 +54,5 @@ def play_song(song_name: str):
     subprocess.run(
         (f"mpv --include={conf_file} --input-conf={input_file} {song_url}"), shell=True
     )
+
+    subprocess.call(CLRSRC, shell=True)
