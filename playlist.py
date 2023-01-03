@@ -109,7 +109,7 @@ def play_playlist():
             playlist, _ = pick(
                 os.listdir(path),
                 title="Your Downloaded Playlists\n\n",
-                indicator=">",
+                indicator="⨀",
             )
             subprocess.call(CLRSRC, shell=True)
 
@@ -130,7 +130,7 @@ def play_playlist():
             playlist, _ = pick(
                 os.listdir(path),
                 title="Your Saved Playlists\n\n",
-                indicator=">",
+                indicator="⨀",
             )
             subprocess.call(CLRSRC, shell=True)
 
@@ -175,6 +175,7 @@ def delete_playlist():
         multiselect=True,
         title="Your Playlists\n\n",
         min_selection_count=1,
+        indicator="⨀",
     )
 
     removed_playlist = []
@@ -232,17 +233,32 @@ def remove_fromplaylist(playlist_name: str):
     """
     with open(
         os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
-        "a",
+        "r",
         encoding="UTF-8",
-    ) as playlist_songs:
+    ) as songs_inplaylist:
 
-        # song_toremove = pick(
-        #     options=...,
-        #     title="Select Song[s] to remove",
-        #     multiselect=True,
-        #     indicator=">",
-        # )
-        print(playlist_songs.readlines())
+        songs = pick(
+            options=songs_inplaylist.readlines(),
+            title="Select Song[s] to remove",
+            multiselect=True,
+            indicator="⨀",
+        )
+
+
+    with open(
+        os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
+        "r",
+        encoding="UTF-8",
+    ) as songs_inplaylist:
+
+        for song, _ in songs:
+            # print(song)
+        # print(songs_inplaylist.readlines())
+            (songs_inplaylist.readlines()).remove(song)
+
+        # print(songs_inplaylist.readlines())
+
+    sleep(50)
 
 
 def download_playlist(playlist_name: str):

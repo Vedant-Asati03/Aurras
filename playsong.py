@@ -4,13 +4,14 @@ Plays Song
 
 import os
 import subprocess
+import threading
 
 from platform import system
 from requests import get
 from rich.console import Console
 from youtube_dl import YoutubeDL
 
-from lyrics import show_lyrics
+from lyrics import show_lyrics, translate_lyrics
 from mpvsetup import mpv_setup
 
 
@@ -24,6 +25,9 @@ def play_song(song_name: str):
     """
 
     mpv_setup()
+
+    conf_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "mpv.conf")
+    input_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "input.conf")
 
     ydl_opts = {
         "format": "bestaudio",
@@ -45,8 +49,8 @@ def play_song(song_name: str):
     song_title = audio["title"]
     song_url = audio["webpage_url"]
 
-    conf_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "mpv.conf")
-    input_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "input.conf")
+    lyrics_tranlation = threading.Thread(target=translate_lyrics, args=(song_title, song_title,))
+    lyrics_tranlation.start()
 
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
     show_lyrics(song_title)
