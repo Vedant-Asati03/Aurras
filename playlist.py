@@ -18,7 +18,7 @@ from rich.text import Text
 from rich.table import Table
 from spotdl import __main__ as spotdl
 
-from playsong import play_song
+from playsong import play_song_online, play_song_offline
 
 
 console = Console()
@@ -103,26 +103,28 @@ def play_playlist():
 
         case "D":
 
-            path = os.path.join(
-                os.path.expanduser("~"), ".aurras", "Downloaded-Playlists"
-            )
-            playlist, _ = pick(
-                os.listdir(path),
-                title="Your Downloaded Playlists\n\n",
-                indicator="⨀",
-            )
-            subprocess.call(CLRSRC, shell=True)
+            play_song_offline()
 
-            song, _ = pick(
-                options=os.listdir(os.path.join(path, playlist)),
-                title="Select a song to play",
-            )
+            # path = os.path.join(
+            #     os.path.expanduser("~"), ".aurras", "Downloaded-Playlists"
+            # )
+            # playlist, _ = pick(
+            #     os.listdir(path),
+            #     title="Your Downloaded Playlists\n\n",
+            #     indicator="⨀",
+            # )
+            # subprocess.call(CLRSRC, shell=True)
 
-            index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
-            for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
+            # song, _ = pick(
+            #     options=os.listdir(os.path.join(path, playlist)),
+            #     title="Select a song to play",
+            # )
 
-                play_song(song)
-                subprocess.call(CLRSRC, shell=True)
+            # index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
+            # for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
+
+            #     play_song(song)
+            #     subprocess.call(CLRSRC, shell=True)
 
         case "S":
 
@@ -159,7 +161,7 @@ def play_playlist():
 
                     song = song.replace("\n", "")
 
-                    play_song(song)
+                    play_song_online(song)
                     subprocess.call(CLRSRC, shell=True)
 
 

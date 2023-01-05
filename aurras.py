@@ -4,11 +4,11 @@ Music-Player
 
 import os
 import sys
-import shutil
 import random
 import subprocess
 import urllib.request
 
+from time import sleep
 from platform import system
 
 from pick import pick
@@ -16,9 +16,9 @@ from pytube import Playlist
 from rich.text import Text
 from rich.console import Console
 from rich.table import Table
-from spotdl import __main__ as spotdl
 
-from playsong import play_song
+from downloadsong import download_song
+from playsong import play_song_online, play_song_offline
 from playlist import (
     create_playlist,
     download_playlist,
@@ -56,6 +56,7 @@ def main():
 
             options = [
                 "Shuffle Play",
+                "Play Offline",
                 "Download Song",
                 "Play Playlist",
                 "Create Playlist",
@@ -76,6 +77,14 @@ def main():
                         case "Shuffle Play":
 
                             shuffle_play()
+
+                        # case "Play Offline":
+
+                        #     play_song_offline(
+                        #         os.path.join(
+                        #             os.path.expanduser("~"), ".aurras", "Songs"
+                        #         )
+                        #     )
 
                         case "Download Song":
 
@@ -142,6 +151,7 @@ def main():
                                     download_playlist(playlist)
                             except:
                                 console.print("No Playlist Found!")
+                                sleep(1)
 
                         case "Add song in a Playlist":
 
@@ -198,11 +208,8 @@ def main():
                             )
                             remove_fromplaylist(playlist)
 
-                        # case "P":
-                        #     play_downloaded_songs()
-
                 case _:
-                    play_song(song)
+                    play_song_online(song)
 
     console.print("\nNo Internet Connection!\n", style="#FF0000")
 
@@ -235,44 +242,7 @@ def shuffle_play():
 
     while True:
         song = random.choice(top_song)
-        play_song(song)
-
-
-def download_song(song_name: str):
-    """
-    Downloads song without video
-    """
-    clr_src = "cls" if system().lower().startswith("win") else "clear"
-
-    try:
-        os.makedirs(os.path.join(os.path.expanduser("~"), ".aurras", "Songs"))
-    except FileExistsError:
-        pass
-
-    subprocess.check_call([sys.executable, spotdl.__file__, song_name])
-    subprocess.call(clr_src, shell=True)
-
-    for file in os.listdir():
-        if file.endswith(".mp3"):
-            shutil.move(file, os.path.join(os.path.expanduser("~"), ".aurras", "Songs"))
-
-
-def play_downloaded_songs():
-    """
-    plays downloaded songs
-    """
-    console = Console()
-
-    songs = []
-    for song in os.listdir("Songs"):
-        songs.append(song)
-
-    selected_song, _ = pick(songs)
-    console.print(
-        f"\nPlaying: {selected_song.removesuffix('.mp3')}", style="u b #F4EAD5"
-    )
-
-    os.system("mpv " + selected_song)
+        play_song_online(song)
 
 
 if __name__ == "__main__":

@@ -2,15 +2,15 @@
 Shows lyrics
 """
 
-import subprocess
+# import subprocess
 
 from platform import system
 
-import keyboard
+# import keyboard
 
 from rich.table import Table
 from rich.console import Console
-from googletrans import Translator
+# from googletrans import Translator
 from lyrics_extractor import SongLyrics
 
 
@@ -39,32 +39,32 @@ def show_lyrics(song_name: str):
         pass
 
 
-def translate_lyrics(song_name: str, song_title: str):
-    """
-    Translate lyrics of different language in english
-    """
+# def translate_lyrics(song_name: str, song_title: str):
+#     """
+#     Translate lyrics of different language in english
+#     """
 
-    while True:
+#     while True:
 
-        keyboard.wait("t")
+#         keyboard.wait("t")
 
-        if keyboard.is_pressed("t"):
+#         if keyboard.is_pressed("t"):
 
-            subprocess.call(CLRSRC, shell=True)
+#             subprocess.call(CLRSRC, shell=True)
 
-            translator = Translator()
+#             translator = Translator()
 
-            try:
-                temp = SongLyrics.get_lyrics(api_key, song_name)
-                lyrics = temp["lyrics"]
+#             try:
+#                 temp = SongLyrics.get_lyrics(api_key, song_name)
+#                 lyrics = temp["lyrics"]
 
-            except:
-                pass
+#             except:
+#                 pass
 
-            translated_lyrics = translator.translate(lyrics, dest="en").text
+#             translated_lyrics = translator.translate(lyrics, dest="en").text
 
-            console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
+#             console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
 
-            table.add_row(translated_lyrics)
-            print("\n\n")
-            console.print(table, style="#E5B8F4")
+#             table.add_row(translated_lyrics)
+#             print("\n\n")
+#             console.print(table, style="#E5B8F4")
