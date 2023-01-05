@@ -127,7 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-Songs
 .cache
 .spotdl-cache
-.vscode
+test.py
