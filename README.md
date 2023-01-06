@@ -47,4 +47,8 @@ User can create his/her own personalised playlist.<br> he/ she can add/ remove a
 ```pip install -r requirements.txt```
 
 
+
 ```choco install ffmpeg```
+
+
+```scoop install ffmpeg```

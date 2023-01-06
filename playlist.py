@@ -18,7 +18,7 @@ from rich.text import Text
 from rich.table import Table
 from spotdl import __main__ as spotdl
 
-from playsong import play_song_online, play_song_offline
+from playsong import play_song_online, play_playlist_offline, play_song_offline
 
 
 console = Console()
@@ -103,28 +103,7 @@ def play_playlist():
 
         case "D":
 
-            play_song_offline()
-
-            # path = os.path.join(
-            #     os.path.expanduser("~"), ".aurras", "Downloaded-Playlists"
-            # )
-            # playlist, _ = pick(
-            #     os.listdir(path),
-            #     title="Your Downloaded Playlists\n\n",
-            #     indicator="⨀",
-            # )
-            # subprocess.call(CLRSRC, shell=True)
-
-            # song, _ = pick(
-            #     options=os.listdir(os.path.join(path, playlist)),
-            #     title="Select a song to play",
-            # )
-
-            # index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
-            # for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
-
-            #     play_song(song)
-            #     subprocess.call(CLRSRC, shell=True)
+            play_playlist_offline()
 
         case "S":
 
@@ -246,7 +225,6 @@ def remove_fromplaylist(playlist_name: str):
             indicator="⨀",
         )
 
-
     with open(
         os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
         "r",
@@ -255,7 +233,7 @@ def remove_fromplaylist(playlist_name: str):
 
         for song, _ in songs:
             # print(song)
-        # print(songs_inplaylist.readlines())
+            # print(songs_inplaylist.readlines())
             (songs_inplaylist.readlines()).remove(song)
 
         # print(songs_inplaylist.readlines())
