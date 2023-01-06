@@ -10,6 +10,7 @@ from platform import system
 
 from rich.table import Table
 from rich.console import Console
+
 # from googletrans import Translator
 from lyrics_extractor import SongLyrics
 

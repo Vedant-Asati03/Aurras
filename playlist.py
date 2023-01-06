@@ -18,7 +18,7 @@ from rich.text import Text
 from rich.table import Table
 from spotdl import __main__ as spotdl
 
-from playsong import play_song_online, play_playlist_offline, play_song_offline
+from playsong import play_song_online, play_playlist_offline
 
 
 console = Console()

@@ -1,0 +1,7 @@
+{
+    "client_id": "451482f891544afba225e80790764cd4",
+    "client_secret": "fbfc0d6265ca4a5ca3f203abf5c69173",
+    "redirect_uri": "https://developer.spotify.com/dashboard/applications/451482f891544afba225e80790764cd4/users?code=AQBCj_5ixgKlnGJUJgZx0KpSEcfT_n8iaYmZTyRE1kprjOHCnGZXzYgofs1ieBRXHdVVvn5ykG9rqlzaP4wovmk0Rg1i77B_ssQiC6OeH-xeu8Fo_FuOy2UAphKeNiuaqn7MtIdIzfia6TTzvZLzl7pEx-V2TpLIQVcrJxOPwISP2qI1AdPfvk0JIofpfp8dJeKCtBWgl_wymAFyb2joAo0PdUge6W7l07xoptZCkpxN2yU35fQ5IhA6rSABzjo",
+    "username": "LavaKing",
+    "scope": "playlist-read-private",
+}

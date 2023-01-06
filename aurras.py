@@ -6,19 +6,20 @@ import os
 import sys
 import random
 import subprocess
-import urllib.request
 
 from time import sleep
 from platform import system
 
+import requests
 from pick import pick
 from pytube import Playlist
 from rich.text import Text
 from rich.console import Console
 from rich.table import Table
 
+from importplaylists import import_playlist
 from downloadsong import download_song
-from playsong import play_song_offline, play_song_online
+from playsong import play_song_offline, play_song_online, play_playlist_offline
 from playlist import (
     create_playlist,
     download_playlist,
@@ -36,87 +37,164 @@ def main():
     console = Console()
 
     while check_connection() is True:
+        clear_src = "cls" if system().lower().startswith("win") else "clear"
+        subprocess.call(clear_src, shell=True)
 
-        while True:
-            clear_src = "cls" if system().lower().startswith("win") else "clear"
-            subprocess.call(clear_src, shell=True)
-
-            song = (
-                console.input(
-                    Text(
-                        "Enter song name | 'O' For more Options\n",
-                        style="b #A555EC",
-                    )
+        song = (
+            console.input(
+                Text(
+                    "Enter song name | 'O' For more Options\n",
+                    style="b #A555EC",
                 )
-                .strip()
-                .capitalize()
             )
+            .strip()
+            .capitalize()
+        )
 
-            subprocess.call(clear_src, shell=True)
+        subprocess.call(clear_src, shell=True)
 
-            options = [
-                "Shuffle Play",
-                "Play Offline",
-                "Download Song",
-                "Play Playlist",
-                "Create Playlist",
-                "Delete Playlist",
-                "Download Playlist",
-                "Add song in a Playlist",
-                "Remove song from a Playlist",
-            ]
+        options = [
+            "Shuffle Play",
+            "Play Offline",
+            "Download Song",
+            "Play Playlist",
+            "Create Playlist",
+            "Delete Playlist",
+            "Import Playlist",
+            "Download Playlist",
+            "Add song in a Playlist",
+            "Remove song from a Playlist",
+        ]
 
-            match song:
+        match song:
 
-                case "O":
+            case "O":
 
-                    option, _ = pick(options=options, title="Options", indicator=">")
+                option, _ = pick(options=options, title="Options", indicator=">")
 
-                    match option:
+                match option:
 
-                        case "Shuffle Play":
+                    case "Shuffle Play":
 
-                            shuffle_play()
+                        shuffle_play()
 
-                        case "Play Offline":
+                    case "Play Offline":
 
-                            try:
-                                play_song_offline()
-                            except:
-                                console.print("No Downloaded Songs Found!")
-                                sleep(1)
+                        try:
+                            play_song_offline()
+                        except:
+                            console.print("No Downloaded Songs Found!")
+                            sleep(1)
 
-                        case "Download Song":
+                    case "Download Song":
 
-                            download_song_name = (
-                                console.input(
-                                    Text("Enter song name: ", style="#A2DE96")
-                                )
-                                .capitalize()
-                                .strip()
+                        download_song_name = (
+                            console.input(Text("Enter song name: ", style="#A2DE96"))
+                            .capitalize()
+                            .strip()
+                        )
+                        sys.stdout.write("\033[1A[\033[2K[\033[F")
+
+                        download_song(download_song_name)
+
+                    case "Play Playlist":
+
+                        try:
+                            play_playlist()
+                        except:
+                            console.print("Playlist Not Found!")
+                            sleep(1)
+
+                    case "Create Playlist":
+
+                        playlist_name = (
+                            console.input(
+                                Text("Enter Playlist name: ", style="#2C74B3")
                             )
-                            sys.stdout.write("\033[1A[\033[2K[\033[F")
-
-                            download_song(download_song_name)
-
-                        case "Play Playlist":
-
-                            try:
-                                play_playlist()
-                            except:
-                                console.print("Playlist Not Found!")
-                                sleep(1)
-
-                        case "Create Playlist":
-
-                            playlist_name = (
-                                console.input(
-                                    Text("Enter Playlist name: ", style="#2C74B3")
+                            .strip()
+                            .capitalize()
+                        )
+                        sys.stdout.write("\033[1A[\033[2K[\033[F")
+                        song_names = (
+                            console.input(
+                                Text(
+                                    "Enter Song name to add in playlist: ",
+                                    style="#2C74B3",
                                 )
-                                .strip()
-                                .capitalize()
                             )
-                            sys.stdout.write("\033[1A[\033[2K[\033[F")
+                            .strip()
+                            .split(", ")
+                        )
+                        sys.stdout.write("\033[1A[\033[2K[\033[F")
+
+                        create_playlist(playlist_name, song_names)
+
+                    case "Delete Playlist":
+
+                        try:
+                            delete_playlist()
+                        except:
+                            console.print("No Playlist Available!")
+                            sleep(1)
+
+                    case "Import Playlist":
+
+                        import_playlist()
+
+                    case "Download Playlist":
+
+                        try:
+                            playlist_todownload = pick(
+                                options=os.listdir(
+                                    os.path.join(
+                                        os.path.expanduser("~"),
+                                        ".aurras",
+                                        "Playlists",
+                                    )
+                                ),
+                                multiselect=True,
+                                title="Select Playlist[s] to download",
+                                min_selection_count=1,
+                                indicator=">",
+                            )
+                            for playlist, _ in playlist_todownload:
+                                download_playlist(playlist)
+                        except:
+                            console.print("Playlist Not Found!")
+                            sleep(1)
+
+                    case "Add song in a Playlist":
+
+                        try:
+                            table = Table(
+                                show_header=False, header_style="bold magenta"
+                            )
+
+                            playlist, _ = pick(
+                                os.listdir(
+                                    os.path.join(
+                                        os.path.expanduser("~"),
+                                        ".aurras",
+                                        "Playlists",
+                                    )
+                                ),
+                                title="Your Playlists\n\n",
+                                indicator=">",
+                            )
+
+                            with open(
+                                os.path.join(
+                                    os.path.expanduser("~"),
+                                    ".aurras",
+                                    "Playlists",
+                                    playlist,
+                                ),
+                                "r",
+                                encoding="UTF-8",
+                            ) as songs_inplaylist:
+                                table.add_row(songs_inplaylist.read())
+                            console.print(table)
+
                             song_names = (
                                 console.input(
                                     Text(
@@ -127,120 +205,69 @@ def main():
                                 .strip()
                                 .split(", ")
                             )
-                            sys.stdout.write("\033[1A[\033[2K[\033[F")
+                            sys.stdout.write("\033[1A[\033[2K\033[F")
+                            add_inplaylist(playlist, song_names)
+                        except:
+                            console.print("Playlist Not Found!")
+                            sleep(1)
 
-                            create_playlist(playlist_name, song_names)
+                    case "Remove song from a Playlist":
 
-                        case "Delete Playlist":
-
-                            try:
-                                delete_playlist()
-                            except:
-                                console.print("No Playlist Available!")
-                                sleep(1)
-
-                        case "Download Playlist":
-
-                            try:
-                                playlist_todownload = pick(
-                                    options=os.listdir(
-                                        os.path.join(
-                                            os.path.expanduser("~"),
-                                            ".aurras",
-                                            "Playlists",
-                                        )
-                                    ),
-                                    multiselect=True,
-                                    title="Select Playlist[s] to download",
-                                    min_selection_count=1,
-                                    indicator=">",
-                                )
-                                for playlist, _ in playlist_todownload:
-                                    download_playlist(playlist)
-                            except:
-                                console.print("Playlist Not Found!")
-                                sleep(1)
-
-                        case "Add song in a Playlist":
-
-                            try:
-                                table = Table(
-                                    show_header=False, header_style="bold magenta"
-                                )
-
-                                playlist, _ = pick(
-                                    os.listdir(
-                                        os.path.join(
-                                            os.path.expanduser("~"),
-                                            ".aurras",
-                                            "Playlists",
-                                        )
-                                    ),
-                                    title="Your Playlists\n\n",
-                                    indicator=">",
-                                )
-
-                                with open(
+                        try:
+                            playlist, _ = pick(
+                                os.listdir(
                                     os.path.join(
                                         os.path.expanduser("~"),
                                         ".aurras",
                                         "Playlists",
-                                        playlist,
-                                    ),
-                                    "r",
-                                    encoding="UTF-8",
-                                ) as songs_inplaylist:
-                                    table.add_row(songs_inplaylist.read())
-                                console.print(table)
-
-                                song_names = (
-                                    console.input(
-                                        Text(
-                                            "Enter Song name to add in playlist: ",
-                                            style="#2C74B3",
-                                        )
                                     )
-                                    .strip()
-                                    .split(", ")
-                                )
-                                sys.stdout.write("\033[1A[\033[2K\033[F")
-                                add_inplaylist(playlist, song_names)
-                            except:
-                                console.print("Playlist Not Found!")
-                                sleep(1)
+                                ),
+                                title="Your Playlists\n\n",
+                                indicator=">",
+                            )
+                            remove_fromplaylist(playlist)
+                        except:
+                            console.print("Playlist Not Found!")
+                            sleep(1)
 
-                        case "Remove song from a Playlist":
+            case _:
+                play_song_online(song)
 
-                            try:
-                                playlist, _ = pick(
-                                    os.listdir(
-                                        os.path.join(
-                                            os.path.expanduser("~"),
-                                            ".aurras",
-                                            "Playlists",
-                                        )
-                                    ),
-                                    title="Your Playlists\n\n",
-                                    indicator=">",
-                                )
-                                remove_fromplaylist(playlist)
-                            except:
-                                console.print("Playlist Not Found!")
-                                sleep(1)
+    else:
 
-                case _:
-                    play_song_online(song)
+        offline_command, _ = pick(
+            options=["Play Offline Songs", "Play Downloaded Playlists"],
+            title="You are Offline! Switched to Offline Mode",
+            indicator="»",
+        )
 
-    console.print("\nNo Internet Connection!\n", style="#FF0000")
+        match offline_command:
+
+            case "Play Offline Songs":
+                try:
+                    play_song_offline()
+                except:
+                    console.print("No Downloaded Songs Found!")
+                    sleep(1)
+
+            case "Play Downloaded Playlists":
+                try:
+                    play_playlist_offline()
+                except:
+                    console.print("No Downloaded Songs Found!")
+                    sleep(1)
 
 
-def check_connection(host="http://google.com"):
+def check_connection():
     """
     Checks if connected to network or not
     """
     try:
-        with urllib.request.urlopen(host):
+        response = requests.get("http://www.google.com")
+
+        if response.status_code in range(200, 299):
             return True
+
     except:
         return False
 
