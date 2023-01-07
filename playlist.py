@@ -22,6 +22,7 @@ from rich.text import Text
 from rich.table import Table
 from spotdl import __main__ as spotdl
 
+from authenticatespotify import authenticate_spotify
 from playsong import play_song_online, play_playlist_offline
 
 
@@ -124,6 +125,7 @@ def play_playlist():
                 "r",
                 encoding="UTF-8",
             ) as songs_inplaylist:
+
                 song, _ = pick(
                     options=songs_inplaylist.readlines(), title="Select a song to play"
                 )
@@ -155,7 +157,7 @@ def delete_playlist():
 
     playlists = pick(
         options=os.listdir(
-            os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS")
+            os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
         ),
         multiselect=True,
         title="Your Playlists\n\n",
@@ -167,7 +169,7 @@ def delete_playlist():
 
     for playlist, _ in playlists:
         os.remove(
-            os.path.join(os.path.expanduser("~"), "AURRAS", "PLAYLISTS", playlist)
+            os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist)
         )
         removed_playlist.append(playlist)
 
@@ -300,7 +302,7 @@ def import_playlist():
 
     proceed, _ = pick(
         options=["YES", "NO"],
-        title="First you have to Authenticate yourself with [Spotify] | [Youtube]\n\nDo you want to proceed",
+        title="First you have to Authenticate yourself with Spotify\n\nDo you want to proceed",
         indicator="»",
     )
     clear_src = "cls" if system().lower().startswith("win") else "clear"
@@ -310,136 +312,91 @@ def import_playlist():
 
         case "YES":
 
-            importfrom, _ = pick(
-                options=["Spotify", "Youtube"],
-                title="Select Platform to import playlist from",
-                indicator="»",
+            authenticate_spotify()
+
+            with open(
+                os.path.join(os.path.expanduser("~"), ".aurras", "spotify_auth.json"),
+                "r",
+                encoding="UTF-8",
+            ) as credential_data:
+                credentials = json.load(credential_data)
+
+            token = util.prompt_for_user_token(
+                client_id=credentials["client_id"],
+                client_secret=credentials["client_secret"],
+                scope=credentials["scope"],
+                username=credentials["username"],
+                redirect_uri=credentials["redirect_uri"],
             )
 
-            match importfrom:
+            SPOTIFY = spotipy.Spotify(auth=token)
 
-                case "Spotify":
+            playlists = SPOTIFY.current_user_playlists()
 
-                    try:
-                        if "spotify_auth.json" not in os.listdir(
-                            os.path.join(os.path.expanduser("~"), ".aurras")
-                        ):
+            name_id = {}
+            playlists_name = []
 
-                            client_id = input("Paste Spotify client_id: ")
-                            client_secret = input("Paste Spotify client_secret: ")
-                            redirect_uri = input("Paste redirect_uri: ")
-                            username = input("Write your Spotify username: ")
+            for user_playlist in playlists["items"]:
 
-                            spotify_auth = {
-                                "client_id": client_id,
-                                "client_secret": client_secret,
-                                "redirect_uri": redirect_uri,
-                                "username": username,
-                                "scope": "playlist-read-private",
-                            }
+                playlist_name, playlist_id = (
+                    user_playlist["name"],
+                    user_playlist["id"],
+                )
 
-                            with open(
-                                os.path.join(
-                                    os.path.expanduser("~"),
-                                    ".aurras",
-                                    "spotify_auth.json",
-                                ),
-                                "w",
-                                encoding="UTF-8",
-                            ) as credential_data:
+                name_id[playlist_name] = playlist_id
 
-                                json.dump(spotify_auth, credential_data, indent=4)
+                playlists_name.append(playlist_name)
 
-                    except:
-                        pass
+            playlist_name, _ = pick(options=playlists_name)
 
-                    with open(
+            tracks = SPOTIFY.playlist_items(name_id[playlist_name])
+
+            for track in tracks["items"]:
+                # track["track"]["name"]
+
+                try:
+                    os.makedirs(
                         os.path.join(
-                            os.path.expanduser("~"), ".aurras", "spotify_auth.json"
-                        ),
-                        "r",
-                        encoding="UTF-8",
-                    ) as credential_data:
-                        credentials = json.load(credential_data)
-
-                    token = util.prompt_for_user_token(
-                        client_id=credentials["client_id"],
-                        client_secret=credentials["client_secret"],
-                        scope=credentials["scope"],
-                        username=credentials["username"],
-                        redirect_uri=credentials["redirect_uri"],
-                    )
-
-                    sp = spotipy.Spotify(auth=token)
-
-                    playlists = sp.current_user_playlists()
-
-                    name_id = {}
-                    playlists_name = []
-
-                    for user_playlist in playlists["items"]:
-
-                        playlist_name, playlist_id = (
-                            user_playlist["name"],
-                            user_playlist["id"],
+                            os.path.expanduser("~"),
+                            ".aurras",
+                            "Playlists",
                         )
-
-                        name_id[playlist_name] = playlist_id
-
-                        playlists_name.append(playlist_name)
-
-                    playlist_name, _ = pick(options=playlists_name)
-
-                    tracks = sp.playlist_items(name_id[playlist_name])
-
-                    for track in tracks["items"]:
-                        # track["track"]["name"]
-
-                        try:
-                            os.makedirs(
-                                os.path.join(
-                                    os.path.expanduser("~"),
-                                    ".aurras",
-                                    "Playlists",
-                                )
-                            )
-
-                        except FileExistsError:
-                            pass
-
-                        with open(
-                            os.path.join(
-                                os.path.expanduser("~"),
-                                ".aurras",
-                                "Playlists",
-                                playlist_name + ".txt",
-                            ),
-                            "a",
-                            encoding="UTF-8",
-                        ) as playlist_songs:
-                            playlist_songs.write(track["track"]["name"] + "\n")
-                    console.print(
-                        f"Created Playlist named - {playlist_name}", style="#D09CFA"
                     )
-                    ask_user = (
-                        console.input(
-                            Text(
-                                "Do you want to download this playlist [Y]\n",
-                                style="#D09CFA",
-                            )
-                        )
-                        .strip()
-                        .capitalize()
+
+                except FileExistsError:
+                    pass
+
+                with open(
+                    os.path.join(
+                        os.path.expanduser("~"),
+                        ".aurras",
+                        "Playlists",
+                        playlist_name + ".txt",
+                    ),
+                    "a",
+                    encoding="UTF-8",
+                ) as playlist_songs:
+                    playlist_songs.write(track["track"]["name"] + "\n")
+            console.print(f"Created Playlist named - {playlist_name}", style="#D09CFA")
+            ask_user = (
+                console.input(
+                    Text(
+                        "Do you want to download this playlist [Y]\n",
+                        style="#D09CFA",
                     )
-                    subprocess.call(clear_src, shell=True)
-                    match ask_user:
+                )
+                .strip()
+                .capitalize()
+            )
+            subprocess.call(clear_src, shell=True)
+            match ask_user:
 
-                        case "Y":
-                            download_playlist(playlist_name + ".txt")
-                        case _:
-                            pass
+                case "Y":
+                    download_playlist(playlist_name + ".txt")
+                case _:
+                    pass
 
-                    sleep(1.55)
+            sleep(1.55)
 
         case "NO":
             pass

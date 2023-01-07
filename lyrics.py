@@ -2,8 +2,9 @@
 Shows lyrics
 """
 
-# import subprocess
+import subprocess
 
+from asyncio import subprocess
 from platform import system
 
 # import keyboard
@@ -30,12 +31,15 @@ def show_lyrics(song_name: str):
     """
 
     try:
+
         temp = SongLyrics.get_lyrics(api_key, song_name)
         lyrics = temp["lyrics"]
 
         table.add_row(lyrics)
         print("\n\n")
         console.print(table, style="#E5B8F4")
+        subprocess.call(CLRSRC, shell=True)
+
     except:
         pass
 

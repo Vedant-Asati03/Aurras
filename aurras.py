@@ -98,12 +98,13 @@ def main():
                         download_song(download_song_name)
 
                     case "Play Playlist":
+                        play_playlist()
 
-                        try:
-                            play_playlist()
-                        except:
-                            console.print("Playlist Not Found!")
-                            sleep(1)
+                        # try:
+                        #     play_playlist()
+                        # except:
+                        #     console.print("Playlist Not Found!")
+                        #     sleep(1)
 
                     case "Create Playlist":
 
@@ -179,7 +180,7 @@ def main():
                                     )
                                 ),
                                 title="Your Playlists\n\n",
-                                indicator=">",
+                                indicator="»",
                             )
 
                             with open(
