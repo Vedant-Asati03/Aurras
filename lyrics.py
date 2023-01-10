@@ -2,9 +2,8 @@
 Shows lyrics
 """
 
-import subprocess
+# import subprocess
 
-from asyncio import subprocess
 from platform import system
 
 # import keyboard
@@ -16,19 +15,18 @@ from rich.console import Console
 from lyrics_extractor import SongLyrics
 
 
-console = Console()
-
-table = Table(show_header=False, header_style="bold magenta")
-
 CLRSRC = "cls" if system().lower().startswith("win") else "clear"
 
 api_key = SongLyrics("AIzaSyAcZ6KgA7pCIa_uf8-bYdWR85vx6-dWqDg", "aa2313d6c88d1bf22")
+
+console = Console()
 
 
 def show_lyrics(song_name: str):
     """
     Prints lyrics of the song
     """
+    table = Table(show_header=False, header_style="bold magenta")
 
     try:
 
@@ -38,7 +36,7 @@ def show_lyrics(song_name: str):
         table.add_row(lyrics)
         print("\n\n")
         console.print(table, style="#E5B8F4")
-        subprocess.call(CLRSRC, shell=True)
+        table = Table(show_header=False, header_style="bold magenta")
 
     except:
         pass

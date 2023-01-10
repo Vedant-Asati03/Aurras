@@ -11,6 +11,9 @@ from time import sleep
 from platform import system
 
 import requests
+import keyboard
+import threading
+
 from pick import pick
 from pytube import Playlist
 from rich.text import Text
@@ -98,13 +101,12 @@ def main():
                         download_song(download_song_name)
 
                     case "Play Playlist":
-                        play_playlist()
 
-                        # try:
-                        #     play_playlist()
-                        # except:
-                        #     console.print("Playlist Not Found!")
-                        #     sleep(1)
+                        try:
+                            play_playlist()
+                        except:
+                            console.print("Playlist Not Found!")
+                            sleep(1)
 
                     case "Create Playlist":
 
@@ -276,21 +278,22 @@ def check_connection():
 def shuffle_play():
     """Plays random songs"""
 
-    playlist_link = [
-        "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
-        "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
-        "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
-        "https://www.youtube.com/playlist?list=PL6k9a6aYB2zk0qSbXR-ZEiwqgdHymsRtQ",
-        "https://www.youtube.com/playlist?list=PLO7-VO1D0_6NmK47v6tpOcxurcxdW-hZa",
-        "https://www.youtube.com/playlist?list=PL9bw4S5ePsEEqCMJSiYZ-KTtEjzVy0YvK",
-    ]
-
     for _ in range(20):
+
+        playlist_link = [
+            "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
+            "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+            "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+            "https://www.youtube.com/playlist?list=PL6k9a6aYB2zk0qSbXR-ZEiwqgdHymsRtQ",
+            "https://www.youtube.com/playlist?list=PLO7-VO1D0_6NmK47v6tpOcxurcxdW-hZa",
+            "https://www.youtube.com/playlist?list=PL9bw4S5ePsEEqCMJSiYZ-KTtEjzVy0YvK",
+        ]
+
         top_song = Playlist(random.choice(playlist_link)).video_urls
 
-    while True:
-        song = random.choice(top_song)
-        play_song_online(song)
+        while True:
+            song = random.choice(top_song)
+            play_song_online(song)
 
 
 if __name__ == "__main__":

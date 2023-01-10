@@ -175,7 +175,7 @@ def delete_playlist():
 
     console.print(f"Removed playlist - {removed_playlist}")
     sleep(1.5)
-
+    
 
 def add_inplaylist(playlist_name: str, song_names: str):
     """
@@ -272,7 +272,7 @@ def download_playlist(playlist_name: str):
                         os.path.expanduser("~"),
                         ".aurras",
                         "Downloaded-Playlists",
-                        playlist_name,
+                        playlist_name.removesuffix(".txt"),
                     )
                 )
             except FileExistsError:
@@ -281,6 +281,7 @@ def download_playlist(playlist_name: str):
             subprocess.check_call([sys.executable, spotdl.__file__, song])
 
             for file in os.listdir():
+
                 if file.endswith(".mp3"):
                     shutil.move(
                         file,
@@ -288,11 +289,12 @@ def download_playlist(playlist_name: str):
                             os.path.expanduser("~"),
                             ".aurras",
                             "Downloaded-Playlists",
-                            playlist_name,
+                            playlist_name.removesuffix(".txt"),
                         ),
                     )
 
     console.print("Download complete.", style="#D09CFA")
+    sleep(1)
 
 
 def import_playlist():
@@ -347,7 +349,9 @@ def import_playlist():
 
                 playlists_name.append(playlist_name)
 
-            playlist_name, _ = pick(options=playlists_name)
+            playlist_name, _ = pick(
+                options=playlists_name, title="Your Spotify Playlists", indicator="»"
+            )
 
             tracks = SPOTIFY.playlist_items(name_id[playlist_name])
 
