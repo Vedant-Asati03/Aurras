@@ -4,8 +4,8 @@ Plays Song
 
 import os
 import subprocess
-
 from platform import system
+
 from pick import pick
 from requests import get
 from rich.console import Console
@@ -13,7 +13,6 @@ from youtube_dl import YoutubeDL
 
 from lyrics import show_lyrics
 from mpvsetup import mpv_setup
-
 
 console = Console()
 CLRSRC = "cls" if system().lower().startswith("win") else "clear"

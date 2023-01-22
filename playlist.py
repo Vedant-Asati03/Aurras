@@ -2,29 +2,26 @@
 Playlist
 """
 
-import os
-import sys
 import json
+import os
 import shutil
 import subprocess
-
-from time import sleep
+import sys
 from platform import system
+from time import sleep
 
 import spotipy
-
 from pick import pick
-from spotipy import util
 from requests import get
-from youtube_dl import YoutubeDL
 from rich.console import Console
-from rich.text import Text
 from rich.table import Table
+from rich.text import Text
 from spotdl import __main__ as spotdl
+from spotipy import util
+from youtube_dl import YoutubeDL
 
 from authenticatespotify import authenticate_spotify
-from playsong import play_song_online, play_playlist_offline
-
+from playsong import play_playlist_offline, play_song_online
 
 console = Console()
 CLRSRC = "cls" if system().lower().startswith("win") else "clear"
@@ -175,7 +172,7 @@ def delete_playlist():
 
     console.print(f"Removed playlist - {removed_playlist}")
     sleep(1.5)
-    
+
 
 def add_inplaylist(playlist_name: str, song_names: str):
     """

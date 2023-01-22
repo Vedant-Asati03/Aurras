@@ -4,11 +4,11 @@ Downloads Songs
 
 
 import os
-import sys
 import shutil
 import subprocess
-
+import sys
 from platform import system
+
 from spotdl import __main__ as spotdl
 
 

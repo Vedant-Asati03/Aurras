@@ -1,11 +1,10 @@
 """
 Authenticate with Spotify
 """
-import os
 import json
+import os
 
 from rich.console import Console
-
 
 console = Console()
 

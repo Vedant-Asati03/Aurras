@@ -2,37 +2,28 @@
 Music-Player
 """
 
-from concurrent.futures import thread
 import os
-import sys
 import random
 import subprocess
+import sys
 import threading
-
-from time import sleep
+from concurrent.futures import thread
 from platform import system
+from time import sleep
 
+import keyboard
 import requests
-import keyboard
-import keyboard
-
 from pick import pick
 from pytube import Playlist
-from rich.text import Text
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from downloadsong import download_song
-from playsong import play_song_offline, play_song_online, play_playlist_offline
-from playlist import (
-    create_playlist,
-    play_playlist,
-    delete_playlist,
-    add_inplaylist,
-    remove_fromplaylist,
-    download_playlist,
-    import_playlist,
-)
+from playlist import (add_inplaylist, create_playlist, delete_playlist,
+                      download_playlist, import_playlist, play_playlist,
+                      remove_fromplaylist)
+from playsong import play_playlist_offline, play_song_offline, play_song_online
 
 
 def main():
@@ -83,14 +74,15 @@ def main():
                         play = True
                         # shuffle_play()
 
-                        playing = threading.Thread(target=shuffle_play, daemon=True, args=(play,))
+                        playing = threading.Thread(
+                            target=shuffle_play, daemon=True, args=(play,)
+                        )
                         playing.start()
 
                         keyboard.wait("s")
                         if keyboard.is_pressed("s"):
                             play = False
                             subprocess.call(clear_src, shell=True)
-
 
                     case "Play Offline":
 
@@ -318,5 +310,7 @@ if __name__ == "__main__":
 
     except Exception:
         c.print("[bold red]Oh no! An unknown error occured.[/]")
-        c.print("[bold red] Please report it on https://github.com/Vedant-Asati03/aurras/issues with the following exception traceback: [/]")
+        c.print(
+            "[bold red] Please report it on https://github.com/Vedant-Asati03/aurras/issues with the following exception traceback: [/]"
+        )
         c.print_exception()

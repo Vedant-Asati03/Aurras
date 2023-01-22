@@ -3,18 +3,14 @@ Shows lyrics
 """
 
 import subprocess
-
+import threading
 from platform import system
 
-import threading
 import keyboard
-
-from rich.table import Table
-from rich.console import Console
-
 from googletrans import Translator
 from lyrics_extractor import SongLyrics
-
+from rich.console import Console
+from rich.table import Table
 
 CLRSRC = "cls" if system().lower().startswith("win") else "clear"
 
