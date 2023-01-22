@@ -2,16 +2,17 @@
 Shows lyrics
 """
 
-# import subprocess
+import subprocess
 
 from platform import system
 
-# import keyboard
+import threading
+import keyboard
 
 from rich.table import Table
 from rich.console import Console
 
-# from googletrans import Translator
+from googletrans import Translator
 from lyrics_extractor import SongLyrics
 
 
@@ -38,36 +39,43 @@ def show_lyrics(song_name: str):
         console.print(table, style="#E5B8F4")
         table = Table(show_header=False, header_style="bold magenta")
 
+        lyrics_tranlation = threading.Thread(
+            target=translate_lyrics,
+            daemon=True,
+            args=(
+                song_name,
+                lyrics,
+            ),
+        )
+        lyrics_tranlation.start()
+
     except:
         pass
 
 
-# def translate_lyrics(song_name: str, song_title: str):
-#     """
-#     Translate lyrics of different language in english
-#     """
+def translate_lyrics(song_name: str, lyrics: str):
+    """
+    Translate lyrics of different language in english
+    """
 
-#     while True:
+    table = Table(show_header=False, header_style="bold magenta")
 
-#         keyboard.wait("t")
+    while True:
 
-#         if keyboard.is_pressed("t"):
+        keyboard.wait("t")
 
-#             subprocess.call(CLRSRC, shell=True)
+        if keyboard.is_pressed("t"):
 
-#             translator = Translator()
+            subprocess.call(CLRSRC, shell=True)
 
-#             try:
-#                 temp = SongLyrics.get_lyrics(api_key, song_name)
-#                 lyrics = temp["lyrics"]
+            translator = Translator(service_urls=["translate.google.com"])
 
-#             except:
-#                 pass
+            translated_lyrics = translator.translate(lyrics, dest="en").text
 
-#             translated_lyrics = translator.translate(lyrics, dest="en").text
+            console.print(f"Playing🎶: {song_name}\n", end="\r", style="u #E8F3D6")
 
-#             console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
+            table.add_row(translated_lyrics)
+            print("\n\n")
+            console.print(table, style="#E5B8F4")
 
-#             table.add_row(translated_lyrics)
-#             print("\n\n")
-#             console.print(table, style="#E5B8F4")
+            table = Table(show_header=False, header_style="bold magenta")
