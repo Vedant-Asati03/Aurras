@@ -2,17 +2,19 @@
 Music-Player
 """
 
+from concurrent.futures import thread
 import os
 import sys
 import random
 import subprocess
+import threading
 
 from time import sleep
 from platform import system
 
 import requests
 import keyboard
-import threading
+import keyboard
 
 from pick import pick
 from pytube import Playlist
@@ -78,8 +80,17 @@ def main():
                 match option:
 
                     case "Shuffle Play":
+                        play = True
+                        # shuffle_play()
 
-                        shuffle_play()
+                        playing = threading.Thread(target=shuffle_play, daemon=True, args=(play,))
+                        playing.start()
+
+                        keyboard.wait("s")
+                        if keyboard.is_pressed("s"):
+                            play = False
+                            subprocess.call(clear_src, shell=True)
+
 
                     case "Play Offline":
 
@@ -147,7 +158,7 @@ def main():
                     case "Download Playlist":
 
                         try:
-                            playlist_todownload = pick(
+                            playlist_to_download = pick(
                                 options=os.listdir(
                                     os.path.join(
                                         os.path.expanduser("~"),
@@ -160,7 +171,7 @@ def main():
                                 min_selection_count=1,
                                 indicator=">",
                             )
-                            for playlist, _ in playlist_todownload:
+                            for playlist, _ in playlist_to_download:
                                 download_playlist(playlist)
                         except:
                             console.print("Playlist Not Found!")
@@ -275,10 +286,10 @@ def check_connection():
         return False
 
 
-def shuffle_play():
+def shuffle_play(play: str):
     """Plays random songs"""
 
-    for _ in range(20):
+    while play:
 
         playlist_link = [
             "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
@@ -289,11 +300,12 @@ def shuffle_play():
             "https://www.youtube.com/playlist?list=PL9bw4S5ePsEEqCMJSiYZ-KTtEjzVy0YvK",
         ]
 
+        random.shuffle(playlist_link)
+
         top_song = Playlist(random.choice(playlist_link)).video_urls
 
-        while True:
-            song = random.choice(top_song)
-            play_song_online(song)
+        song = random.choice(top_song)
+        play_song_online(song)
 
 
 if __name__ == "__main__":
