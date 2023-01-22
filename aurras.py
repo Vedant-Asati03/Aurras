@@ -297,4 +297,14 @@ def shuffle_play():
 
 
 if __name__ == "__main__":
-    main()
+    c = Console()
+    try:
+        main()
+
+    except KeyboardInterrupt:
+        c.print("[bold green]Thanks for using aurras![/]")
+
+    except Exception:
+        c.print("[bold red]Oh no! An unknown error occured.[/]")
+        c.print("[bold red] Please report it on https://github.com/Vedant-Asati03/aurras/issues with the following exception traceback: [/]")
+        c.print_exception()
