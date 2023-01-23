@@ -3,6 +3,7 @@ Plays Song
 """
 
 import os
+import threading
 import subprocess
 from platform import system
 
@@ -11,7 +12,7 @@ from requests import get
 from rich.console import Console
 from youtube_dl import YoutubeDL
 
-from lyrics import show_lyrics
+from lyrics import show_lyrics, translate_lyrics
 from mpvsetup import mpv_setup
 
 console = Console()
@@ -38,7 +39,7 @@ def play_song_online(song_name: str):
     with YoutubeDL(ydl_opts) as ydl:
         try:
             get(song_name, timeout=20)
-        except:
+        except Exception:
             audio = ydl.extract_info(f"ytsearch:{song_name}", download=False)[
                 "entries"
             ][0]
@@ -49,11 +50,27 @@ def play_song_online(song_name: str):
     song_url = audio["webpage_url"]
 
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
+
+    close = True
+    lyrics_translation = threading.Thread(
+        target=translate_lyrics,
+        args=(
+            song_name,
+            song_title,
+            close,
+        ),
+    )
+
+    lyrics_translation.start()
+
     show_lyrics(song_title)
 
     subprocess.run(
-        (f"mpv --include={conf_file} --input-conf={input_file} {song_url}"), shell=True
+        (f"mpv --include={conf_file} --input-conf={input_file} {song_url}"),
+        shell=True,
+        check=True,
     )
+    close = False
 
     subprocess.call(CLRSRC, shell=True)
 
@@ -89,6 +106,7 @@ def play_song_offline():
                 ),
             ],
             shell=True,
+            check=True,
         )
 
         subprocess.call(CLRSRC, shell=True)
@@ -132,6 +150,7 @@ def play_playlist_offline():
                 ),
             ],
             shell=True,
+            check=True,
         )
 
         subprocess.call(CLRSRC, shell=True)

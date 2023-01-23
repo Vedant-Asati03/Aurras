@@ -3,11 +3,10 @@ Music-Player
 """
 
 import os
-import random
-import subprocess
 import sys
+import random
 import threading
-from concurrent.futures import thread
+import subprocess
 from platform import system
 from time import sleep
 
@@ -20,9 +19,15 @@ from rich.table import Table
 from rich.text import Text
 
 from downloadsong import download_song
-from playlist import (add_inplaylist, create_playlist, delete_playlist,
-                      download_playlist, import_playlist, play_playlist,
-                      remove_fromplaylist)
+from playlist import (
+    add_inplaylist,
+    create_playlist,
+    delete_playlist,
+    download_playlist,
+    import_playlist,
+    play_playlist,
+    remove_fromplaylist,
+)
 from playsong import play_playlist_offline, play_song_offline, play_song_online
 
 
@@ -71,24 +76,21 @@ def main():
                 match option:
 
                     case "Shuffle Play":
-                        play = True
-                        # shuffle_play()
+                        event = threading.Event()
 
-                        playing = threading.Thread(
-                            target=shuffle_play, daemon=True, args=(play,)
-                        )
+                        playing = threading.Thread(target=shuffle_play, args=(event,))
                         playing.start()
 
                         keyboard.wait("s")
                         if keyboard.is_pressed("s"):
-                            play = False
+                            event.set()
                             subprocess.call(clear_src, shell=True)
 
                     case "Play Offline":
 
                         try:
                             play_song_offline()
-                        except:
+                        except Exception:
                             console.print("No Downloaded Songs Found!")
                             sleep(1)
 
@@ -107,7 +109,7 @@ def main():
 
                         try:
                             play_playlist()
-                        except:
+                        except Exception:
                             console.print("Playlist Not Found!")
                             sleep(1)
 
@@ -139,7 +141,7 @@ def main():
 
                         try:
                             delete_playlist()
-                        except:
+                        except Exception:
                             console.print("No Playlist Available!")
                             sleep(1)
 
@@ -165,7 +167,7 @@ def main():
                             )
                             for playlist, _ in playlist_to_download:
                                 download_playlist(playlist)
-                        except:
+                        except Exception:
                             console.print("Playlist Not Found!")
                             sleep(1)
 
@@ -213,7 +215,7 @@ def main():
                             )
                             sys.stdout.write("\033[1A[\033[2K\033[F")
                             add_inplaylist(playlist, song_names)
-                        except:
+                        except Exception:
                             console.print("Playlist Not Found!")
                             sleep(1)
 
@@ -232,7 +234,7 @@ def main():
                                 indicator=">",
                             )
                             remove_fromplaylist(playlist)
-                        except:
+                        except Exception:
                             console.print("Playlist Not Found!")
                             sleep(1)
 
@@ -269,19 +271,19 @@ def check_connection():
     Checks if connected to network or not
     """
     try:
-        response = requests.get("http://www.google.com")
+        response = requests.get("http://www.google.com", timeout=20)
 
         if response.status_code in range(200, 299):
             return True
 
-    except:
+    except Exception:
         return False
 
 
 def shuffle_play(play: str):
     """Plays random songs"""
 
-    while play:
+    while not play.is_set():
 
         playlist_link = [
             "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",

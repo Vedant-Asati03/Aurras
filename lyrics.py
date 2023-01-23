@@ -3,7 +3,6 @@ Shows lyrics
 """
 
 import subprocess
-import threading
 from platform import system
 
 import keyboard
@@ -11,6 +10,7 @@ from googletrans import Translator
 from lyrics_extractor import SongLyrics
 from rich.console import Console
 from rich.table import Table
+
 
 CLRSRC = "cls" if system().lower().startswith("win") else "clear"
 
@@ -23,6 +23,7 @@ def show_lyrics(song_name: str):
     """
     Prints lyrics of the song
     """
+
     table = Table(show_header=False, header_style="bold magenta")
 
     try:
@@ -35,43 +36,41 @@ def show_lyrics(song_name: str):
         console.print(table, style="#E5B8F4")
         table = Table(show_header=False, header_style="bold magenta")
 
-        lyrics_tranlation = threading.Thread(
-            target=translate_lyrics,
-            daemon=True,
-            args=(
-                song_name,
-                lyrics,
-            ),
-        )
-        lyrics_tranlation.start()
-
-    except:
+    except Exception:
         pass
 
 
-def translate_lyrics(song_name: str, lyrics: str):
+def translate_lyrics(song_name: str, song_title: str, close: str):
     """
-    Translate lyrics of different language in english
+    Translate lyrics from different language to english
     """
 
-    table = Table(show_header=False, header_style="bold magenta")
+    while close:
 
-    while True:
+        table = Table(show_header=False, header_style="bold magenta")
 
-        keyboard.wait("t")
+        try:
 
-        if keyboard.is_pressed("t"):
-
-            subprocess.call(CLRSRC, shell=True)
+            temp = SongLyrics.get_lyrics(api_key, song_name)
+            lyrics = temp["lyrics"]
 
             translator = Translator(service_urls=["translate.google.com"])
 
             translated_lyrics = translator.translate(lyrics, dest="en").text
 
-            console.print(f"Playing🎶: {song_name}\n", end="\r", style="u #E8F3D6")
+            keyboard.wait("t")
 
-            table.add_row(translated_lyrics)
-            print("\n\n")
-            console.print(table, style="#E5B8F4")
+            if keyboard.is_pressed("t"):
 
-            table = Table(show_header=False, header_style="bold magenta")
+                subprocess.call(CLRSRC, shell=True)
+
+                console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
+
+                table.add_row(translated_lyrics)
+                print("\n\n")
+                console.print(table, style="#E5B8F4")
+
+                table = Table(show_header=False, header_style="bold magenta")
+
+        except Exception:
+            pass
