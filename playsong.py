@@ -3,6 +3,7 @@ Plays Song
 """
 
 import os
+import platform
 import threading
 import subprocess
 from platform import system
@@ -18,6 +19,7 @@ from mpvsetup import mpv_setup
 
 console = Console()
 CLRSRC = "cls" if system().lower().startswith("win") else "clear"
+WINDOWS = platform.system() == "Windows"
 
 conf_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "mpv.conf")
 input_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "input.conf")
@@ -108,7 +110,7 @@ def play_song_offline():
         debug_log(f"playing offline song with command: {command}")
         subprocess.run(
             command,
-            # shell=True,
+            shell=True if WINDOWS else False,
             check=True,
         )
 
@@ -151,7 +153,7 @@ def play_playlist_offline():
                     song,
                 ),
             ],
-            # shell=True,
+            shell=True if WINDOWS else False,
             check=True,
         )
 
