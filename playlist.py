@@ -9,6 +9,7 @@ import subprocess
 import sys
 from platform import system
 from time import sleep
+import yt_dlp
 
 import spotipy
 from pick import pick
@@ -18,7 +19,6 @@ from rich.table import Table
 from rich.text import Text
 from spotdl import __main__ as spotdl
 from spotipy import util
-from youtube_dl import YoutubeDL
 
 from authenticatespotify import authenticate_spotify
 from playsong import play_playlist_offline, play_song_online
@@ -53,7 +53,7 @@ def create_playlist(playlist_name: str, song_names: str):
 
     for song in song_names:
 
-        with YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 get(song_names, timeout=20)
             except:
@@ -188,7 +188,7 @@ def add_inplaylist(playlist_name: str, song_names: str):
 
     for song in song_names:
 
-        with YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 get(song, timeout=20)
             except:

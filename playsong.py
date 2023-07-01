@@ -3,11 +3,12 @@ Plays Song
 """
 
 import os
+import yt_dlp
 import threading
 import subprocess
+
 from platform import system
 
-import yt_dlp
 from pick import pick
 from requests import get
 from rich.console import Console

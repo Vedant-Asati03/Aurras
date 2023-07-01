@@ -20,6 +20,8 @@ from rich.text import Text
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 
 from downloadsong import download_song
 from playlist import (
@@ -44,6 +46,10 @@ def main():
         clear_src = "cls" if system().lower().startswith("win") else "clear"
         subprocess.call(clear_src, shell=True)
 
+        recommendations = []
+
+        recommender = WordCompleter(recommendations, ignore_case=True)
+
         song = (
             console.input(
                 Text(
@@ -53,7 +59,14 @@ def main():
             )
             .strip()
             .capitalize()
+            # completer=recommender,
+            # complete_while_typing=True,
+            # clipboard=True,
+            # mouse_support=True,
         )
+
+        # for recommended_song in recommend_songs(song):
+        #     recommendations.append(recommended_song)
 
         subprocess.call(clear_src, shell=True)
 
@@ -112,10 +125,9 @@ def main():
 
                         try:
                             play_playlist()
-                        except Exception as e:
-                            print(e)
+                        except Exception:
                             console.print("Playlist Not Found!")
-                            sleep(8)
+                            sleep(1)
 
                     case "Create Playlist":
 
@@ -127,7 +139,8 @@ def main():
                             .capitalize()
                         )
                         sys.stdout.write("\033[1A[\033[2K[\033[F")
-                        song_names = (
+
+                        song_names = prompt(
                             console.input(
                                 Text(
                                     "Enter Song name to add in playlist: ",
@@ -137,6 +150,7 @@ def main():
                             .strip()
                             .split(", ")
                         )
+
                         sys.stdout.write("\033[1A[\033[2K[\033[F")
 
                         create_playlist(playlist_name, song_names)
@@ -242,8 +256,8 @@ def main():
                             console.print("Playlist Not Found!")
                             sleep(1)
 
-            case _:
-                play_song_online(song)
+            # case _:
+            #     play_song_online(song)
 
     else:
 
@@ -318,6 +332,33 @@ def history(song_name: str):
         if os.path.exists("history.txt"):
             for item in history.read():
                 print(item)
+
+
+def recommend_songs(song_name):
+    # Set up Spotify API credentials
+    client_id = "451482f891544afba225e80790764cd4"
+    client_secret = "fbfc0d6265ca4a5ca3f203abf5c69173"
+    client_credentials_manager = SpotifyClientCredentials(
+        client_id=client_id, client_secret=client_secret
+    )
+    sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+
+    # Search for the given song
+    results = sp.search(q=song_name, limit=1, type="track")
+
+    if len(results["tracks"]["items"]) > 0:
+        song_id = results["tracks"]["items"][0]["id"]
+
+        # Get related songs based on the song ID
+        related_songs = sp.recommendations(seed_tracks=[song_id], limit=15)["tracks"]
+
+        # Extract the related song names
+        related_song_names = [song["name"] for song in related_songs]
+
+        return related_song_names
+
+    else:
+        return []
 
 
 if __name__ == "__main__":
