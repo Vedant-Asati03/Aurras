@@ -52,7 +52,6 @@ def create_playlist(playlist_name: str, song_names: str):
         pass
 
     for song in song_names:
-
         with YoutubeDL(ydl_opts) as ydl:
             try:
                 get(song_names, timeout=20)
@@ -82,7 +81,6 @@ def create_playlist(playlist_name: str, song_names: str):
     subprocess.call(CLRSRC, shell=True)
 
     match ask_user:
-
         case "Y":
             download_playlist(playlist_name + ".txt")
         case _:
@@ -102,13 +100,10 @@ def play_playlist():
     )
 
     match choose_playlist:
-
         case "D":
-
             play_playlist_offline()
 
         case "S":
-
             playlist_dir = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
             playlist, _ = pick(
                 os.listdir(playlist_dir),
@@ -122,7 +117,6 @@ def play_playlist():
                 "r",
                 encoding="UTF-8",
             ) as songs_inplaylist:
-
                 song, _ = pick(
                     options=songs_inplaylist.readlines(), title="Select a song to play"
                 )
@@ -140,7 +134,6 @@ def play_playlist():
                 encoding="UTF-8",
             ) as songs_inplaylist:
                 for song in (songs_inplaylist.readlines())[index_ofsong:]:
-
                     song = song.replace("\n", "")
 
                     play_song_online(song)
@@ -187,7 +180,6 @@ def add_inplaylist(playlist_name: str, song_names: str):
     }
 
     for song in song_names:
-
         with YoutubeDL(ydl_opts) as ydl:
             try:
                 get(song, timeout=20)
@@ -220,7 +212,6 @@ def remove_fromplaylist(playlist_name: str):
         "r",
         encoding="UTF-8",
     ) as songs_inplaylist:
-
         songs = pick(
             options=songs_inplaylist.readlines(),
             title="Select Song[s] to remove",
@@ -233,7 +224,6 @@ def remove_fromplaylist(playlist_name: str):
         "r",
         encoding="UTF-8",
     ) as songs_inplaylist:
-
         for song, _ in songs:
             # print(song)
             # print(songs_inplaylist.readlines())
@@ -258,9 +248,7 @@ def download_playlist(playlist_name: str):
         "r",
         encoding="UTF-8",
     ) as playlist_todownload:
-
         for song in playlist_todownload.readlines():
-
             song = song.replace("\n", "")
 
             try:
@@ -278,7 +266,6 @@ def download_playlist(playlist_name: str):
             subprocess.check_call([sys.executable, spotdl.__file__, song])
 
             for file in os.listdir():
-
                 if file.endswith(".mp3"):
                     shutil.move(
                         file,
@@ -308,9 +295,7 @@ def import_playlist():
     subprocess.call(clear_src, shell=True)
 
     match proceed:
-
         case "YES":
-
             authenticate_spotify()
 
             with open(
@@ -336,7 +321,6 @@ def import_playlist():
             playlists_name = []
 
             for user_playlist in playlists["items"]:
-
                 playlist_name, playlist_id = (
                     user_playlist["name"],
                     user_playlist["id"],
@@ -391,7 +375,6 @@ def import_playlist():
             )
             subprocess.call(clear_src, shell=True)
             match ask_user:
-
                 case "Y":
                     download_playlist(playlist_name + ".txt")
                 case _:

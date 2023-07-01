@@ -18,7 +18,6 @@ def authenticate_spotify():
         if "spotify_auth.json" not in os.listdir(
             os.path.join(os.path.expanduser("~"), ".aurras")
         ):
-
             console.print(
                 "Create your client_id and client_secret from Spotify Developer-\n[#E3ACF9]Click Here: https://developer.spotify.com/dashboard/\n",
                 style="#EAE0DA",
@@ -46,7 +45,6 @@ def authenticate_spotify():
                 "w",
                 encoding="UTF-8",
             ) as credential_data:
-
                 json.dump(spotify_auth, credential_data, indent=4)
 
     except:

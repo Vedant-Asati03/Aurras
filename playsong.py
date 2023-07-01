@@ -13,6 +13,7 @@ from requests import get
 from rich.console import Console
 
 from lyrics import show_lyrics, translate_lyrics
+from logger import debug_log
 from mpvsetup import mpv_setup
 
 console = Console()
@@ -92,20 +93,21 @@ def play_song_offline():
 
     index_ofsong = (os.listdir(os.path.join(path))).index(song)
     for song in (os.listdir(os.path.join(path)))[index_ofsong:]:
-
         console.print(f"Playing🎶: {song}\n", end="\r", style="u #E8F3D6")
+        command = [
+            "mpv",
+            f"--include={conf_file}",
+            f"--input-conf={input_file}",
+            os.path.join(
+                os.path.expanduser("~"),
+                ".aurras",
+                "Songs",
+                song,
+            ),
+        ]
+        debug_log(f"playing offline song with command: {command}")
         subprocess.run(
-            [
-                "mpv",
-                f"--include={conf_file}",
-                f"--input-conf={input_file}",
-                os.path.join(
-                    os.path.expanduser("~"),
-                    ".aurras",
-                    "Songs",
-                    song,
-                ),
-            ],
+            command,
             shell=True,
             check=True,
         )
@@ -135,7 +137,6 @@ def play_playlist_offline():
 
     index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
     for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
-
         console.print(f"Playing🎶: {song}\n", end="\r", style="u #E8F3D6")
         subprocess.run(
             [

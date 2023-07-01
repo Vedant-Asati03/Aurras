@@ -17,8 +17,6 @@ from pytube import Playlist
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
 
 
 from downloadsong import download_song
@@ -32,6 +30,7 @@ from playlist import (
     remove_fromplaylist,
 )
 from playsong import play_playlist_offline, play_song_offline, play_song_online
+from logger import debug_log, exception_log
 
 
 def main():
@@ -71,13 +70,10 @@ def main():
         ]
 
         match song:
-
             case "O":
-
                 option, _ = pick(options=options, title="Options", indicator=">")
 
                 match option:
-
                     case "Shuffle Play":
                         event = threading.Event()
 
@@ -90,15 +86,14 @@ def main():
                             subprocess.call(clear_src, shell=True)
 
                     case "Play Offline":
-
                         try:
                             play_song_offline()
-                        except Exception:
+                        except Exception as e:
+                            exception_log(e)
                             console.print("No Downloaded Songs Found!")
                             sleep(1)
 
                     case "Download Song":
-
                         download_song_name = (
                             console.input(Text("Enter song name: ", style="#A2DE96"))
                             .capitalize()
@@ -109,7 +104,6 @@ def main():
                         download_song(download_song_name)
 
                     case "Play Playlist":
-
                         try:
                             play_playlist()
                         except Exception as e:
@@ -118,7 +112,6 @@ def main():
                             sleep(8)
 
                     case "Create Playlist":
-
                         playlist_name = (
                             console.input(
                                 Text("Enter Playlist name: ", style="#2C74B3")
@@ -142,7 +135,6 @@ def main():
                         create_playlist(playlist_name, song_names)
 
                     case "Delete Playlist":
-
                         try:
                             delete_playlist()
                         except Exception:
@@ -150,11 +142,9 @@ def main():
                             sleep(1)
 
                     case "Import Playlist":
-
                         import_playlist()
 
                     case "Download Playlist":
-
                         try:
                             playlist_to_download = pick(
                                 options=os.listdir(
@@ -176,7 +166,6 @@ def main():
                             sleep(1)
 
                     case "Add song in a Playlist":
-
                         try:
                             table = Table(
                                 show_header=False, header_style="bold magenta"
@@ -224,7 +213,6 @@ def main():
                             sleep(1)
 
                     case "Remove song from a Playlist":
-
                         try:
                             playlist, _ = pick(
                                 os.listdir(
@@ -246,7 +234,6 @@ def main():
                 play_song_online(song)
 
     else:
-
         offline_command, _ = pick(
             options=["Play Offline Songs", "Play Downloaded Playlists"],
             title="You are Offline! Switched to Offline Mode",
@@ -254,7 +241,6 @@ def main():
         )
 
         match offline_command:
-
             case "Play Offline Songs":
                 try:
                     play_song_offline()
@@ -288,7 +274,6 @@ def shuffle_play(play: str):
     """Plays random songs"""
 
     while not play.is_set():
-
         playlist_link = [
             "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
             "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",

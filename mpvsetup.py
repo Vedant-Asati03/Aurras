@@ -1,6 +1,6 @@
 """
 Creates
-mpv.conf file - For default configurations like no-video, 
+mpv.conf file - For default configurations like no-video,
 and
 input.conf file
 """
@@ -22,14 +22,12 @@ def mpv_setup():
         with open(
             os.path.join(path, "mpv.conf"), "w", encoding="UTF-8"
         ) as mpv_conf_file:
-
             mpv_conf_file.write("--really-quiet\n--no-video\nvolume-max=130\n")
 
         # Creates a input.conf file
         with open(
             os.path.join(path, "input.conf"), "w", encoding="UTF-8"
         ) as mpv_input_file:
-
             mpv_input_file.write(
                 "UP    add volume 7\nDOWN    add volume -7\nWHEEL_UP   add volume 2\nWHEEL_DOWN    add volume -2\nc    quit\ns    quit\n"
             )

@@ -23,27 +23,34 @@ def get_logfile_path() -> Path:
     filepath: Path = logsdir / f"{filename}.log"
 
     if not filepath.exists():
-        filepath.open('w').close()
+        filepath.open("w").close()
 
     return filepath
 
 
 # * setting this globally so that whenever this file is imported, logging config is set
 logging.basicConfig(
-    filename=get_logfile_path(), 
-    level=logging.DEBUG, 
+    filename=get_logfile_path(),
+    level=logging.DEBUG,
     format="%(asctime)s: %(message)s",
-    datefmt="%H:%M:%S"
+    datefmt="%H:%M:%S",
 )
 
 
-def log(message: str, level: str = "debug"):
+def debug_log(message: str):
     """
     Logs message with the given level to a file located in ~/.aurras/logs/{date}.log.
     """
     logging.debug(f"{message}\n")
 
 
+def exception_log(message: str):
+    """
+    Logs message with the given level to a file located in ~/.aurras/logs/{date}.log.
+    """
+    logging.exception(f"{message}\n")
+
+
 if __name__ == "__main__":
     print(get_logfile_path())
-    log("this is a test")
+    debug_log("this is a test")

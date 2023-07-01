@@ -25,7 +25,6 @@ def download_song(song_names: str):
         pass
 
     for song_name in song_names.split(", "):
-
         subprocess.check_call([sys.executable, spotdl.__file__, song_name])
         subprocess.call(clr_src, shell=True)
 
