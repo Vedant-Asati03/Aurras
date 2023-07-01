@@ -109,16 +109,16 @@ def play_playlist():
 
         case "S":
 
-            path = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
+            playlist_dir = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
             playlist, _ = pick(
-                os.listdir(path),
+                os.listdir(playlist_dir),
                 title="Your Saved Playlists\n\n",
                 indicator="⨀",
             )
             subprocess.call(CLRSRC, shell=True)
 
             with open(
-                os.path.join(path, playlist),
+                os.path.join(playlist_dir, playlist),
                 "r",
                 encoding="UTF-8",
             ) as songs_inplaylist:
@@ -128,14 +128,14 @@ def play_playlist():
                 )
 
             with open(
-                os.path.join(path, playlist),
+                os.path.join(playlist_dir, playlist),
                 "r",
                 encoding="UTF-8",
             ) as songs_inplaylist:
                 index_ofsong = (songs_inplaylist.readlines()).index(song)
 
             with open(
-                os.path.join(path, playlist),
+                os.path.join(playlist_dir, playlist),
                 "r",
                 encoding="UTF-8",
             ) as songs_inplaylist:

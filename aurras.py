@@ -112,9 +112,10 @@ def main():
 
                         try:
                             play_playlist()
-                        except Exception:
+                        except Exception as e:
+                            print(e)
                             console.print("Playlist Not Found!")
-                            sleep(1)
+                            sleep(8)
 
                     case "Create Playlist":
 
