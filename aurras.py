@@ -17,6 +17,9 @@ from pytube import Playlist
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import WordCompleter
+
 
 from downloadsong import download_song
 from playlist import (
@@ -271,7 +274,7 @@ def check_connection():
     Checks if connected to network or not
     """
     try:
-        response = requests.get("http://www.google.com", timeout=20)
+        response = requests.get("http://www.google.com", timeout=10)
 
         if response.status_code in range(200, 299):
             return True
@@ -300,6 +303,20 @@ def shuffle_play(play: str):
 
         song = random.choice(top_song)
         play_song_online(song)
+        break
+
+
+def history(song_name: str):
+    """Stores recently played songs in a file"""
+
+    with open(
+        os.path.join(os.path.expanduser("~"), ".aurras", "history.txt"),
+        "a+",
+        encoding="UTF-8",
+    ) as history:
+        if os.path.exists("history.txt"):
+            for item in history.read():
+                print(item)
 
 
 if __name__ == "__main__":

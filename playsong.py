@@ -7,10 +7,10 @@ import threading
 import subprocess
 from platform import system
 
+import yt_dlp
 from pick import pick
 from requests import get
 from rich.console import Console
-from youtube_dl import YoutubeDL
 
 from lyrics import show_lyrics, translate_lyrics
 from mpvsetup import mpv_setup
@@ -36,9 +36,9 @@ def play_song_online(song_name: str):
         "quiet": "True",
     }
 
-    with YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
-            get(song_name, timeout=20)
+            get(song_name, timeout=15)
         except Exception:
             audio = ydl.extract_info(f"ytsearch:{song_name}", download=False)[
                 "entries"
@@ -51,26 +51,27 @@ def play_song_online(song_name: str):
 
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
 
-    close = True
+    event = threading.Event()
+
     lyrics_translation = threading.Thread(
         target=translate_lyrics,
         args=(
             song_name,
             song_title,
-            close,
+            event,
         ),
     )
 
-    lyrics_translation.start()
-
     show_lyrics(song_title)
+
+    lyrics_translation.start()
 
     subprocess.run(
         (f"mpv --include={conf_file} --input-conf={input_file} {song_url}"),
         shell=True,
         check=True,
     )
-    close = False
+    event.set()
 
     subprocess.call(CLRSRC, shell=True)
 

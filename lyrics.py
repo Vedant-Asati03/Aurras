@@ -45,7 +45,7 @@ def translate_lyrics(song_name: str, song_title: str, close: str):
     Translate lyrics from different language to english
     """
 
-    while close:
+    while not close.is_set():
 
         table = Table(show_header=False, header_style="bold magenta")
 
