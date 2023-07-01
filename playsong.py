@@ -108,11 +108,11 @@ def play_song_offline():
         debug_log(f"playing offline song with command: {command}")
         subprocess.run(
             command,
-            shell=True,
+            # shell=True,
             check=True,
         )
 
-        subprocess.call(CLRSRC, shell=True)
+        # subprocess.call(CLRSRC, shell=True)
 
 
 def play_playlist_offline():
@@ -151,8 +151,12 @@ def play_playlist_offline():
                     song,
                 ),
             ],
-            shell=True,
+            # shell=True,
             check=True,
         )
 
         subprocess.call(CLRSRC, shell=True)
+
+
+if __name__ == "__main__":
+    play_song_offline()
