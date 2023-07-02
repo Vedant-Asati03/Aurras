@@ -9,6 +9,9 @@ import subprocess
 import sys
 from platform import system
 from time import sleep
+import time
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import Completer, Completion
 import yt_dlp
 
 import spotipy
@@ -82,7 +85,6 @@ def create_playlist(playlist_name: str, song_names: str):
     subprocess.call(CLRSRC, shell=True)
 
     match ask_user:
-
         case "Y":
             download_playlist(playlist_name + ".txt")
         case _:
@@ -102,13 +104,10 @@ def play_playlist():
     )
 
     match choose_playlist:
-
         case "D":
-
             play_playlist_offline()
 
         case "S":
-
             playlist_dir = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
             playlist, _ = pick(
                 os.listdir(playlist_dir),
@@ -123,9 +122,25 @@ def play_playlist():
                 encoding="UTF-8",
             ) as songs_inplaylist:
 
-                song, _ = pick(
-                    options=songs_inplaylist.readlines(), title="Select a song to play"
-                )
+                class SONG(Completer):
+                    """
+                    Shows songs in the playlist
+                    """
+
+                    def get_completions(self, document, complete_event):
+                        completions = [
+                            Completion(recommendation, start_position=0)
+                            for recommendation in songs_inplaylist.readlines()
+                        ]
+                        return completions
+
+                song = prompt(
+                    "Search song: ",
+                    completer=SONG(),
+                    complete_while_typing=True,
+                    mouse_support=True,
+                    clipboard=True,
+                ).strip()
 
             with open(
                 os.path.join(playlist_dir, playlist),
@@ -140,7 +155,6 @@ def play_playlist():
                 encoding="UTF-8",
             ) as songs_inplaylist:
                 for song in (songs_inplaylist.readlines())[index_ofsong:]:
-
                     song = song.replace("\n", "")
 
                     play_song_online(song)
@@ -220,7 +234,6 @@ def remove_fromplaylist(playlist_name: str):
         "r",
         encoding="UTF-8",
     ) as songs_inplaylist:
-
         songs = pick(
             options=songs_inplaylist.readlines(),
             title="Select Song[s] to remove",
@@ -233,7 +246,6 @@ def remove_fromplaylist(playlist_name: str):
         "r",
         encoding="UTF-8",
     ) as songs_inplaylist:
-
         for song, _ in songs:
             # print(song)
             # print(songs_inplaylist.readlines())
@@ -258,9 +270,7 @@ def download_playlist(playlist_name: str):
         "r",
         encoding="UTF-8",
     ) as playlist_todownload:
-
         for song in playlist_todownload.readlines():
-
             song = song.replace("\n", "")
 
             try:
@@ -278,7 +288,6 @@ def download_playlist(playlist_name: str):
             subprocess.check_call([sys.executable, spotdl.__file__, song])
 
             for file in os.listdir():
-
                 if file.endswith(".mp3"):
                     shutil.move(
                         file,
@@ -308,9 +317,7 @@ def import_playlist():
     subprocess.call(clear_src, shell=True)
 
     match proceed:
-
         case "YES":
-
             authenticate_spotify()
 
             with open(
@@ -336,7 +343,6 @@ def import_playlist():
             playlists_name = []
 
             for user_playlist in playlists["items"]:
-
                 playlist_name, playlist_id = (
                     user_playlist["name"],
                     user_playlist["id"],
@@ -391,7 +397,6 @@ def import_playlist():
             )
             subprocess.call(clear_src, shell=True)
             match ask_user:
-
                 case "Y":
                     download_playlist(playlist_name + ".txt")
                 case _:

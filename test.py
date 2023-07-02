@@ -57,19 +57,74 @@
 #     print(song)
 
 
+# from prompt_toolkit import prompt
+# from prompt_toolkit.completion import Completer, Completion
+
+# # List of recommendations
+# recommendations = ['recommendation1', 'recommendation2', 'recommendation3']
+
+# # Custom completer class
+# class MyCompleter(Completer):
+#     def get_completions(self, document, complete_event):
+#         completions = [
+#             Completion(recommendation, start_position=0)
+#             for recommendation in recommendations
+#         ]
+#         return completions
+
+# # Prompt the user for input with the custom completer
+# user_input = prompt('Enter your input: ', completer=MyCompleter(), complete_while_typing=True)
+
+# # Print the user input
+# print(f'You entered: {user_input}')
+
+
+# from prompt_toolkit import prompt
+# from prompt_toolkit.history import FileHistory
+# from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+
+# # Create a history object with a file path
+# history = FileHistory('recently_played_songs.txt')
+
+# # Prompt the user for input with auto-suggestions from history
+# user_input = prompt(
+#     'Enter a command: ',
+#     history=history,
+#     auto_suggest=AutoSuggestFromHistory(),
+# )
+
+# print(f'You entered: {user_input}')
+
+
 
 from prompt_toolkit import prompt
-from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 
-# Create a FileHistory object
-history = FileHistory('command_history.txt')
+class MyAutoSuggest(AutoSuggest):
+    def get_suggestion(self, buffer, document):
+        text = document.text_before_cursor
+        if text:
+            # Generate suggestions based on your logic
+            suggestions = [
+                'Shuffle Play',
+                'Play Offline',
+                'Download Song',
+                'Play Playlist',
+                'Create Playlist',
+                'Delete Playlist',
+                'Import Playlist',
+                'Download Playlist',
+                'Add song in a Playlist',
+                'Remove song from a Playlist',
+            ]
 
-# Prompt the user for input with command history enabled
-user_input = prompt('Enter your command: ', history=history)
+            for suggestion in suggestions:
+                if suggestion.startswith(text):
+                    return Suggestion(suggestion[len(text):])
 
-# Print the entered command
-print(f'Command entered: {user_input}')
+        return None
 
-# Access previous commands in the history
-for past_command in history.read():
-    print(f'Past command: {past_command}')
+# Prompt the user for input with auto-suggestions
+user_input = prompt('Enter a command: ', auto_suggest=MyAutoSuggest())
+
+print(f'You entered: {user_input}')

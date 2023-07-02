@@ -27,7 +27,6 @@ def show_lyrics(song_name: str):
     table = Table(show_header=False, header_style="bold magenta")
 
     try:
-
         temp = SongLyrics.get_lyrics(api_key, song_name)
         lyrics = temp["lyrics"]
 
@@ -46,11 +45,9 @@ def translate_lyrics(song_name: str, song_title: str, close: str):
     """
 
     while not close.is_set():
-
         table = Table(show_header=False, header_style="bold magenta")
 
         try:
-
             temp = SongLyrics.get_lyrics(api_key, song_name)
             lyrics = temp["lyrics"]
 
@@ -61,7 +58,6 @@ def translate_lyrics(song_name: str, song_title: str, close: str):
             keyboard.wait("t")
 
             if keyboard.is_pressed("t"):
-
                 subprocess.call(CLRSRC, shell=True)
 
                 console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")

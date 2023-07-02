@@ -5,7 +5,6 @@ Downloads Songs
 
 import os
 import sys
-import curses
 import shutil
 import subprocess
 from platform import system
@@ -25,7 +24,6 @@ def download_song(song_names: str):
         pass
 
     for song_name in song_names.split(", "):
-
         subprocess.check_call([sys.executable, spotdl.__file__, song_name])
         subprocess.call(clr_src, shell=True)
 

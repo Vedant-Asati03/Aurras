@@ -3,21 +3,27 @@ Plays Song
 """
 
 import os
-import yt_dlp
+import random
+import platform
 import threading
 import subprocess
 
 from platform import system
+from prompt_toolkit import prompt
+import yt_dlp
 
 from pick import pick
 from requests import get
+from pytube import Playlist
 from rich.console import Console
 
 from lyrics import show_lyrics, translate_lyrics
+from logger import debug_log
 from mpvsetup import mpv_setup
 
 console = Console()
-CLRSRC = "cls" if system().lower().startswith("win") else "clear"
+CLRSCR = "cls" if system().lower().startswith("win") else "clear"
+WINDOWS = platform.system() == "Windows"
 
 conf_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "mpv.conf")
 input_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "input.conf")
@@ -74,7 +80,7 @@ def play_song_online(song_name: str):
     )
     event.set()
 
-    subprocess.call(CLRSRC, shell=True)
+    subprocess.call(CLRSCR, shell=True)
 
 
 def play_song_offline():
@@ -89,29 +95,30 @@ def play_song_offline():
         options=os.listdir(os.path.join(path)),
         title="Select a song to play",
     )
-    subprocess.call(CLRSRC, shell=True)
+    subprocess.call(CLRSCR, shell=True)
 
     index_ofsong = (os.listdir(os.path.join(path))).index(song)
     for song in (os.listdir(os.path.join(path)))[index_ofsong:]:
-
         console.print(f"Playing🎶: {song}\n", end="\r", style="u #E8F3D6")
+        command = [
+            "mpv",
+            f"--include={conf_file}",
+            f"--input-conf={input_file}",
+            os.path.join(
+                os.path.expanduser("~"),
+                ".aurras",
+                "Songs",
+                song,
+            ),
+        ]
+        debug_log(f"playing offline song with command: {command}")
         subprocess.run(
-            [
-                "mpv",
-                f"--include={conf_file}",
-                f"--input-conf={input_file}",
-                os.path.join(
-                    os.path.expanduser("~"),
-                    ".aurras",
-                    "Songs",
-                    song,
-                ),
-            ],
-            shell=True,
+            command,
+            shell=True if WINDOWS else False,
             check=True,
         )
 
-        subprocess.call(CLRSRC, shell=True)
+        subprocess.call(CLRSCR, shell=True)
 
 
 def play_playlist_offline():
@@ -127,16 +134,17 @@ def play_playlist_offline():
         title="Your Downloaded Playlists\n\n",
         indicator="⨀",
     )
-    subprocess.call(CLRSRC, shell=True)
+    subprocess.call(CLRSCR, shell=True)
 
-    song, _ = pick(
-        options=os.listdir(os.path.join(path, playlist)),
-        title="Select a song to play",
+    song = prompt(
+        completer=(os.listdir(os.path.join(path, playlist))),
+        complete_while_typing=True,
+        mouse_support=True,
+        clipboard=True,
     )
 
     index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
     for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
-
         console.print(f"Playing🎶: {song}\n", end="\r", style="u #E8F3D6")
         subprocess.run(
             [
@@ -151,8 +159,34 @@ def play_playlist_offline():
                     song,
                 ),
             ],
-            shell=True,
+            shell=True if WINDOWS else False,
             check=True,
         )
 
-        subprocess.call(CLRSRC, shell=True)
+        subprocess.call(CLRSCR, shell=True)
+
+
+def shuffle_play(play: str):
+    """Plays random songs"""
+
+    while not play.is_set():
+        playlist_link = [
+            "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
+            "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+            "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+            "https://www.youtube.com/playlist?list=PL6k9a6aYB2zk0qSbXR-ZEiwqgdHymsRtQ",
+            "https://www.youtube.com/playlist?list=PLO7-VO1D0_6NmK47v6tpOcxurcxdW-hZa",
+            "https://www.youtube.com/playlist?list=PL9bw4S5ePsEEqCMJSiYZ-KTtEjzVy0YvK",
+        ]
+
+        random.shuffle(playlist_link)
+
+        top_song = Playlist(random.choice(playlist_link)).video_urls
+
+        song = random.choice(top_song)
+        play_song_online(song)
+        break
+
+
+if __name__ == "__main__":
+    play_song_offline()
