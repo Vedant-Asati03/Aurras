@@ -94,37 +94,3 @@
 # )
 
 # print(f'You entered: {user_input}')
-
-
-
-from prompt_toolkit import prompt
-from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
-
-class MyAutoSuggest(AutoSuggest):
-    def get_suggestion(self, buffer, document):
-        text = document.text_before_cursor
-        if text:
-            # Generate suggestions based on your logic
-            suggestions = [
-                'Shuffle Play',
-                'Play Offline',
-                'Download Song',
-                'Play Playlist',
-                'Create Playlist',
-                'Delete Playlist',
-                'Import Playlist',
-                'Download Playlist',
-                'Add song in a Playlist',
-                'Remove song from a Playlist',
-            ]
-
-            for suggestion in suggestions:
-                if suggestion.startswith(text):
-                    return Suggestion(suggestion[len(text):])
-
-        return None
-
-# Prompt the user for input with auto-suggestions
-user_input = prompt('Enter a command: ', auto_suggest=MyAutoSuggest())
-
-print(f'You entered: {user_input}')

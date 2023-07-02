@@ -3,6 +3,7 @@ Music-Player
 """
 
 import os
+import random
 import sys
 import threading
 import subprocess
@@ -77,8 +78,9 @@ def main():
                 encoding="UTF-8",
             ) as recommended_list:
                 reader = recommended_list.readlines()
+                random.shuffle(reader)
 
-                for recommended_song in reader:
+                for recommended_song in reader[-10:]:
                     recommendations.append(recommended_song)
 
         class Recommend(Completer):
