@@ -94,3 +94,47 @@
 # )
 
 # print(f'You entered: {user_input}')
+
+
+# from prompt_toolkit import PromptSession
+# from prompt_toolkit.history import InMemoryHistory
+# from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
+
+# recommendations = [
+#     "Shuffle Play",
+#     "Play Offline",
+#     "Download Song",
+#     "Play Playlist",
+#     "Create Playlist",
+#     "Delete Playlist",
+#     "Import Playlist",
+#     "Download Playlist",
+#     "Add song in a Playlist",
+#     "Remove song from a Playlist",
+# ]
+
+# class RecommendAutoSuggest(AutoSuggest):
+#     def __init__(self, suggestions):
+#         self.suggestions = suggestions
+
+#     def get_suggestion(self, buffer, document):
+#         text = document.text_before_cursor.lower()
+#         if text:
+#             for suggestion in self.suggestions:
+#                 if suggestion.lower().startswith(text):
+#                     return Suggestion(suggestion)
+#         return None
+
+# history = InMemoryHistory()
+# auto_suggest = RecommendAutoSuggest(recommendations)
+
+# session = PromptSession(
+#     history=history,
+#     auto_suggest=auto_suggest,
+#     complete_while_typing=True,
+#     mouse_support=True,
+# )
+
+# song = session.prompt("Search Song\n").strip().lower()
+
+# print(f"You entered: {song}")

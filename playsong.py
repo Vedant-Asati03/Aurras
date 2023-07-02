@@ -170,22 +170,40 @@ def shuffle_play(play: str):
     """Plays random songs"""
 
     while not play.is_set():
-        playlist_link = [
-            "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
-            "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
-            "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
-            "https://www.youtube.com/playlist?list=PL6k9a6aYB2zk0qSbXR-ZEiwqgdHymsRtQ",
-            "https://www.youtube.com/playlist?list=PLO7-VO1D0_6NmK47v6tpOcxurcxdW-hZa",
-            "https://www.youtube.com/playlist?list=PL9bw4S5ePsEEqCMJSiYZ-KTtEjzVy0YvK",
-        ]
 
-        random.shuffle(playlist_link)
+        if os.path.exists(
+            os.path.join(os.path.expanduser("~"), ".aurras", "recommended_songs.txt")
+        ):
+            with open(
+                os.path.join(
+                    os.path.expanduser("~"), ".aurras", "recommended_songs.txt"
+                ),
+                "r",
+                encoding="UTF-8",
+            ) as recommended_list:
+                reader = recommended_list.readlines()
+                random.shuffle(reader)
 
-        top_song = Playlist(random.choice(playlist_link)).video_urls
+            for song in reader:
+                play_song_online(song)
 
-        song = random.choice(top_song)
-        play_song_online(song)
-        break
+        else:
+            playlist_link = [
+                "https://music.youtube.com/playlist?list=RDCLAK5uy_ksEjgm3H_7zOJ_RHzRjN1wY-_FFcs7aAU&feature=share&playnext=1",
+                "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+                "https://music.youtube.com/playlist?list=RDCLAK5uy_n9Fbdw7e6ap-98_A-8JYBmPv64v-Uaq1g&feature=share&playnext=1",
+                "https://www.youtube.com/playlist?list=PL6k9a6aYB2zk0qSbXR-ZEiwqgdHymsRtQ",
+                "https://www.youtube.com/playlist?list=PLO7-VO1D0_6NmK47v6tpOcxurcxdW-hZa",
+                "https://www.youtube.com/playlist?list=PL9bw4S5ePsEEqCMJSiYZ-KTtEjzVy0YvK",
+            ]
+
+            random.shuffle(playlist_link)
+
+            top_song = Playlist(random.choice(playlist_link)).video_urls
+
+            song = random.choice(top_song)
+            play_song_online(song)
+            break
 
 
 if __name__ == "__main__":

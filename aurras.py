@@ -12,7 +12,7 @@ from time import sleep
 from platform import system
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory, Suggestion, AutoSuggest
 from prompt_toolkit.history import FileHistory
 
 import keyboard
@@ -94,15 +94,19 @@ def main():
                 ]
                 return completions
 
-        song = prompt(
-            "Search Song\n",
-            completer=Recommend(),
-            complete_while_typing=True,
-            clipboard=True,
-            mouse_support=True,
-            history=recent_songs,
-            auto_suggest=AutoSuggestFromHistory(),
-        ).strip().lower()
+        song = (
+            prompt(
+                "Search Song\n",
+                completer=Recommend(),
+                complete_while_typing=True,
+                clipboard=True,
+                mouse_support=True,
+                history=recent_songs,
+                auto_suggest=AutoSuggestFromHistory(),
+            )
+            .strip()
+            .lower()
+        )
 
         subprocess.call(CLRSCR, shell=True)
 
