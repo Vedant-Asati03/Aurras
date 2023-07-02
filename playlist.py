@@ -97,17 +97,14 @@ def play_playlist():
     """
     Shows all the songs in a playlist
     """
-    choose_playlist = (
-        console.input(Text("DOWNLOADED-PLAYLISTS[D] | SAVED-PLAYLISTS[S]\n"))
-        .strip()
-        .capitalize()
-    )
+
+    choose_playlist, _ = pick(options=["DOWNLOADED-PLAYLISTS", "SAVED-PLAYLISTS"], indicator="⨀")
 
     match choose_playlist:
-        case "D":
+        case "DOWNLOADED-PLAYLISTS":
             play_playlist_offline()
 
-        case "S":
+        case "SAVED-PLAYLISTS":
             playlist_dir = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
             playlist, _ = pick(
                 os.listdir(playlist_dir),

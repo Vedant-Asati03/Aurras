@@ -102,12 +102,12 @@ def main():
             mouse_support=True,
             history=recent_songs,
             auto_suggest=AutoSuggestFromHistory(),
-        ).strip()
+        ).strip().lower()
 
         subprocess.call(CLRSCR, shell=True)
 
         match song:
-            case "Shuffle Play":
+            case "shuffle play":
                 event = threading.Event()
 
                 playing = threading.Thread(target=shuffle_play, args=(event,))
@@ -118,7 +118,7 @@ def main():
                     event.set()
                     subprocess.call(CLRSCR, shell=True)
 
-            case "Play Offline":
+            case "play offline":
                 try:
                     play_song_offline()
                 except Exception as e:
@@ -126,7 +126,7 @@ def main():
                     console.print("No Downloaded Songs Found!")
                     sleep(1)
 
-            case "Download Song":
+            case "download song":
                 download_song_name = (
                     console.input(Text("Enter song name: ", style="#A2DE96"))
                     .capitalize()
@@ -136,14 +136,14 @@ def main():
 
                 download_song(download_song_name)
 
-            case "Play Playlist":
+            case "play playlist":
                 try:
                     play_playlist()
                 except Exception:
                     console.print("Playlist Not Found!")
                     sleep(1)
 
-            case "Create Playlist":
+            case "create playlist":
                 playlist_name = (
                     console.input(Text("Enter Playlist name: ", style="#2C74B3"))
                     .strip()
@@ -166,17 +166,17 @@ def main():
 
                 create_playlist(playlist_name, song_names)
 
-            case "Delete Playlist":
+            case "delete playlist":
                 try:
                     delete_playlist()
                 except Exception:
                     console.print("No Playlist Available!")
                     sleep(1)
 
-            case "Import Playlist":
+            case "import playlist":
                 import_playlist()
 
-            case "Download Playlist":
+            case "download playlist":
                 try:
                     playlist_to_download = pick(
                         options=os.listdir(
@@ -197,7 +197,7 @@ def main():
                     console.print("Playlist Not Found!")
                     sleep(1)
 
-            case "Add song in a Playlist":
+            case "add song in a playlist":
                 try:
                     table = Table(show_header=False, header_style="bold magenta")
 
@@ -242,7 +242,7 @@ def main():
                     console.print("Playlist Not Found!")
                     sleep(1)
 
-            case "Remove song from a Playlist":
+            case "remove song from a playlist":
                 try:
                     playlist, _ = pick(
                         os.listdir(
