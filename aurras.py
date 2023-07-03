@@ -12,7 +12,7 @@ from time import sleep
 from platform import system
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory, Suggestion, AutoSuggest
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 
 import keyboard
@@ -36,7 +36,6 @@ from playlist import (
     remove_fromplaylist,
 )
 from playsong import (
-    play_playlist_offline,
     play_song_offline,
     play_song_online,
     shuffle_play,
@@ -84,6 +83,7 @@ def main():
                     recommendations.append(recommended_song)
 
         class Recommend(Completer):
+
             def get_completions(self, document, complete_event):
                 """
                 auto completes
@@ -96,7 +96,7 @@ def main():
 
         song = (
             prompt(
-                "Search Song\n",
+                placeholder="Search Song",
                 completer=Recommend(),
                 complete_while_typing=True,
                 clipboard=True,
