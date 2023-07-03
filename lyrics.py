@@ -2,17 +2,13 @@
 Shows lyrics
 """
 
-import subprocess
-from platform import system
-
 import keyboard
 from googletrans import Translator
 from lyrics_extractor import SongLyrics
 from rich.console import Console
 from rich.table import Table
 
-
-CLRSRC = "cls" if system().lower().startswith("win") else "clear"
+from term_utils import clear_screen
 
 api_key = SongLyrics("AIzaSyAcZ6KgA7pCIa_uf8-bYdWR85vx6-dWqDg", "aa2313d6c88d1bf22")
 
@@ -58,7 +54,7 @@ def translate_lyrics(song_name: str, song_title: str, close: str):
             keyboard.wait("t")
 
             if keyboard.is_pressed("t"):
-                subprocess.call(CLRSRC, shell=True)
+                clear_screen()
 
                 console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
 

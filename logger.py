@@ -1,6 +1,6 @@
 import logging
-from pathlib import Path
 from datetime import date
+from pathlib import Path
 
 # todo update logfile on day change if the app is still running
 
