@@ -16,4 +16,4 @@ def clear_screen():
     except CalledProcessError as cpe:
         exception_log(cpe)
     except Exception as e:
-        exception_log("an unknown error occured:", e)
+        exception_log(f"an unknown error occured: {e}")

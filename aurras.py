@@ -14,12 +14,14 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
-
-from downloadsong import download_song
 from logger import exception_log
+
+from recommendation import recommend_songs
+from downloadsong import download_song
 from playlist import (
     add_inplaylist,
     create_playlist,
@@ -34,6 +36,7 @@ from playsong import (
     play_song_online,
     shuffle_play,
 )
+from term_utils import clear_screen
 
 
 def main():
@@ -76,7 +79,6 @@ def main():
                     recommendations.append(recommended_song)
 
         class Recommend(Completer):
-
             def get_completions(self, document, complete_event):
                 """
                 auto completes
@@ -87,16 +89,22 @@ def main():
                 ]
                 return completions
 
+        style = Style.from_dict(
+            {
+                "placeholder": "ansilightgray",  # Set the color and style of the placeholder
+            }
+        )
+
         song = (
             prompt(
-                placeholder="Search Song",
                 completer=Recommend(),
+                placeholder="Search Song",
+                style=style,
                 complete_while_typing=True,
                 clipboard=True,
                 mouse_support=True,
                 history=recent_songs,
                 auto_suggest=AutoSuggestFromHistory(),
-                placeholder="Type here",
             )
             .strip()
             .lower()
