@@ -12,7 +12,6 @@ from pick import pick
 from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
 from rich.console import Console
@@ -48,7 +47,10 @@ def main():
     while True:
         clear_screen()
 
-        recent_songs = FileHistory("recently_played_songs.txt")
+        recent_songs_file = os.path.join(
+            os.path.expanduser("~"), ".aurras", "recently_played_songs.txt"
+        )
+        recent_songs = FileHistory(recent_songs_file)
         recommendations = [
             "Shuffle Play",
             "Play Offline",
@@ -91,7 +93,7 @@ def main():
 
         style = Style.from_dict(
             {
-                "placeholder": "ansilightgray",  # Set the color and style of the placeholder
+                "placeholder": "ansilightgray",
             }
         )
 
