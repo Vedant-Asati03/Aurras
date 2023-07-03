@@ -4,19 +4,19 @@ Downloads Songs
 
 
 import os
-import sys
 import shutil
 import subprocess
-from platform import system
+import sys
 
 from spotdl import __main__ as spotdl
+
+from term_utils import clear_screen
 
 
 def download_song(song_names: str):
     """
     Downloads song without video
     """
-    clr_src = "cls" if system().lower().startswith("win") else "clear"
 
     try:
         os.makedirs(os.path.join(os.path.expanduser("~"), ".aurras", "Songs"))
@@ -25,7 +25,7 @@ def download_song(song_names: str):
 
     for song_name in song_names.split(", "):
         subprocess.check_call([sys.executable, spotdl.__file__, song_name])
-        subprocess.call(clr_src, shell=True)
+        clear_screen()
 
     for file in os.listdir():
         if file.endswith(".mp3"):

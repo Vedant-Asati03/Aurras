@@ -7,14 +7,13 @@ import os
 import shutil
 import subprocess
 import sys
-from platform import system
 from time import sleep
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import Completer, Completion
-import yt_dlp
 
 import spotipy
+import yt_dlp
 from pick import pick
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import Completer, Completion
 from requests import get
 from rich.console import Console
 from rich.table import Table
@@ -24,9 +23,9 @@ from spotipy import util
 
 from authenticatespotify import authenticate_spotify
 from playsong import play_playlist_offline, play_song_online
+from term_utils import clear_screen
 
 console = Console()
-CLRSRC = "cls" if system().lower().startswith("win") else "clear"
 table = Table(show_header=False, header_style="bold magenta")
 
 
@@ -54,7 +53,6 @@ def create_playlist(playlist_name: str, song_names: str):
         pass
 
     for song in song_names:
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 get(song_names, timeout=20)
@@ -81,7 +79,7 @@ def create_playlist(playlist_name: str, song_names: str):
         .strip()
         .capitalize()
     )
-    subprocess.call(CLRSRC, shell=True)
+    clear_screen()
 
     match ask_user:
         case "Y":
@@ -97,7 +95,9 @@ def play_playlist():
     Shows all the songs in a playlist
     """
 
-    choose_playlist, _ = pick(options=["DOWNLOADED-PLAYLISTS", "SAVED-PLAYLISTS"], indicator="⨀")
+    choose_playlist, _ = pick(
+        options=["DOWNLOADED-PLAYLISTS", "SAVED-PLAYLISTS"], indicator="⨀"
+    )
 
     match choose_playlist:
         case "DOWNLOADED-PLAYLISTS":
@@ -110,7 +110,7 @@ def play_playlist():
                 title="Your Saved Playlists\n\n",
                 indicator="⨀",
             )
-            subprocess.call(CLRSRC, shell=True)
+            clear_screen()
 
             with open(
                 os.path.join(playlist_dir, playlist),
@@ -154,7 +154,7 @@ def play_playlist():
                     song = song.replace("\n", "")
 
                     play_song_online(song)
-                    subprocess.call(CLRSRC, shell=True)
+                    clear_screen()
 
 
 def delete_playlist():
@@ -197,7 +197,6 @@ def add_inplaylist(playlist_name: str, song_names: str):
     }
 
     for song in song_names:
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 get(song, timeout=20)
@@ -309,8 +308,7 @@ def import_playlist():
         title="First you have to Authenticate yourself with Spotify\n\nDo you want to proceed",
         indicator="»",
     )
-    clear_src = "cls" if system().lower().startswith("win") else "clear"
-    subprocess.call(clear_src, shell=True)
+    clear_screen()
 
     match proceed:
         case "YES":
@@ -391,7 +389,7 @@ def import_playlist():
                 .strip()
                 .capitalize()
             )
-            subprocess.call(clear_src, shell=True)
+            clear_screen()
             match ask_user:
                 case "Y":
                     download_playlist(playlist_name + ".txt")

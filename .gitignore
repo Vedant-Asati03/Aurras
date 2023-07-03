@@ -129,6 +129,6 @@ dmypy.json
 .pyre/
 .cache
 .spotdl-cache
-.cache-LavaKing
+.cache-*
 textual_test.py
 recently_played_songs.txt

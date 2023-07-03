@@ -1,8 +1,9 @@
 """
 ...
 """
-import os
 import json
+import os
+
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -21,7 +22,6 @@ def recommend_songs(song_name):
         "r",
         encoding="UTF-8",
     ) as credential_data:
-
         get_credentials = credential_data.read()
         credentials = json.loads(get_credentials)
 

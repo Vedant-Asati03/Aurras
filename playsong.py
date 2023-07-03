@@ -3,26 +3,24 @@ Plays Song
 """
 
 import os
-import random
 import platform
-import threading
+import random
 import subprocess
+import threading
 
-from platform import system
-from prompt_toolkit import prompt
 import yt_dlp
-
 from pick import pick
-from requests import get
+from prompt_toolkit import prompt
 from pytube import Playlist
+from requests import get
 from rich.console import Console
 
-from lyrics import show_lyrics, translate_lyrics
 from logger import debug_log
+from lyrics import show_lyrics, translate_lyrics
 from mpvsetup import mpv_setup
+from term_utils import clear_screen
 
 console = Console()
-CLRSCR = "cls" if system().lower().startswith("win") else "clear"
 WINDOWS = platform.system() == "Windows"
 
 conf_file = os.path.join(os.path.expanduser("~"), ".aurras", "mpv", "mpv.conf")
@@ -80,7 +78,7 @@ def play_song_online(song_name: str):
     )
     event.set()
 
-    subprocess.call(CLRSCR, shell=True)
+    clear_screen()
 
 
 def play_song_offline():
@@ -95,7 +93,7 @@ def play_song_offline():
         options=os.listdir(os.path.join(path)),
         title="Select a song to play",
     )
-    subprocess.call(CLRSCR, shell=True)
+    clear_screen()
 
     index_ofsong = (os.listdir(os.path.join(path))).index(song)
     for song in (os.listdir(os.path.join(path)))[index_ofsong:]:
@@ -118,7 +116,7 @@ def play_song_offline():
             check=True,
         )
 
-        subprocess.call(CLRSCR, shell=True)
+        clear_screen()
 
 
 def play_playlist_offline():
@@ -134,7 +132,7 @@ def play_playlist_offline():
         title="Your Downloaded Playlists\n\n",
         indicator="⨀",
     )
-    subprocess.call(CLRSCR, shell=True)
+    clear_screen()
 
     song = prompt(
         completer=(os.listdir(os.path.join(path, playlist))),
@@ -163,14 +161,13 @@ def play_playlist_offline():
             check=True,
         )
 
-        subprocess.call(CLRSCR, shell=True)
+        clear_screen()
 
 
 def shuffle_play(play: str):
     """Plays random songs"""
 
     while not play.is_set():
-
         if os.path.exists(
             os.path.join(os.path.expanduser("~"), ".aurras", "recommended_songs.txt")
         ):

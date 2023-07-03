@@ -4,44 +4,29 @@ Music-Player
 
 import os
 import random
-import sys
 import threading
-import subprocess
-
 from time import sleep
-from platform import system
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.formatted_text import to_formatted_text
 
 import keyboard
-
 from pick import pick
+from prompt_toolkit import prompt
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.formatted_text import to_formatted_text
+from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from logger import exception_log
-
-from recommendation import recommend_songs
 from downloadsong import download_song
-from playlist import (
-    add_inplaylist,
-    create_playlist,
-    delete_playlist,
-    download_playlist,
-    import_playlist,
-    play_playlist,
-    remove_fromplaylist,
-)
-from playsong import (
-    play_playlist_offline,  # todo unused
-    play_song_offline,
-    play_song_online,
-    shuffle_play,
-)
+from logger import exception_log
+from playlist import (add_inplaylist, create_playlist, delete_playlist,
+                      download_playlist, import_playlist, play_playlist,
+                      remove_fromplaylist)
+from playsong import play_playlist_offline  # todo unused
+from playsong import play_song_offline, play_song_online, shuffle_play
+from recommendation import recommend_songs
+from term_utils import clear_screen
 
 
 def main():
@@ -51,8 +36,7 @@ def main():
     console = Console()
 
     while True:
-        CLRSCR = "cls" if system().lower().startswith("win") else "clear"
-        subprocess.call(CLRSCR, shell=True)
+        clear_screen()
 
         recent_songs = FileHistory("recently_played_songs.txt")
         recommendations = [
@@ -104,13 +88,13 @@ def main():
                 mouse_support=True,
                 history=recent_songs,
                 auto_suggest=AutoSuggestFromHistory(),
-                placeholder="Type here"
+                placeholder="Type here",
             )
             .strip()
             .lower()
         )
 
-        subprocess.call(CLRSCR, shell=True)
+        clear_screen()
 
         match song:
             case "shuffle play":
@@ -122,7 +106,7 @@ def main():
                 keyboard.wait("s")
                 if keyboard.is_pressed("s"):
                     event.set()
-                    subprocess.call(CLRSCR, shell=True)
+                    clear_screen()
 
             case "play offline":
                 try:
@@ -138,7 +122,7 @@ def main():
                     .capitalize()
                     .strip()
                 )
-                sys.stdout.write("\033[1A[\033[2K[\033[F")
+                print("\033[1A[\033[2K[\033[F")
 
                 download_song(download_song_name)
 
@@ -155,7 +139,7 @@ def main():
                     .strip()
                     .capitalize()
                 )
-                sys.stdout.write("\033[1A[\033[2K[\033[F")
+                print("\033[1A[\033[2K[\033[F")
 
                 song_names = prompt(
                     console.input(
@@ -168,7 +152,7 @@ def main():
                     .split(", ")
                 )
 
-                sys.stdout.write("\033[1A[\033[2K[\033[F")
+                print("\033[1A[\033[2K[\033[F")
 
                 create_playlist(playlist_name, song_names)
 
@@ -242,7 +226,7 @@ def main():
                         .strip()
                         .split(", ")
                     )
-                    sys.stdout.write("\033[1A[\033[2K\033[F")
+                    print("\033[1A[\033[2K\033[F")
                     add_inplaylist(playlist, song_names)
                 except Exception:
                     console.print("Playlist Not Found!")
