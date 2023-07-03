@@ -20,10 +20,15 @@ from rich.text import Text
 
 from downloadsong import download_song
 from logger import exception_log
-from playlist import (add_inplaylist, create_playlist, delete_playlist,
-                      download_playlist, import_playlist, play_playlist,
-                      remove_fromplaylist)
-from playsong import play_playlist_offline  # todo unused
+from playlist import (
+    add_inplaylist,
+    create_playlist,
+    delete_playlist,
+    download_playlist,
+    import_playlist,
+    play_playlist,
+    remove_fromplaylist,
+)
 from playsong import play_song_offline, play_song_online, shuffle_play
 from recommendation import recommend_songs
 from term_utils import clear_screen
