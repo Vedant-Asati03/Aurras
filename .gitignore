@@ -131,4 +131,4 @@ dmypy.json
 .spotdl-cache
 .cache-LavaKing
 textual_test.py
-recently_played_songs
+recently_played_songs.txt

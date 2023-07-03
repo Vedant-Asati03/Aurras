@@ -9,7 +9,6 @@ import subprocess
 import sys
 from platform import system
 from time import sleep
-import time
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
 import yt_dlp

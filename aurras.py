@@ -12,8 +12,9 @@ from time import sleep
 from platform import system
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory, Suggestion, AutoSuggest
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.formatted_text import to_formatted_text
 
 import keyboard
 
@@ -36,7 +37,7 @@ from playlist import (
     remove_fromplaylist,
 )
 from playsong import (
-    play_playlist_offline,
+    play_playlist_offline,  # todo unused
     play_song_offline,
     play_song_online,
     shuffle_play,
@@ -96,13 +97,14 @@ def main():
 
         song = (
             prompt(
-                "Search Song\n",
+                to_formatted_text("Search Song\n", style="purple bold"),
                 completer=Recommend(),
                 complete_while_typing=True,
                 clipboard=True,
                 mouse_support=True,
                 history=recent_songs,
                 auto_suggest=AutoSuggestFromHistory(),
+                placeholder="Type here"
             )
             .strip()
             .lower()
