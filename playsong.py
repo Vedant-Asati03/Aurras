@@ -14,11 +14,13 @@ from prompt_toolkit import prompt
 from pytube import Playlist
 from requests import get
 from rich.console import Console
-
 from logger import debug_log
+
 from lyrics import show_lyrics, translate_lyrics
 from mpvsetup import mpv_setup
 from term_utils import clear_screen
+from recommendation import recommend_songs
+
 
 console = Console()
 WINDOWS = platform.system() == "Windows"
@@ -115,6 +117,7 @@ def play_song_offline():
             shell=True if WINDOWS else False,
             check=True,
         )
+        recommend_songs(song)
 
         clear_screen()
 
@@ -160,6 +163,7 @@ def play_playlist_offline():
             shell=True if WINDOWS else False,
             check=True,
         )
+        recommend_songs(song)
 
         clear_screen()
 
