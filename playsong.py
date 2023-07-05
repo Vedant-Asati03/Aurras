@@ -3,23 +3,24 @@ Plays Song
 """
 
 import os
-import platform
 import random
-import subprocess
+import platform
 import threading
+import subprocess
 
 import yt_dlp
-from pick import pick
-from prompt_toolkit import prompt
-from pytube import Playlist
-from requests import get
-from rich.console import Console
-from logger import debug_log
 
-from lyrics import show_lyrics, translate_lyrics
+from pick import pick
+from requests import get
+from pytube import Playlist
+from logger import debug_log
+from rich.console import Console
+from prompt_toolkit import prompt
+
 from mpvsetup import mpv_setup
 from term_utils import clear_screen
 from recommendation import recommend_songs
+from lyrics import show_lyrics, translate_lyrics
 
 
 console = Console()
@@ -168,10 +169,12 @@ def play_playlist_offline():
         clear_screen()
 
 
-def shuffle_play(play: str):
-    """Plays random songs"""
+def shuffle_play(stop_playing_event):
+    """
+    #!Plays songs from recommendations(If recommend_songs.txt exists), else play songs randomly
+    """
 
-    while not play.is_set():
+    while not stop_playing_event.is_set():
         if os.path.exists(
             os.path.join(os.path.expanduser("~"), ".aurras", "recommended_songs.txt")
         ):
@@ -186,6 +189,8 @@ def shuffle_play(play: str):
                 random.shuffle(reader)
 
             for song in reader:
+                if stop_playing_event.is_set():
+                    break
                 play_song_online(song)
 
         else:
@@ -203,8 +208,9 @@ def shuffle_play(play: str):
             top_song = Playlist(random.choice(playlist_link)).video_urls
 
             song = random.choice(top_song)
+            if stop_playing_event.is_set():
+                break
             play_song_online(song)
-            break
 
 
 if __name__ == "__main__":

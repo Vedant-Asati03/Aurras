@@ -7,20 +7,21 @@ import random
 import threading
 from time import sleep
 
-import keyboard
-from pick import pick
 from prompt_toolkit import prompt
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
-from rich.console import Console
-from rich.table import Table
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+
+from pick import pick
 from rich.text import Text
+from rich.table import Table
+from rich.console import Console
 from logger import exception_log
 
 from recommendation import recommend_songs
 from downloadsong import download_song
+from term_utils import clear_screen
 from playlist import (
     add_inplaylist,
     create_playlist,
@@ -35,7 +36,6 @@ from playsong import (
     play_song_online,
     shuffle_play,
 )
-from term_utils import clear_screen
 
 
 def main():
@@ -116,15 +116,22 @@ def main():
 
         match song:
             case "shuffle play":
-                event = threading.Event()
+                stop_playing_event = threading.Event()
 
-                playing = threading.Thread(target=shuffle_play, args=(event,))
-                playing.start()
+                thread_shuffle_play = threading.Thread(
+                    target=shuffle_play, args=(stop_playing_event,)
+                )
+                thread_shuffle_play.start()
 
-                keyboard.wait("s")
-                if keyboard.is_pressed("s"):
-                    event.set()
-                    clear_screen()
+                try:
+                    while True:
+                        pass
+                except KeyboardInterrupt:
+                    stop_playing_event.set()
+
+                thread_shuffle_play.join()
+
+                clear_screen()
 
             case "play offline":
                 try:

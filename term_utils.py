@@ -3,6 +3,7 @@ from subprocess import CalledProcessError, run
 
 from logger import exception_log
 
+
 WINDOWS = system() == "Windows"
 
 

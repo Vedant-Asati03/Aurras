@@ -138,3 +138,21 @@
 # song = session.prompt("Search Song\n").strip().lower()
 
 # print(f"You entered: {song}")
+
+
+from prompt_toolkit import prompt
+from prompt_toolkit.application import Application
+from prompt_toolkit.key_binding import KeyBindings
+
+# Define custom key bindings
+kb = KeyBindings()
+
+@kb.add('a')
+def _(event):
+    print('Key "a" is pressed!')
+
+# Create an application
+app = Application(key_bindings=kb)
+
+# Start the application event loop
+app.run()
