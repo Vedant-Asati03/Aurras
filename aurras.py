@@ -3,13 +3,13 @@ Music-Player
 """
 
 import os
-import random
+import sqlite3
 import threading
 from time import sleep
 
 from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
-from prompt_toolkit.history import FileHistory
+from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
@@ -17,24 +17,24 @@ from pick import pick
 from rich.text import Text
 from rich.table import Table
 from rich.console import Console
-from logger import exception_log
 
-from recommendation import recommend_songs
-from downloadsong import download_song
+from logger import exception_log
 from term_utils import clear_screen
+from downloadsong import download_song
+from recommendation import recommend_songs
 from playlist import (
+    play_playlist,
     add_inplaylist,
     create_playlist,
     delete_playlist,
-    download_playlist,
     import_playlist,
-    play_playlist,
+    download_playlist,
     remove_fromplaylist,
 )
 from playsong import (
-    play_song_offline,
-    play_song_online,
     shuffle_play,
+    play_song_online,
+    play_song_offline,
 )
 
 
@@ -46,11 +46,19 @@ def main():
 
     while True:
         clear_screen()
+        # path_cache = os.path.join(os.path.expanduser("~"), ".aurras", "cache.db")
 
-        recent_songs_file = os.path.join(
-            os.path.expanduser("~"), ".aurras", "recently_played_songs.txt"
-        )
-        recent_songs = FileHistory(recent_songs_file)
+        # with sqlite3.connect(path_cache) as song_history:
+        #     cursor = song_history.cursor()
+
+        #     cursor.execute("SELECT song_name FROM cache")
+
+        #     history = cursor.fetchall()
+        #     commands = [row[0] for row in history]
+
+        #     recent_songs = InMemoryHistory()
+        #     recent_songs.extend(commands)
+
         recommendations = [
             "Shuffle Play",
             "Play Offline",
@@ -63,22 +71,6 @@ def main():
             "Add song in a Playlist",
             "Remove song from a Playlist",
         ]
-
-        if os.path.exists(
-            os.path.join(os.path.expanduser("~"), ".aurras", "recommended_songs.txt")
-        ):
-            with open(
-                os.path.join(
-                    os.path.expanduser("~"), ".aurras", "recommended_songs.txt"
-                ),
-                "r",
-                encoding="UTF-8",
-            ) as recommended_list:
-                reader = recommended_list.readlines()
-                random.shuffle(reader)
-
-                for recommended_song in reader[-10:]:
-                    recommendations.append(recommended_song)
 
         class Recommend(Completer):
             def get_completions(self, document, complete_event):
@@ -105,8 +97,8 @@ def main():
                 complete_while_typing=True,
                 clipboard=True,
                 mouse_support=True,
-                history=recent_songs,
-                auto_suggest=AutoSuggestFromHistory(),
+                # history=recent_songs,
+                # auto_suggest=suggestions,
             )
             .strip()
             .lower()
@@ -164,9 +156,9 @@ def main():
                     .strip()
                     .capitalize()
                 )
-                print("\033[1A[\033[2K[\033[F")
+                clear_screen()
 
-                song_names = prompt(
+                song_names = (
                     console.input(
                         Text(
                             "Enter Song name to add in playlist: ",
@@ -177,7 +169,7 @@ def main():
                     .split(", ")
                 )
 
-                print("\033[1A[\033[2K[\033[F")
+                clear_screen()
 
                 create_playlist(playlist_name, song_names)
 
@@ -276,11 +268,12 @@ def main():
                     sleep(1)
 
             case _:
-                recommend_songs(song)
                 play_song_online(song)
+                recommend_songs()
 
 
 if __name__ == "__main__":
+
     c = Console()
     try:
         main()

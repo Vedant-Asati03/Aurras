@@ -140,19 +140,35 @@
 # print(f"You entered: {song}")
 
 
-from prompt_toolkit import prompt
-from prompt_toolkit.application import Application
-from prompt_toolkit.key_binding import KeyBindings
+# from prompt_toolkit import prompt
+# from prompt_toolkit.application import Application
+# from prompt_toolkit.key_binding import KeyBindings
 
-# Define custom key bindings
-kb = KeyBindings()
+# # Define custom key bindings
+# kb = KeyBindings()
 
-@kb.add('a')
-def _(event):
-    print('Key "a" is pressed!')
+# @kb.add('a')
+# def _(event):
+#     print('Key "a" is pressed!')
 
-# Create an application
-app = Application(key_bindings=kb)
+# # Create an application
+# app = Application(key_bindings=kb)
 
-# Start the application event loop
-app.run()
+# # Start the application event loop
+# app.run()
+
+import os
+import sqlite3
+
+path_recommendations = os.path.join(
+    os.path.expanduser("~"), ".aurras", "spotify_auth.db"
+)
+
+with sqlite3.connect(path_recommendations) as recommendation:
+    cursor = recommendation.cursor()
+
+    cursor.execute("SELECT client_id, client_secret, scope, username, redirect_uri FROM spotify_auth")
+
+    row = cursor.fetchone()
+
+    print(row[0])

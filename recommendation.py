@@ -1,56 +1,67 @@
 """
 ...
 """
-import json
 import os
+import sqlite3
 
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
 
-def recommend_songs(song_name):
+def recommend_songs():
     """
     This function recommend songs
     """
+    path_spotifyauth = os.path.join(
+        os.path.expanduser("~"), ".aurras", "spotify_auth.db"
+    )
+    path_recommendation = os.path.join(
+        os.path.expanduser("~"), ".aurras", "recommendation.db"
+    )
+    path_cache = os.path.join(os.path.expanduser("~"), ".aurras", "cache.db")
 
-    with open(
-        os.path.join(
-            os.path.expanduser("~"),
-            ".aurras",
-            "spotify_auth.json",
-        ),
-        "r",
-        encoding="UTF-8",
-    ) as credential_data:
-        get_credentials = credential_data.read()
-        credentials = json.loads(get_credentials)
+    with sqlite3.connect(path_cache) as recommendation:
+
+        cursor = recommendation.cursor()
+
+        cursor.execute("SELECT song_name FROM cache")
+        songs = cursor.fetchmany(5)
+
+    with sqlite3.connect(path_spotifyauth) as auth:
+
+        cursor = auth.cursor()
+
+        cursor.execute("SELECT client_id, client_secret FROM spotify_auth")
+        row = cursor.fetchone()
 
         client_credentials_manager = SpotifyClientCredentials(
-            client_id=credentials["client_id"],
-            client_secret=credentials["client_secret"],
+            client_id=row[0],
+            client_secret=row[1],
         )
         SP = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
-        results = SP.search(q=song_name, limit=1, type="track")
+        for song_name in songs:
 
-        if len(results["tracks"]["items"]) > 0:
-            song_id = results["tracks"]["items"][0]["id"]
+            results = SP.search(q=song_name, limit=1, type="track")
 
-            related_songs = SP.recommendations(seed_tracks=[song_id], limit=10)[
-                "tracks"
-            ]
+            if len(results["tracks"]["items"]) > 0:
+                song_id = results["tracks"]["items"][0]["id"]
 
-            related_song_names = [song["name"] for song in related_songs]
+                recommended_song = SP.recommendations(seed_tracks=[song_id], limit=1)[
+                    "tracks"
+                ][0]["name"]
+            else:
+                return []
 
-            with open(
-                os.path.join(
-                    os.path.expanduser("~"), ".aurras", "recommended_songs.txt"
-                ),
-                "a",
-                encoding="UTF-8",
-            ) as recommended_list:
-                for song in related_song_names:
-                    recommended_list.write(song + "\n")
+            with sqlite3.connect(path_recommendation) as recommendation:
+                cursor = recommendation.cursor()
+                cursor.execute(
+                    """CREATE TABLE IF NOT EXISTS recommendations (song TEXT)"""
+                )
 
-        else:
-            return []
+                cursor.execute(
+                    "INSERT INTO recommendations (song) VALUES (:song)",
+                    {"song": recommended_song},
+                )
+
+        auth.commit()

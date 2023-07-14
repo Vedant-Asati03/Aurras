@@ -3,10 +3,10 @@ Shows lyrics
 """
 
 import keyboard
+from rich.table import Table
+from rich.console import Console
 from googletrans import Translator
 from lyrics_extractor import SongLyrics
-from rich.console import Console
-from rich.table import Table
 
 from term_utils import clear_screen
 

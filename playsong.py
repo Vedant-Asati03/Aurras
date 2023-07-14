@@ -1,25 +1,23 @@
 """
 Plays Song
 """
-
 import os
 import random
 import platform
 import threading
 import subprocess
 
-import yt_dlp
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import Completer, Completion
 
 from pick import pick
-from requests import get
 from pytube import Playlist
-from logger import debug_log
 from rich.console import Console
-from prompt_toolkit import prompt
 
+from logger import debug_log
 from mpvsetup import mpv_setup
+from searchsong import search_song
 from term_utils import clear_screen
-from recommendation import recommend_songs
 from lyrics import show_lyrics, translate_lyrics
 
 
@@ -35,27 +33,10 @@ def play_song_online(song_name: str):
     Searches for song
     """
 
+    song_title = search_song(song_name)[0]
+    song_url = search_song(song_name)[1]
+
     mpv_setup()
-
-    ydl_opts = {
-        "format": "bestaudio",
-        "noplaylist": "True",
-        "skipdownload": "True",
-        "quiet": "True",
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            get(song_name, timeout=15)
-        except Exception:
-            audio = ydl.extract_info(f"ytsearch:{song_name}", download=False)[
-                "entries"
-            ][0]
-        else:
-            audio = ydl.extract_info(song_name, download=False)
-
-    song_title = audio["title"]
-    song_url = audio["webpage_url"]
 
     console.print(f"Playing🎶: {song_title}\n", end="\r", style="u #E8F3D6")
 
@@ -73,7 +54,6 @@ def play_song_online(song_name: str):
     show_lyrics(song_title)
 
     lyrics_translation.start()
-
     subprocess.run(
         (f"mpv --include={conf_file} --input-conf={input_file} {song_url}"),
         shell=True,
@@ -98,19 +78,15 @@ def play_song_offline():
     )
     clear_screen()
 
-    index_ofsong = (os.listdir(os.path.join(path))).index(song)
-    for song in (os.listdir(os.path.join(path)))[index_ofsong:]:
+    song_index = (os.listdir(os.path.join(path))).index(song)
+
+    for song in (os.listdir(os.path.join(path)))[song_index:]:
         console.print(f"Playing🎶: {song}\n", end="\r", style="u #E8F3D6")
         command = [
             "mpv",
             f"--include={conf_file}",
             f"--input-conf={input_file}",
-            os.path.join(
-                os.path.expanduser("~"),
-                ".aurras",
-                "Songs",
-                song,
-            ),
+            os.path.join(path, song),
         ]
         debug_log(f"playing offline song with command: {command}")
         subprocess.run(
@@ -118,7 +94,6 @@ def play_song_offline():
             shell=True if WINDOWS else False,
             check=True,
         )
-        recommend_songs(song)
 
         clear_screen()
 
@@ -130,41 +105,54 @@ def play_playlist_offline():
 
     mpv_setup()
 
-    path = os.path.join(os.path.expanduser("~"), ".aurras", "Downloaded-Playlists")
+    playlists_dir = os.path.join(
+        os.path.expanduser("~"), ".aurras", "Downloaded-Playlists"
+    )
+
     playlist, _ = pick(
-        os.listdir(path),
+        os.listdir(playlists_dir),
         title="Your Downloaded Playlists\n\n",
-        indicator="⨀",
+        indicator="⁕",
     )
     clear_screen()
 
+    recommendations = os.listdir(os.path.join(playlists_dir, playlist))
+
+    class Recommend(Completer):
+        def get_completions(self, document, complete_event):
+            """
+            auto completes
+            """
+            completions = [
+                Completion(recommendation, start_position=0)
+                for recommendation in recommendations
+            ]
+            return completions
+
     song = prompt(
-        completer=(os.listdir(os.path.join(path, playlist))),
+        placeholder="Search",
+        completer=Recommend(),
         complete_while_typing=True,
         mouse_support=True,
         clipboard=True,
-    )
+    ).strip()
 
-    index_ofsong = (os.listdir(os.path.join(path, playlist))).index(song)
-    for song in (os.listdir(os.path.join(path, playlist)))[index_ofsong:]:
+    clear_screen()
+
+    song_index = (os.listdir(os.path.join(playlists_dir, playlist))).index(song)
+    for song in (os.listdir(os.path.join(playlists_dir, playlist)))[song_index:]:
+
         console.print(f"Playing🎶: {song}\n", end="\r", style="u #E8F3D6")
         subprocess.run(
             [
                 "mpv",
                 f"--include={conf_file}",
                 f"--input-conf={input_file}",
-                os.path.join(
-                    os.path.expanduser("~"),
-                    ".aurras",
-                    "Downloaded-Playlists",
-                    playlist,
-                    song,
-                ),
+                os.path.join(playlists_dir, playlist, song),
             ],
             shell=True if WINDOWS else False,
             check=True,
         )
-        recommend_songs(song)
 
         clear_screen()
 
@@ -211,7 +199,3 @@ def shuffle_play(stop_playing_event):
             if stop_playing_event.is_set():
                 break
             play_song_online(song)
-
-
-if __name__ == "__main__":
-    play_song_offline()
