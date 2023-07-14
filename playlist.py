@@ -1,14 +1,13 @@
 """
 Playlist
 """
+
 import os
 import sys
-import json
 import shutil
 import sqlite3
 import subprocess
 from time import sleep
-import time
 
 import spotipy
 from pick import pick
@@ -16,7 +15,6 @@ from spotipy import util
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
 
-from rich.text import Text
 from rich.table import Table
 from rich.console import Console
 from spotdl import __main__ as spotdl
@@ -96,17 +94,26 @@ def play_playlist():
             play_playlist_offline()
 
         case "Saved Playlists":
-            playlist_dir = os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
-
-            playlist, _ = pick(
-                os.listdir(playlist_dir),
-                title="Your Saved Playlists\n\n",
-                indicator="⁕",
+            path_playlist = os.path.join(
+                os.path.expanduser("~"), ".aurras", "playlists.db"
             )
 
-            with sqlite3.connect(playlist_dir, playlist) as songs_inplaylist:
+            with sqlite3.connect(os.path.join(path_playlist)) as playlist:
 
-                cursor = songs_inplaylist.cursor()
+                cursor = playlist.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+
+                tables = cursor.fetchall()
+                table_names = [table[0] for table in tables]
+
+                playlist, _ = pick(
+                    options=table_names,
+                    title="Your Playlists\n\n",
+                    indicator="⁕",
+                )
+
+                cursor.execute(f"SELECT playlists_songs FROM '{playlist}'")
+                songs = cursor.fetchall()
 
                 class SONG(Completer):
                     """
@@ -115,12 +122,10 @@ def play_playlist():
 
                     def get_completions(self, document, complete_event):
                         completions = [
-                            Completion(recommendation, start_position=0)
-                            for recommendation in songs_inplaylist.readlines()
+                            Completion(str(recommendation[0]), start_position=0)
+                            for recommendation in songs
                         ]
                         return completions
-
-                # clear_screen()
 
                 song = prompt(
                     placeholder="Search Song",
@@ -130,24 +135,25 @@ def play_playlist():
                     clipboard=True,
                 ).strip()
 
-                print(song)
-                time.sleep(5)
+                clear_screen()
 
                 cursor.execute(
-                    "SELECT id FROM playlist WHERE songs = (:song)", {"song": song}
+                    f"SELECT id FROM '{playlist}' WHERE playlists_songs = (:song)",
+                    {"song": song},
                 )
                 result = cursor.fetchone()
-
                 song_index = result[0]
 
-                cursor.execute("SELECT songs FROM playlist WHERE id > ?", (song_index,))
+                cursor.execute(
+                    f"SELECT playlists_songs FROM '{playlist}' WHERE id >= ?",
+                    (song_index,),
+                )
 
                 results = cursor.fetchall()
                 songs_after = [row[0] for row in results]
 
                 for song in songs_after:
                     play_song_online(song)
-
                     clear_screen()
 
 
@@ -156,28 +162,35 @@ def delete_playlist():
     Deletes a playlist
     """
 
-    playlists = pick(
-        options=os.listdir(
-            os.path.join(os.path.expanduser("~"), ".aurras", "Playlists")
-        ),
-        multiselect=True,
-        title="Your Playlists\n\n",
-        min_selection_count=1,
-        indicator="⁕",
-    )
+    path_playlists = os.path.join(os.path.expanduser("~"), ".aurras", "playlists.db")
 
-    removed_playlist = []
+    with sqlite3.connect(path_playlists) as playlist:
 
-    for playlist, _ in playlists:
-        os.remove(
-            os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist)
+        cursor = playlist.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+
+        tables = cursor.fetchall()
+        table_names = [table[0] for table in tables]
+
+        # options = []
+
+        # for table_name in table_names:
+        #     options.append(table_name)
+
+        playlists = pick(
+            options=table_names,
+            multiselect=True,
+            title="Your Playlists\n\n",
+            indicator="⁕",
         )
-        removed_playlist.append(playlist.removesuffix(".db"))
 
-    console.print(
-        f"Removed playlist - {removed_playlists for removed_playlists in removed_playlist}"
-    )
-    sleep(1.5)
+        removed_playlists = [playlists]
+
+        for playlist, _ in playlists:
+            cursor.execute(f"DROP TABLE IF EXISTS '{playlist}'")
+
+        console.print(f"Removed playlist - {', '.join(removed_playlists)}")
+        sleep(1.5)
 
 
 def add_inplaylist(playlist_name: str, song_names: str):
@@ -235,14 +248,12 @@ def download_playlist(playlist_name: str):
     """
     Downloads users playlist
     """
-    path_playlist = os.path.join(
-        os.path.expanduser("~"), ".aurras", "Playlists", playlist_name
-    )
+    path_playlist = os.path.join(os.path.expanduser("~"), ".aurras", "playlists.db")
     path_downloadplaylist = os.path.join(
         os.path.expanduser("~"),
         ".aurras",
         "Downloaded-Playlists",
-        playlist_name.removesuffix(".db"),
+        playlist_name,
     )
 
     try:
@@ -251,7 +262,7 @@ def download_playlist(playlist_name: str):
         pass
 
     console.print(
-        f"Downloading Playlist - {playlist_name.removesuffix('.db')}\n\n",
+        f"Downloading Playlist - {playlist_name}\n\n",
         style="#D09CFA",
     )
 
@@ -259,7 +270,7 @@ def download_playlist(playlist_name: str):
 
         cursor = playlist_download.cursor()
 
-        cursor.execute("SELECT songs FROM playlist")
+        cursor.execute(f"SELECT playlists_songs FROM '{playlist_name}'")
         rows = cursor.fetchall()
 
         for row in rows:
@@ -339,41 +350,28 @@ def import_playlist():
 
             tracks = SPOTIFY.playlist_items(name_id[playlist_name])
 
-            try:
-                os.makedirs(
-                    os.path.join(
-                        os.path.expanduser("~"),
-                        ".aurras",
-                        "Playlists",
-                    )
-                )
-
-            except FileExistsError:
-                pass
-
             path_playlist = os.path.join(
                 os.path.expanduser("~"),
                 ".aurras",
-                "Playlists",
-                playlist_name + ".db",
+                "playlists.db",
             )
 
-            with sqlite3.connect(path_playlist) as playlist_songs:
-                cursor = playlist_songs.cursor()
+            with sqlite3.connect(path_playlist) as playlist:
+                cursor = playlist.cursor()
 
                 for track in tracks["items"]:
                     # track["track"]["name"]
 
                     cursor.execute(
-                        """CREATE TABLE IF NOT EXISTS playlist (songs TEXT)"""
+                        f"CREATE TABLE IF NOT EXISTS '{playlist_name}' (id INTEGER PRIMARY KEY, playlists_songs TEXT)"
                     )
 
                     cursor.execute(
-                        "INSERT INTO playlist (songs) VALUES (:song)",
+                        f"INSERT INTO '{playlist_name}' (playlists_songs) VALUES (:song)",
                         {"song": track["track"]["name"]},
                     )
 
-            console.print(f"Created Playlist named - {playlist_name}", style="#D09CFA")
+            console.print(f"Created Playlist - {playlist_name}", style="#D09CFA")
 
             ask_user, _ = pick(
                 title="Do you want to download this Playlist\n\n",
@@ -384,7 +382,7 @@ def import_playlist():
             clear_screen()
             match ask_user:
                 case "Yes, why not!":
-                    download_playlist(playlist_name + ".db")
+                    download_playlist(playlist_name)
                 case _:
                     pass
 

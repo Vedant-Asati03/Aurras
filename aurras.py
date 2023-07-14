@@ -144,11 +144,12 @@ def main():
                 download_song(download_song_name)
 
             case "play playlist":
-                try:
-                    play_playlist()
-                except Exception:
-                    console.print("Playlist Not Found!")
-                    sleep(1)
+                play_playlist()
+                # try:
+                #     play_playlist()
+                # except Exception:
+                #     console.print("Playlist Not Found!")
+                #     sleep(1)
 
             case "create playlist":
                 playlist_name = (

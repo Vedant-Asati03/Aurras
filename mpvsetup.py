@@ -29,7 +29,7 @@ def mpv_setup():
             os.path.join(path, "input.conf"), "w", encoding="UTF-8"
         ) as mpv_input_file:
             mpv_input_file.write(
-                "UP    add volume 7\nDOWN    add volume -7\nWHEEL_UP   add volume 2\nWHEEL_DOWN    add volume -2\nc    quit\ns    quit\n"
+                "UP    add volume 7\nDOWN    add volume -7\nWHEEL_UP   add volume 2\nWHEEL_DOWN    add volume -2\nq    quit\n"
             )
 
     except FileExistsError:
