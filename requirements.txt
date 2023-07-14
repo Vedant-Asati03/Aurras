@@ -10,5 +10,4 @@ requests==2.28.1
 rich==12.6.0
 spotdl==3.9.6
 spotipy==2.22.0
-textual==0.1.18
 yt-dlp==2023.6.22
