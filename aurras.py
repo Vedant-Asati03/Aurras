@@ -1,290 +1,264 @@
-"""
-Music-Player
-"""
-
-import os
-import sqlite3
-import threading
 from time import sleep
-
+from sqlitedict import SqliteDict
 from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
-from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-
-from pick import pick
+from prompt_toolkit.history import History
+import questionary
 from rich.text import Text
-from rich.table import Table
 from rich.console import Console
 
+import config as path
 from logger import exception_log
 from term_utils import clear_screen
-from downloadsong import download_song
-from recommendation import recommend_songs
-from playlist import (
-    play_playlist,
-    add_inplaylist,
-    create_playlist,
-    delete_playlist,
-    import_playlist,
-    download_playlist,
-    remove_fromplaylist,
-)
+from downloadsong import SongDownloader
+from recommendation import SongRecommendations
+from playlist import DownloadPlaylist, DeletePlaylist, ImportPlaylist
 from playsong import (
-    shuffle_play,
-    play_song_online,
-    play_song_offline,
+    ListenSongOnline,
+    ListenSongOffline,
+    ListenPlaylistOnline,
+    ListenPlaylistOffline,
 )
 
 
-def main():
+class SongHistory(History):
     """
-    calls play_song and plays the song
+    History class for handling recent songs in AurrasApp.
+
+    Attributes:
+    - database_path (str): Path to the SQLite database file.
+    - db_path (str): Database path for storing command history.
+    - history_dict (SqliteDict): SqliteDict instance for storing command history.
     """
-    console = Console()
 
-    while True:
-        clear_screen()
-        # path_cache = os.path.join(os.path.expanduser("~"), ".aurras", "cache.db")
+    def __init__(self):
+        """
+        Initialize the SqliteHistory class.
 
-        # with sqlite3.connect(path_cache) as song_history:
-        #     cursor = song_history.cursor()
+        Parameters:
+        - database_path (str): Path to the SQLite database file.
+        """
+        self.history_dict = SqliteDict(path.cache, autocommit=True)
+        super().__init__()
 
-        #     cursor.execute("SELECT song_name FROM cache")
+    def append_string(self, string):
+        """
+        Append a string to the command history.
 
-        #     history = cursor.fetchall()
-        #     commands = [row[0] for row in history]
+        Parameters:
+        - string (str): The string to be appended to the history.
+        """
+        try:
+            index = str(len(self.history_dict))
+            self.history_dict[index] = string
+        except Exception as e:
+            exception_log(f"Error appending string to history: {e}")
 
-        #     recent_songs = InMemoryHistory()
-        #     recent_songs.extend(commands)
+    def load_history_strings(self):
+        """
+        Load history strings from the SQLite database.
 
-        recommendations = [
-            "Shuffle Play",
+        Returns:
+        - List[str]: List of history strings.
+        """
+        try:
+            return list(self.history_dict.values())
+        except Exception as e:
+            exception_log(f"Error loading history strings: {e}")
+            return []
+
+    def store_string(self, line):
+        """
+        Store a string in the command history.
+
+        Parameters:
+        - line (str): The string to be stored in the history.
+        """
+        try:
+            index = str(len(self.history_dict))
+            self.history_dict[index] = line
+        except Exception as e:
+            exception_log(f"Error storing string in history: {e}")
+
+
+class CommandCompleter(Completer):
+    """
+    Auto-completion class for AurrasApp.
+
+    Attributes:
+    - recommendations (list): List of recommendations for auto-completion.
+    """
+
+    def __init__(self):
+        """
+        Initialize the Recommend class.
+        """
+        self.recommendations = [
+            # "Shuffle Play",
             "Play Offline",
             "Download Song",
             "Play Playlist",
-            "Create Playlist",
             "Delete Playlist",
             "Import Playlist",
             "Download Playlist",
-            "Add song in a Playlist",
-            "Remove song from a Playlist",
         ]
 
-        class Recommend(Completer):
-            def get_completions(self, document, complete_event):
-                """
-                auto completes
-                """
-                completions = [
-                    Completion(recommendation, start_position=0)
-                    for recommendation in recommendations
-                ]
-                return completions
+    def get_completions(self, document, complete_event):
+        """
+        Get auto-completions.
 
+        Parameters:
+        - document: The document being completed.
+        - complete_event: The completion event.
+
+        Returns:
+        - List[Completion]: List of auto-completions.
+        """
+        completions = [
+            Completion(recommendation, start_position=0)
+            for recommendation in self.recommendations
+        ]
+        return completions
+
+
+class AurrasApp:
+    """
+    AurrasApp class for handling the Aurras music player application.
+
+    Attributes:
+    - console (Console): Rich Console for printing messages.
+    - recent_songs (RecentSongs): Instance of the RecentSongs class for handling command history.
+    """
+
+    def __init__(self):
+        """
+        Initialize the AurrasApp class.
+
+        Parameters:
+        - recent_songs (RecentSongs): Instance of the RecentSongs
+        class for handling command history.
+        """
+        self.song = None
+        self.console = Console()
+        self.recommend = SongRecommendations()
+
+    def run(self):
+        """Run the AurrasApp"""
+        while True:
+            self.get_user_input()
+            self.handle_user_input(self.song)
+
+    def get_user_input(self):
+        """
+        Get user input for song search.
+
+        Returns:
+        - str: The user-inputted song.
+        """
+        clear_screen()
         style = Style.from_dict(
             {
                 "placeholder": "ansilightgray",
             }
         )
 
-        song = (
+        self.song = (
             prompt(
-                completer=Recommend(),
+                completer=CommandCompleter(),
                 placeholder="Search Song",
                 style=style,
                 complete_while_typing=True,
                 clipboard=True,
                 mouse_support=True,
-                # history=recent_songs,
-                # auto_suggest=suggestions,
+                history=SongHistory(),
+                auto_suggest=AutoSuggestFromHistory(),
             )
             .strip()
             .lower()
         )
-
         clear_screen()
 
+    def handle_user_input(self, song):
+        """
+        Handle user input based on the selected song.
+
+        Parameters:
+        - song (str): The user-selected song.
+        """
         match song:
-            case "shuffle play":
-                stop_playing_event = threading.Event()
-
-                thread_shuffle_play = threading.Thread(
-                    target=shuffle_play, args=(stop_playing_event,)
-                )
-                thread_shuffle_play.start()
-
-                try:
-                    while True:
-                        pass
-                except KeyboardInterrupt:
-                    stop_playing_event.set()
-
-                thread_shuffle_play.join()
-
-                clear_screen()
-
             case "play offline":
                 try:
-                    play_song_offline()
+                    ListenSongOffline().listen_song_offline()
                 except Exception as e:
                     exception_log(e)
-                    console.print("No Downloaded Songs Found!")
-                    sleep(1)
+                    self.console.print("No Downloaded Songs Found!")
+                    sleep(1.5)
 
             case "download song":
-                download_song_name = (
-                    console.input(Text("Enter song name: ", style="#A2DE96"))
-                    .capitalize()
-                    .strip()
+                songs_to_download = self.console.input(
+                    Text("Enter song name[s]: ", style="#A2DE96")
                 )
-                print("\033[1A[\033[2K[\033[F")
+                list_of_songs_to_download = [
+                    song.strip() for song in songs_to_download.split(",")
+                ]
 
-                download_song(download_song_name)
+                download = SongDownloader(
+                    list_of_songs_to_download, path.downloaded_songs
+                )
+                download.download_song()
 
             case "play playlist":
-                play_playlist()
-                # try:
-                #     play_playlist()
-                # except Exception:
-                #     console.print("Playlist Not Found!")
-                #     sleep(1)
+                online_offline = questionary.select(
+                    "", choices=["Play Online", "Play Offline"]
+                ).ask()
 
-            case "create playlist":
-                playlist_name = (
-                    console.input(Text("Enter Playlist name: ", style="#2C74B3"))
-                    .strip()
-                    .capitalize()
-                )
-                clear_screen()
-
-                song_names = (
-                    console.input(
-                        Text(
-                            "Enter Song name to add in playlist: ",
-                            style="#2C74B3",
-                        )
-                    )
-                    .strip()
-                    .split(", ")
-                )
-
-                clear_screen()
-
-                create_playlist(playlist_name, song_names)
+                match online_offline:
+                    case "Play Online":
+                        ListenPlaylistOnline().listen_playlist_online()
+                    case "Play Offline":
+                        ListenPlaylistOffline().listen_playlist_offline()
 
             case "delete playlist":
-                try:
-                    delete_playlist()
-                except Exception:
-                    console.print("No Playlist Available!")
-                    sleep(1)
+                online_offline = questionary.select(
+                    "Select Playlist to Delete",
+                    choices=["Saved Playlists", "Downloaded Playlists"],
+                ).ask()
+
+                match online_offline:
+                    case "Saved Playlists":
+                        DeletePlaylist().delete_saved_playlist()
+                    case "Downloaded Playlists":
+                        DeletePlaylist().delete_downloaded_playlist()
 
             case "import playlist":
-                import_playlist()
+                ImportPlaylist().import_playlist()
 
             case "download playlist":
                 try:
-                    playlist_to_download = pick(
-                        options=os.listdir(
-                            os.path.join(
-                                os.path.expanduser("~"),
-                                ".aurras",
-                                "Playlists",
-                            )
-                        ),
-                        multiselect=True,
-                        title="Select Playlist[s] to download",
-                        min_selection_count=1,
-                        indicator=">",
-                    )
-                    for playlist, _ in playlist_to_download:
-                        download_playlist(playlist)
+                    DownloadPlaylist().download_playlist()
                 except Exception:
-                    console.print("Playlist Not Found!")
-                    sleep(1)
-
-            case "add song in a playlist":
-                try:
-                    table = Table(show_header=False, header_style="bold magenta")
-
-                    playlist, _ = pick(
-                        os.listdir(
-                            os.path.join(
-                                os.path.expanduser("~"),
-                                ".aurras",
-                                "Playlists",
-                            )
-                        ),
-                        title="Your Playlists\n\n",
-                        indicator="»",
-                    )
-
-                    with open(
-                        os.path.join(
-                            os.path.expanduser("~"),
-                            ".aurras",
-                            "Playlists",
-                            playlist,
-                        ),
-                        "r",
-                        encoding="UTF-8",
-                    ) as songs_inplaylist:
-                        table.add_row(songs_inplaylist.read())
-                    console.print(table)
-
-                    song_names = (
-                        console.input(
-                            Text(
-                                "Enter Song name to add in playlist: ",
-                                style="#2C74B3",
-                            )
-                        )
-                        .strip()
-                        .split(", ")
-                    )
-                    print("\033[1A[\033[2K\033[F")
-                    add_inplaylist(playlist, song_names)
-                except Exception:
-                    console.print("Playlist Not Found!")
-                    sleep(1)
-
-            case "remove song from a playlist":
-                try:
-                    playlist, _ = pick(
-                        os.listdir(
-                            os.path.join(
-                                os.path.expanduser("~"),
-                                ".aurras",
-                                "Playlists",
-                            )
-                        ),
-                        title="Your Playlists\n\n",
-                        indicator=">",
-                    )
-                    remove_fromplaylist(playlist)
-                except Exception:
-                    console.print("Playlist Not Found!")
+                    self.console.print("Playlist Not Found!")
                     sleep(1)
 
             case _:
-                play_song_online(song)
-                recommend_songs()
+                ListenSongOnline(song).listen_song_online()
+                self.recommend.recommend_songs()
 
 
 if __name__ == "__main__":
+    aurras_app = AurrasApp()
 
-    c = Console()
     try:
-        main()
+        aurras_app.run()
 
     except KeyboardInterrupt:
-        c.print("[bold green]Thanks for using aurras![/]")
+        aurras_app.console.print("[bold green]Thanks for using aurras![/]")
 
     except Exception:
-        c.print("[bold red]Oh no! An unknown error occured.[/]")
-        c.print(
-            "[bold red] Please report it on https://github.com/Vedant-Asati03/aurras/issues with the following exception traceback: [/]"
+        aurras_app.console.print("[bold red]Oh no! An unknown error occurred.[/]")
+        aurras_app.console.print(
+            "[bold red]Please report it on https://github.com/Vedant-Asati03/aurras/issues with the following exception traceback:[/]"
         )
-        c.print_exception()
+        aurras_app.console.print_exception()

@@ -1,392 +1,260 @@
 """
-Playlist
+This module provides a playlist management system with classes for downloading, deleting, importing from Spotify, and playing playlists.
+
+Classes:
+- PlaylistManager: Base class for managing playlists.
+  - Attributes:
+    - console: Instance of the rich.Console class for enhanced console output.
+
+- DownloadPlaylist: Class for downloading playlists.
+  - Methods:
+    - download_playlist(): Download the specified playlist.
+
+- DeletePlaylist: Class for deleting playlists.
+  - Methods:
+    - delete_saved_playlist(self): Delete a saved playlist.
+    - delete_downloaded_playlist(self): Delete a downloaded playlist.
+
+- ImportPlaylist: Class for importing playlists from Spotify.
+  - Attributes:
+    - spotify_auth: Instance of the SpotifyAuthenticator class for Spotify authentication.
+  - Methods:
+    - _retrieve_user_playlists_from_spotify(): Retrieve the user's Spotify playlists.
+    - _get_playlist_to_import(): Get the user's selection of a playlist to import.
+    - _track_spotify_playlist(): Track songs from a Spotify playlist and store in the local database.
+    - import_playlist(): Import a playlist from Spotify.
+
+Example Usage:
+```python
+# Import the necessary classes
+from playlist_manager import DownloadPlaylist, DeletePlaylist, ImportPlaylist, PlayPlaylist
+
+# Create an instance of DownloadPlaylist and download a playlist
+download_manager = DownloadPlaylist(playlist_name="MyPlaylist", playlist_path)
+download_manager.download_playlist()
+
+# Create an instance of DeletePlaylist and delete a playlist
+delete_manager = DeletePlaylist()
+delete_manager.delete_playlist()
+
+# Create an instance of ImportPlaylist and import a playlist from Spotify
+import_manager = ImportPlaylist()
+import_manager.import_playlist()
+
 """
 
 import os
-import sys
-import shutil
 import sqlite3
-import subprocess
 from time import sleep
 
-import spotipy
-from pick import pick
-from spotipy import util
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import Completer, Completion
-
-from rich.table import Table
+import questionary
 from rich.console import Console
-from spotdl import __main__ as spotdl
 
-from searchsong import search_song
+import config as path
 from term_utils import clear_screen
-from authenticatespotify import authenticate_spotify
-from playsong import play_playlist_offline, play_song_online
-
-console = Console()
-table = Table(show_header=False, header_style="bold magenta")
+from downloadsong import SongDownloader
+from authenticatespotify import SpotifyAuthenticator
 
 
-def create_playlist(playlist_name: str, song_names: str):
+class PlaylistManager:
     """
-    Creates user playlist
+    Base class for managing playlists.
     """
 
-    try:
-        os.makedirs(
-            os.path.join(
-                os.path.expanduser("~"),
-                ".aurras",
-                "Playlists",
-            )
-        )
+    def __init__(self):
+        """
+        Initialize the PlaylistManager class.
+        """
+        self.console = Console()
 
-    except FileExistsError:
-        pass
-
-    path_playlists = os.path.join(
-        os.path.expanduser("~"), ".aurras", "Playlists", playlist_name + ".db"
-    )
-
-    for song in song_names:
-
-        with sqlite3.connect(path_playlists) as playlist_songs:
-
-            cursor = playlist_songs.cursor()
-
-            cursor.execute(
-                """CREATE TABLE IF NOT EXISTS playlist (id INTEGER PRIMARY KEY, songs TEXT)"""
-            )
-
-            cursor.execute(
-                "INSERT INTO playlist (songs) VALUES (:song)", {"song": song}
-            )
-
-    console.print(f"Created Playlist named - {playlist_name}", style="#D09CFA")
-
-    ask_user, _ = pick(
-        title="Do you want to download this playlist",
-        options=["Yes, ofcourse", "No"],
-        indicator="⁕",
-    )
-    clear_screen()
-
-    match ask_user:
-        case "Yes, ofcourse":
-            download_playlist(playlist_name + ".txt")
-        case _:
+        try:
+            os.makedirs(path.downloaded_playlists)
+        except FileExistsError:
             pass
-    sleep(1.55)
 
 
-def play_playlist():
+class SelectPlaylist(PlaylistManager):
     """
-    Plays the Playlists
-    """
-
-    choose_playlist, _ = pick(
-        options=["Downloaded Playlists", "Saved Playlists"], indicator="⁕"
-    )
-
-    match choose_playlist:
-        case "Downloaded Playlists":
-            play_playlist_offline()
-
-        case "Saved Playlists":
-            path_playlist = os.path.join(
-                os.path.expanduser("~"), ".aurras", "playlists.db"
-            )
-
-            with sqlite3.connect(os.path.join(path_playlist)) as playlist:
-
-                cursor = playlist.cursor()
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-
-                tables = cursor.fetchall()
-                table_names = [table[0] for table in tables]
-
-                playlist, _ = pick(
-                    options=table_names,
-                    title="Your Playlists\n\n",
-                    indicator="⁕",
-                )
-
-                cursor.execute(f"SELECT playlists_songs FROM '{playlist}'")
-                songs = cursor.fetchall()
-
-                class SONG(Completer):
-                    """
-                    Shows songs in the playlist
-                    """
-
-                    def get_completions(self, document, complete_event):
-                        completions = [
-                            Completion(str(recommendation[0]), start_position=0)
-                            for recommendation in songs
-                        ]
-                        return completions
-
-                song = prompt(
-                    placeholder="Search Song",
-                    completer=SONG(),
-                    complete_while_typing=True,
-                    mouse_support=True,
-                    clipboard=True,
-                ).strip()
-
-                clear_screen()
-
-                cursor.execute(
-                    f"SELECT id FROM '{playlist}' WHERE playlists_songs = (:song)",
-                    {"song": song},
-                )
-                result = cursor.fetchone()
-                song_index = result[0]
-
-                cursor.execute(
-                    f"SELECT playlists_songs FROM '{playlist}' WHERE id >= ?",
-                    (song_index,),
-                )
-
-                results = cursor.fetchall()
-                songs_after = [row[0] for row in results]
-
-                for song in songs_after:
-                    play_song_online(song)
-                    clear_screen()
-
-
-def delete_playlist():
-    """
-    Deletes a playlist
+    Class for selecting playlist.
     """
 
-    path_playlists = os.path.join(os.path.expanduser("~"), ".aurras", "playlists.db")
+    def __init__(self):
+        """Initialize the SelectPlaylist class."""
+        super().__init__()
+        self.active_playlist = None
+        self.songs_in_active_playlist = None
 
-    with sqlite3.connect(path_playlists) as playlist:
+    def select_playlist_from_db(self):
+        """Select a playlist from the saved playlists."""
+        with sqlite3.connect(path.saved_playlists) as playlists:
+            cursor = playlists.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
 
-        cursor = playlist.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            table_names = [table[0] for table in tables]
 
-        tables = cursor.fetchall()
-        table_names = [table[0] for table in tables]
+            self.active_playlist = questionary.select(
+                "Your Playlists\n\n", choices=table_names
+            ).ask()
 
-        # options = []
+            cursor.execute(f"SELECT playlists_songs FROM '{self.active_playlist}'")
+            songs_in_active_playlist = (
+                cursor.fetchall()
+            )  # this is a list of tuples containing all songs in active playlist
 
-        # for table_name in table_names:
-        #     options.append(table_name)
+            self.songs_in_active_playlist = [
+                str(song[0]) for song in songs_in_active_playlist
+            ]
 
-        playlists = pick(
-            options=table_names,
-            multiselect=True,
-            title="Your Playlists\n\n",
-            indicator="⁕",
+
+class DownloadPlaylist(PlaylistManager):
+    """
+    Class for downloading playlists.
+    """
+
+    def __init__(self):
+        """Initialize the DownloadPlaylist class."""
+        super().__init__()
+        self.select_playlist = SelectPlaylist()
+        self.select_playlist.select_playlist_from_db()
+        self.downloaded_playlist_path = os.path.join(
+            path.downloaded_playlists, self.select_playlist.active_playlist
+        )
+        self.download = SongDownloader(
+            self.select_playlist.songs_in_active_playlist,
+            self.downloaded_playlist_path,
         )
 
-        removed_playlists = [playlists]
+        try:
+            os.makedirs(self.downloaded_playlist_path)
+        except FileExistsError:
+            pass
 
-        for playlist, _ in playlists:
-            cursor.execute(f"DROP TABLE IF EXISTS '{playlist}'")
+    def download_playlist(self):
+        """Download the specified playlist."""
+        self.console.print(
+            f"Downloading Playlist - {self.select_playlist.active_playlist}\n\n",
+            style="#D09CFA",
+        )
 
-        console.print(f"Removed playlist - {', '.join(removed_playlists)}")
+        self.download.download_song()
+
+        self.console.print("Download complete.", style="#D09CFA")
+        sleep(1)
+
+
+class DeletePlaylist(PlaylistManager):
+    """
+    Class for deleting playlists.
+    """
+
+    def __init__(self):
+        """
+        Initialize the DeletePlaylist class.
+        """
+        super().__init__()
+        self.select_playlist = SelectPlaylist()
+        self.select_playlist.select_playlist_from_db()
+        self.downloaded_playlists = os.listdir(path.downloaded_playlists)
+
+    def delete_saved_playlist(self):
+        """Delete a saved playlist."""
+        with sqlite3.connect(path.saved_playlists) as playlist:
+            cursor = playlist.cursor()
+            cursor.execute(
+                f"DROP TABLE IF EXISTS '{self.select_playlist.active_playlist}'"
+            )
+            self.console.print(
+                f"Removed playlist - {self.select_playlist.active_playlist}"
+            )
+            sleep(1.5)
+
+    def delete_downloaded_playlist(self):
+        """Delete a downloaded playlist."""
+        accessed_playlist = questionary.select(
+            "Select a playlist to delete", choices=self.downloaded_playlists
+        ).ask()
+
+        os.remove(os.path.join(path.downloaded_playlists, accessed_playlist))
+        self.console.print(f"Removed playlist - {accessed_playlist}")
         sleep(1.5)
 
 
-def add_inplaylist(playlist_name: str, song_names: str):
+class ImportPlaylist(PlaylistManager):
     """
-    Adds a song, without deleting any of the content in the playlist
+    Class for importing playlists from Spotify.
     """
 
-    for song in song_names:
+    def __init__(self):
+        """
+        Initialize the ImportPlaylist class.
+        """
+        super().__init__()
+        self.spotify_auth = SpotifyAuthenticator()
+        self.spotify_conn = None
+        self.spotify_user_playlists = None
+        self.playlist_to_import = None
+        self.name_id_mapping = None
+        self._retrieve_user_playlists_from_spotify()
 
-        with open(
-            os.path.join(
-                os.path.expanduser("~"), ".aurras", "Playlists", playlist_name
-            ),
-            "a",
-            encoding="UTF-8",
-        ) as playlist_songs:
-            playlist_songs.write(search_song(song)[0] + "\n")
+        if not os.path.exists(path.spotify_auth):
+            self.spotify_auth.store_spotify_credentials()
+        else:
+            pass
 
-    console.print(f"Added songs in Playlist - {playlist_name}")
-    sleep(1.55)
+    def _retrieve_user_playlists_from_spotify(self):
+        """
+        Retrieve the user's Spotify playlists.
 
+        Returns:
+            tuple: A tuple containing playlists and the Spotify connection object.
+        """
+        self.spotify_conn = self.spotify_auth.connect_to_spotify()
+        self.spotify_user_playlists = self.spotify_conn.current_user_playlists()
 
-def remove_fromplaylist(playlist_name: str):
-    """
-    Removes song from a playlist
-    """
-    with open(
-        os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
-        "r",
-        encoding="UTF-8",
-    ) as songs_inplaylist:
-        songs = pick(
-            options=songs_inplaylist.readlines(),
-            title="Select Song[s] to remove",
-            multiselect=True,
-            indicator="⨀",
+    def _get_playlist_to_import(self):
+        """
+        Get the user's selection of a playlist to import.
+        """
+        my_spotify_playlists = [
+            my_playlist["name"] for my_playlist in self.spotify_user_playlists["items"]
+        ]
+
+        self.playlist_to_import = questionary.select(
+            "Your Spotify Playlists", choices=my_spotify_playlists
+        ).ask()
+
+    def _track_spotify_playlist(self):
+        """
+        Track songs from a Spotify playlist and store in the local database.
+        """
+        tracks = self.spotify_conn.playlist_items(
+            self.name_id_mapping[self.playlist_to_import]
         )
 
-    with open(
-        os.path.join(os.path.expanduser("~"), ".aurras", "Playlists", playlist_name),
-        "r",
-        encoding="UTF-8",
-    ) as songs_inplaylist:
-        for song, _ in songs:
-            # print(song)
-            # print(songs_inplaylist.readlines())
-            (songs_inplaylist.readlines()).remove(song)
-
-        # print(songs_inplaylist.readlines())
-
-    sleep(50)
-
-
-def download_playlist(playlist_name: str):
-    """
-    Downloads users playlist
-    """
-    path_playlist = os.path.join(os.path.expanduser("~"), ".aurras", "playlists.db")
-    path_downloadplaylist = os.path.join(
-        os.path.expanduser("~"),
-        ".aurras",
-        "Downloaded-Playlists",
-        playlist_name,
-    )
-
-    try:
-        os.makedirs(path_downloadplaylist)
-    except FileExistsError:
-        pass
-
-    console.print(
-        f"Downloading Playlist - {playlist_name}\n\n",
-        style="#D09CFA",
-    )
-
-    with sqlite3.connect(path_playlist) as playlist_download:
-
-        cursor = playlist_download.cursor()
-
-        cursor.execute(f"SELECT playlists_songs FROM '{playlist_name}'")
-        rows = cursor.fetchall()
-
-        for row in rows:
-            for song in row:
-
-                subprocess.check_call([sys.executable, spotdl.__file__, song])
-
-                for file in os.listdir():
-                    if file.endswith(".mp3"):
-                        shutil.move(file, path_downloadplaylist)
-
-    console.print("Download complete.", style="#D09CFA")
-    sleep(1)
-
-
-def import_playlist():
-    """
-    Imports playlist from other platforms
-    """
-    path_authfile = os.path.join(
-        os.path.expanduser("~"),
-        ".aurras",
-        "spotify_auth.db",
-    )
-
-    proceed, _ = pick(
-        options=["Yeah", "Nope"],
-        title="First you have to Authenticate yourself with Spotify\n\nDo you want to proceed",
-        indicator="»",
-    )
-    clear_screen()
-
-    match proceed:
-        case "Yeah":
-            if not os.path.exists(path_authfile):
-                authenticate_spotify()
-            else:
-                pass
-
-            with sqlite3.connect(path_authfile) as auth:
-
-                cursor = auth.cursor()
-
+        with sqlite3.connect(path.saved_playlists) as playlist:
+            cursor = playlist.cursor()
+            for track in tracks["items"]:
                 cursor.execute(
-                    "SELECT client_id, client_secret, scope, username, redirect_uri FROM spotify_auth"
+                    f"CREATE TABLE IF NOT EXISTS '{self.playlist_to_import}' (id INTEGER PRIMARY KEY, playlists_songs TEXT)"
                 )
-                row = cursor.fetchone()
-
-                token = util.prompt_for_user_token(
-                    client_id=row[0],
-                    client_secret=row[1],
-                    scope=row[2],
-                    username=row[3],
-                    redirect_uri=row[4],
+                cursor.execute(
+                    f"INSERT INTO '{self.playlist_to_import}' (playlists_songs) VALUES (:song)",
+                    {"song": track["track"]["name"]},
                 )
 
-            SPOTIFY = spotipy.Spotify(auth=token)
+    def import_playlist(self):
+        """
+        Import a playlist from Spotify and optionally download it.
+        """
+        self._get_playlist_to_import()
+        self.name_id_mapping = {
+            playlist["name"]: playlist["id"]
+            for playlist in self.spotify_user_playlists["items"]
+        }
 
-            playlists = SPOTIFY.current_user_playlists()
+        clear_screen()
 
-            name_id = {}
-            playlists_name = []
-
-            for user_playlist in playlists["items"]:
-                playlist_name, playlist_id = (
-                    user_playlist["name"],
-                    user_playlist["id"],
-                )
-
-                name_id[playlist_name] = playlist_id
-
-                playlists_name.append(playlist_name)
-
-            playlist_name, _ = pick(
-                options=playlists_name, title="Your Spotify Playlists", indicator="»"
-            )
-
-            tracks = SPOTIFY.playlist_items(name_id[playlist_name])
-
-            path_playlist = os.path.join(
-                os.path.expanduser("~"),
-                ".aurras",
-                "playlists.db",
-            )
-
-            with sqlite3.connect(path_playlist) as playlist:
-                cursor = playlist.cursor()
-
-                for track in tracks["items"]:
-                    # track["track"]["name"]
-
-                    cursor.execute(
-                        f"CREATE TABLE IF NOT EXISTS '{playlist_name}' (id INTEGER PRIMARY KEY, playlists_songs TEXT)"
-                    )
-
-                    cursor.execute(
-                        f"INSERT INTO '{playlist_name}' (playlists_songs) VALUES (:song)",
-                        {"song": track["track"]["name"]},
-                    )
-
-            console.print(f"Created Playlist - {playlist_name}", style="#D09CFA")
-
-            ask_user, _ = pick(
-                title="Do you want to download this Playlist\n\n",
-                options=["Nah...", "Yes, why not!"],
-                indicator="»",
-            )
-
-            clear_screen()
-            match ask_user:
-                case "Yes, why not!":
-                    download_playlist(playlist_name)
-                case _:
-                    pass
-
-            sleep(1.55)
-
-        case _:
-            pass
+        self._track_spotify_playlist()
+        self.console.print(f"Imported Playlist - {self.playlist_to_import}")
+        sleep(1.5)

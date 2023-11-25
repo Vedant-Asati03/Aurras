@@ -157,18 +157,68 @@
 # # Start the application event loop
 # app.run()
 
+# import os
+# import sqlite3
+
+# path_recommendations = os.path.join(
+#     os.path.expanduser("~"), ".aurras", "spotify_auth.db"
+# )
+
+# with sqlite3.connect(path_recommendations) as recommendation:
+#     cursor = recommendation.cursor()
+
+#     cursor.execute("SELECT client_id, client_secret, scope, username, redirect_uri FROM spotify_auth")
+
+#     row = cursor.fetchone()
+
+#     print(row[0])
+
+# import yt_dlp
+
+# def download_video(url):
+#     options = {
+#         'format': 'bestaudio/best',
+#         'extractaudio': True,  # Download audio only
+#         'audioformat': 'mp3',  # Save as MP3
+#         'outtmpl': '%(title)s.%(ext)s',  # Output file name template
+#     }
+
+#     with yt_dlp.YoutubeDL(options) as ydl:
+#         ydl.download([url])
+
+# # Example URL: Replace this with the YouTube video URL you want to download
+# video_url = 'https://www.youtube.com/shorts/j40mcWP0PqU'
+
+# download_video(video_url)
+
+
+# import questionary
+
+# def select_programming_language():
+#     choices = ["Python", "JavaScript", "Java", "C++"]
+#     return questionary.autocomplete(
+#         "Select a programming language:",
+#         choices=choices
+#     ).ask()
+
+# selected_language = select_programming_language()
+# print(f"You selected: {selected_language}")
+
+
+
 import os
 import sqlite3
 
-path_recommendations = os.path.join(
-    os.path.expanduser("~"), ".aurras", "spotify_auth.db"
-)
 
-with sqlite3.connect(path_recommendations) as recommendation:
-    cursor = recommendation.cursor()
+with sqlite3.connect(
+    os.path.join(os.path.expanduser("~"), ".aurras", "playlists.db")
+) as check:
+    cursor = check.cursor()
+    cursor.execute(f"SELECT * FROM MadeForMe")
 
-    cursor.execute("SELECT client_id, client_secret, scope, username, redirect_uri FROM spotify_auth")
+    # Fetch all rows
+    rows = cursor.fetchall()
 
-    row = cursor.fetchone()
-
-    print(row[0])
+    # Process the fetched rows (e.g., print them)
+    for row in rows:
+        print(row[1])

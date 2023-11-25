@@ -6,7 +6,6 @@ from logger import exception_log
 
 WINDOWS = system() == "Windows"
 
-
 def clear_screen():
     """
     Clears the terminal screen.
