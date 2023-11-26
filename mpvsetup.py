@@ -9,7 +9,6 @@ Example:
     ```
 """
 
-import os
 import config as path
 
 
@@ -19,22 +18,20 @@ def mpv_setup():
 
     This method creates the mpv.conf file with default options and the input.conf file for key bindings.
     """
-    try:
-        os.makedirs(path.mpv)
+    path.mpv.mkdir(parents=True, exist_ok=True)
 
-        # Create the mpv.conf file
-        with open(
-            os.path.join(path.mpv, "mpv.conf"), "w", encoding="UTF-8"
-        ) as mpv_conf_file:
+    # Create the mpv.conf file
+    mpv_conf_path = path.mpv / "mpv.conf"
+
+    if not mpv_conf_path.exists():
+        with mpv_conf_path.open("w", encoding="UTF-8") as mpv_conf_file:
             mpv_conf_file.write("--really-quiet\n--no-video\nvolume-max=130\n")
 
-        # Create the input.conf file
-        with open(
-            os.path.join(path.mpv, "input.conf"), "w", encoding="UTF-8"
-        ) as mpv_input_file:
+    # Create the input.conf file
+    mpv_input_path = path.mpv / "input.conf"
+
+    if not mpv_input_path.exists():
+        with mpv_input_path.open("w", encoding="UTF-8") as mpv_input_file:
             mpv_input_file.write(
                 "UP    add volume 7\nDOWN    add volume -7\nWHEEL_UP   add volume 2\nWHEEL_DOWN    add volume -2\nq    quit\n"
             )
-
-    except FileExistsError:
-        pass

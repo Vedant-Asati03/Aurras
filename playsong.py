@@ -23,16 +23,17 @@ Usage:
 
 """
 
-import os
 import sqlite3
-import platform
 import threading
 import subprocess
+from pathlib import Path
+
 import questionary
 from rich.table import Table
 from rich.console import Console
 
 import config as path
+from config import Config
 from lyrics import ShowLyrics, TranslateLyrics
 from logger import debug_log
 from mpvsetup import mpv_setup
@@ -66,7 +67,7 @@ class MPVPlayer:
         """
         self.initialize_mpv()
         self.console = Console()
-        self.os_windows = platform.system() == "Windows"
+        self.os_windows = Path().anchor == "C:"
 
     def initialize_mpv(self):
         """
@@ -107,6 +108,7 @@ class SongPlayer:
 
     def __init__(self):
         """Initialize the SongPlayer class."""
+        self.config = Config()
         self.console = Console()
         self.mpv_command = MPVPlayer()
 
@@ -138,7 +140,9 @@ class ListenSongOnline(SongPlayer):
     def listen_song_online(self):
         """Play the song online."""
         self.console.print(
-            f"Playing🎶: {self.search.song_name_searched}\n", end="\r", style="u #E8F3D6"
+            f"Listening - {self.search.song_name_searched}\n",
+            end="\r",
+            style="u #E8F3D6",
         )
         # TODO
         event = threading.Event()
@@ -183,7 +187,8 @@ class ListenSongOffline(SongPlayer):
         """Initialize the ListenSongOffline class."""
         super().__init__()
         self.active_song = None
-        self.downloaded_songs = os.listdir(path.downloaded_songs)
+        self.downloaded_songs = self.config.list_directory(path.downloaded_songs)
+
         self._select_song_to_listen()
         self.active_song_index = self.downloaded_songs.index(self.active_song)
 
@@ -202,7 +207,7 @@ class ListenSongOffline(SongPlayer):
             )
             debug_log(f"playing offline song with command: {self.mpv_command}")
             mpv_command = self.mpv_command.generate_mpv_command(
-                os.path.join(path.downloaded_songs, current_song)
+                path.downloaded_songs / current_song
             )
             self.mpv_command.play(mpv_command)
 
@@ -298,13 +303,12 @@ class ListenPlaylistOffline(SongPlayer):
 
     def __init__(self):
         """Initialize the ListenPlaylistOffline class."""
-        try:
-            os.makedirs(path.downloaded_playlists)
-        except FileExistsError:
-            pass
+        path.downloaded_playlists.mkdir(parents=True, exist_ok=True)
 
         super().__init__()
-        self.downloaded_playlists = os.listdir(path.downloaded_playlists)
+        self.downloaded_playlists = self.config.list_directory(
+            path.downloaded_playlists
+        )
         self.active_song = None
         self.active_playlist = None
         self.accessed_playlist = None
@@ -320,28 +324,27 @@ class ListenPlaylistOffline(SongPlayer):
 
     def _select_song_to_listen_from_playlist(self):
         """Select a song to listen to from the downloaded playlist."""
-        self.accessed_playlist = os.path.join(
-            path.downloaded_playlists,
-            self.active_playlist,
+        self.accessed_playlist = path.downloaded_playlists / self.active_playlist
+        self.accessed_playlist_directory_listed = self.config.list_directory(
+            self.accessed_playlist
         )
         self.active_song = questionary.select(
-            "Search: ", choices=os.listdir(self.accessed_playlist)
+            "Search: ", choices=self.accessed_playlist_directory_listed
         ).ask()
         clear_screen()
 
     def listen_playlist_offline(self):
         """Play the selected playlist offline."""
-        # accessed_playlist = self._select_song_to_listen_from_playlist()
-        active_song_index = (os.listdir(self.accessed_playlist)).index(self.active_song)
+        active_song_index = self.accessed_playlist_directory_listed.index(
+            self.active_song
+        )
 
-        for current_song in os.listdir(self.accessed_playlist)[active_song_index:]:
+        for current_song in self.accessed_playlist_directory_listed[active_song_index:]:
             self.console.print(
                 f"Playing🎶: {current_song}\n", end="\r", style="u #E8F3D6"
             )
             mpv_command = self.mpv_command.generate_mpv_command(
-                os.path.join(
-                    path.downloaded_playlists, self.active_playlist, self.active_song
-                )
+                path.downloaded_playlists / self.active_playlist / self.active_song
             )
             self.mpv_command.play(mpv_command)
 

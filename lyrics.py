@@ -46,8 +46,9 @@ class ShowLyrics(Lyrics):
         table = Table(show_header=False, header_style="bold magenta")
 
 
+# TODO
 class TranslateLyrics(Lyrics):
-    """"""
+    """..."""
 
     def __init__(self, song_user_searched: str, song_name_searched: str, close: str):
         """"""

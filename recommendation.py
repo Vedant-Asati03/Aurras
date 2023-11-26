@@ -38,8 +38,11 @@ class SongRecommendations:
         Initialize SongRecommendations.
         """
         self.spotify_auth = SpotifyAuthenticator()
+        self.spotify_conn = self.spotify_auth.connect_to_spotify()
+        self.songs_retrieved = None
+        self._get_songs_from_cache()
 
-    def get_songs_from_cache(self):
+    def _get_songs_from_cache(self):
         """
         Get songs from the cache database.
 
@@ -49,31 +52,10 @@ class SongRecommendations:
         with sqlite3.connect(path.cache) as recommendation:
             cursor = recommendation.cursor()
 
-            cursor.execute("SELECT song_name FROM cache")
-            songs = cursor.fetchmany(5)
+            cursor.execute("SELECT song_user_searched FROM cache")
+            self.songs_retrieved = cursor.fetchmany(5)
 
-        return songs
-
-    def recommend_songs(self):
-        """
-        Recommend songs based on cached songs and save them to the recommendation database.
-        """
-        songs = SongRecommendations().get_songs_from_cache()
-        spotify_conn = self.spotify_auth.connect_to_spotify()
-
-        for song_name in songs:
-            results = spotify_conn.search(q=song_name, limit=1, type="track")
-
-            if len(results["tracks"]["items"]) > 0:
-                song_id = results["tracks"]["items"][0]["id"]
-
-                recommended_song = spotify_conn.recommendations(
-                    seed_tracks=[song_id], limit=1
-                )["tracks"][0]["name"]
-
-            SongRecommendations().save_recommendations(recommended_song)
-
-    def save_recommendations(self, recommended_song):
+    def _save_recommendations(self, recommended_song: str):
         """
         Save recommended songs to the recommendation database.
 
@@ -82,9 +64,28 @@ class SongRecommendations:
         """
         with sqlite3.connect(path.recommendation) as recommendation:
             cursor = recommendation.cursor()
-            cursor.execute("""CREATE TABLE IF NOT EXISTS recommendations (song TEXT)""")
+            cursor.execute(
+                """CREATE TABLE IF NOT EXISTS recommendation (song_recommendation TEXT)"""
+            )
+            cursor.execute("SELECT song_recommendation FROM recommendation")
 
             cursor.execute(
-                "INSERT INTO recommendations (song) VALUES (:song)",
-                {"song": recommended_song},
+                "INSERT INTO recommendation (song_recommendation) VALUES (:song_recommendation)",
+                {"song_recommendation": recommended_song},
             )
+
+    def recommend_songs(self):
+        """
+        Recommend songs based on cached songs and save them to the recommendation database.
+        """
+        for song_name in self.songs_retrieved:
+            result = self.spotify_conn.search(q=song_name, limit=1, type="track")
+
+            if len(result["tracks"]["items"]) > 0:
+                song_id = result["tracks"]["items"][0]["id"]
+
+                recommended_song = self.spotify_conn.recommendations(
+                    seed_tracks=[song_id], limit=1
+                )["tracks"][0]["name"]
+
+            self._save_recommendations(recommended_song)

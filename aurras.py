@@ -5,9 +5,9 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import History
-import questionary
 from rich.text import Text
 from rich.console import Console
+import questionary
 
 import config as path
 from logger import exception_log

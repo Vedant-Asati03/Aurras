@@ -43,14 +43,15 @@ import_manager.import_playlist()
 
 """
 
-import os
 import sqlite3
 from time import sleep
+from pathlib import Path
 
 import questionary
 from rich.console import Console
 
 import config as path
+from config import Config
 from term_utils import clear_screen
 from downloadsong import SongDownloader
 from authenticatespotify import SpotifyAuthenticator
@@ -65,12 +66,10 @@ class PlaylistManager:
         """
         Initialize the PlaylistManager class.
         """
+        self.config = Config()
         self.console = Console()
 
-        try:
-            os.makedirs(path.downloaded_playlists)
-        except FileExistsError:
-            pass
+        path.downloaded_playlists.mkdir(parents=True, exist_ok=True)
 
 
 class SelectPlaylist(PlaylistManager):
@@ -117,18 +116,15 @@ class DownloadPlaylist(PlaylistManager):
         super().__init__()
         self.select_playlist = SelectPlaylist()
         self.select_playlist.select_playlist_from_db()
-        self.downloaded_playlist_path = os.path.join(
-            path.downloaded_playlists, self.select_playlist.active_playlist
+        self.downloaded_playlist_path = Path(
+            path.downloaded_playlists / self.select_playlist.active_playlist
         )
         self.download = SongDownloader(
             self.select_playlist.songs_in_active_playlist,
             self.downloaded_playlist_path,
         )
 
-        try:
-            os.makedirs(self.downloaded_playlist_path)
-        except FileExistsError:
-            pass
+        self.downloaded_playlist_path.mkdir(parents=True, exist_ok=True)
 
     def download_playlist(self):
         """Download the specified playlist."""
@@ -155,7 +151,9 @@ class DeletePlaylist(PlaylistManager):
         super().__init__()
         self.select_playlist = SelectPlaylist()
         self.select_playlist.select_playlist_from_db()
-        self.downloaded_playlists = os.listdir(path.downloaded_playlists)
+        self.downloaded_playlists = self.config.list_directory(
+            path.downloaded_playlists
+        )
 
     def delete_saved_playlist(self):
         """Delete a saved playlist."""
@@ -175,7 +173,7 @@ class DeletePlaylist(PlaylistManager):
             "Select a playlist to delete", choices=self.downloaded_playlists
         ).ask()
 
-        os.remove(os.path.join(path.downloaded_playlists, accessed_playlist))
+        (_ := path.downloaded_playlists / accessed_playlist).rmdir()
         self.console.print(f"Removed playlist - {accessed_playlist}")
         sleep(1.5)
 
@@ -197,7 +195,7 @@ class ImportPlaylist(PlaylistManager):
         self.name_id_mapping = None
         self._retrieve_user_playlists_from_spotify()
 
-        if not os.path.exists(path.spotify_auth):
+        if not path.spotify_auth.exists():
             self.spotify_auth.store_spotify_credentials()
         else:
             pass

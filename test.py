@@ -205,20 +205,25 @@
 # print(f"You selected: {selected_language}")
 
 
+import questionary
+from questionary import Choice
 
-import os
-import sqlite3
+custom_style_fancy = questionary.Style(
+    [
+        ("highlighted", "bold"),
+        ("selected", "fg:#cc5454"),  # style for a token which should appear highlighted
+    ]
+)
+
+choices = [
+    Choice(title=[("class:text", "order a "), ("class:highlighted", "big pizza")])
+]
+
+# questionary.select(
+#    "What do you want to do?",
+#    choices=choices,
+#    style=custom_style_fancy).ask()
 
 
-with sqlite3.connect(
-    os.path.join(os.path.expanduser("~"), ".aurras", "playlists.db")
-) as check:
-    cursor = check.cursor()
-    cursor.execute(f"SELECT * FROM MadeForMe")
-
-    # Fetch all rows
-    rows = cursor.fetchall()
-
-    # Process the fetched rows (e.g., print them)
-    for row in rows:
-        print(row[1])
+question = questionary.select(
+    "Your Custom Title", choices=choices, style=custom_style_fancy).ask()

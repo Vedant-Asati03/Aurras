@@ -5,6 +5,7 @@ This class provides methods for constructing file paths in the Aurras applicatio
 
 Attributes:
     construct_path: A class method for constructing file paths.
+    list_directory: A method for listing directories from the specified path.
 
 Example:
     ```
@@ -15,27 +16,39 @@ Example:
     recommendation = Config.construct_path("recommendation.db")
     downloaded_songs = Config.construct_path("songs")
     mpv = Config.construct_path("mpv")
-    mpv_conf = Config.construct_path(os.path.join(mpv, "mpv.conf"))
-    input_conf = Config.construct_path(os.path.join(mpv, "input.conf"))
+    mpv_conf = Config.construct_path(mpv, "mpv.conf")
+    input_conf = Config.construct_path(mpv, "input.conf")
     ```
 """
 
-import os
+from pathlib import Path
 
 
 class Config:
     @classmethod
-    def construct_path(cls, path: str):
+    def construct_path(cls, *path_parts):
         """
         Construct File Path
 
         Args:
-            path (str): The specific path to be appended to the base Aurras directory.
+            *path_parts (str): The specific path parts to be appended to the base Aurras directory.
 
         Returns:
-            str: The full file path constructed based on the provided path.
+            Path: The full file path constructed based on the provided path parts.
         """
-        return os.path.join(os.path.expanduser("~"), ".aurras", path)
+        return Path.home() / ".aurras" / Path(*path_parts)
+
+    def list_directory(self, directory_path):
+        """
+        List directories in the specified path.
+
+        Args:
+            directory_path (Path): The path to the directory.
+
+        Returns:
+            List[str]: A list of directory names.
+        """
+        return [entry.name for entry in directory_path.iterdir() if entry.is_dir()]
 
 
 # cache.db
@@ -51,5 +64,5 @@ recommendation = Config.construct_path("recommendation.db")
 downloaded_songs = Config.construct_path("songs")
 # mpv
 mpv = Config.construct_path("mpv")
-mpv_conf = Config.construct_path(os.path.join(mpv, "mpv.conf"))
-input_conf = Config.construct_path(os.path.join(mpv, "input.conf"))
+mpv_conf = Config.construct_path(mpv, "mpv.conf")
+input_conf = Config.construct_path(mpv, "input.conf")

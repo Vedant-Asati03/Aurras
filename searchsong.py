@@ -16,7 +16,7 @@ Classes:
 
 import sqlite3
 import yt_dlp
-from Levenshtein import ratio as levenshtein_ratio
+from Levenshtein import ratio
 
 import config as path
 
@@ -69,9 +69,11 @@ class SearchSong:
         with sqlite3.connect(path.cache) as cache:
             cursor = cache.cursor()
             cursor.execute(
-                """CREATE TABLE IF NOT EXISTS cache (song_name TEXT, song_url TEXT)"""
+                """CREATE TABLE IF NOT EXISTS cache (song_user_searched TEXT, song_name_searched TEXT, song_url_searched TEXT)"""
             )
-            cursor.execute("SELECT song_name, song_url FROM cache")
+            cursor.execute(
+                "SELECT song_user_searched, song_name_searched, song_url_searched FROM cache"
+            )
             self.song_url_pairs = cursor.fetchall()
 
     def _search_on_youtube(self):
@@ -99,10 +101,11 @@ class SearchSong:
         with sqlite3.connect(path.cache) as cache:
             cursor = cache.cursor()
             cursor.execute(
-                "INSERT INTO cache (song_name, song_url) VALUES (:song_name, :song_url)",
+                "INSERT INTO cache (song_user_searched, song_name_searched, song_url_searched) VALUES (:song_user_searched, :song_name_searched, :song_url_searched)",
                 {
-                    "song_name": self.song_name_searched,
-                    "song_url": self.song_url_searched,
+                    "song_user_searched": self.song_user_searched,
+                    "song_name_searched": self.song_name_searched,
+                    "song_url_searched": self.song_url_searched,
                 },
             )
 
@@ -111,11 +114,15 @@ class SearchSong:
         Main method for searching a song. Checks the cache for similar songs
         and searches on YouTube if not found.
         """
-        if self.song_url_pairs is not None:
-            for song, url in self.song_url_pairs:
-                check_song = levenshtein_ratio(self.song_user_searched, song)
-                if check_song >= 0.7:
-                    self.song_name_searched = song
-                    self.song_url_searched = url
+        song_dict = {
+            song_user_searched: (song_name_searched, song_url_searched)
+            for song_user_searched, song_name_searched, song_url_searched in self.song_url_pairs
+        }
 
-        self._search_on_youtube()
+        if self.song_user_searched in song_dict:
+            self.song_name_searched, self.song_url_searched = song_dict[
+                self.song_user_searched
+            ]
+
+        else:
+            self._search_on_youtube()
