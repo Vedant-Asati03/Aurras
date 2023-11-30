@@ -92,7 +92,6 @@ class SearchSong:
         self.song_url_searched = audio["webpage_url"]
 
         self._save_to_cache()
-        print("edited")
 
     def _save_to_cache(self):
         """

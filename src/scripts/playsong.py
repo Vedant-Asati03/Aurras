@@ -25,7 +25,7 @@ Usage:
 
 import sqlite3
 import platform
-import threading
+# import threading
 import subprocess
 from pathlib import Path
 
@@ -35,7 +35,7 @@ from rich.console import Console
 
 import config.config as path
 from config.config import Config
-from lib.lyrics import ShowLyrics, TranslateLyrics
+# from lib.lyrics import ShowLyrics, TranslateLyrics
 from lib.logger import debug_log
 from lib.mpvsetup import mpv_setup
 from lib.searchsong import SearchSong
@@ -149,23 +149,23 @@ class ListenSongOnline(SongPlayer):
     def listen_song_online(self):
         """Play the song online."""
         # TODO
-        event = threading.Event()
+        # event = threading.Event()
 
-        lyrics_translation = threading.Thread(
-            target=TranslateLyrics(
-                self.song_user_searched, self.search.song_name_searched, event
-            ).translate_lyrics
-        )
+        # lyrics_translation = threading.Thread(
+        #     target=TranslateLyrics(
+        #         self.song_user_searched, self.search.song_name_searched, event
+        #     ).translate_lyrics
+        # )
 
-        lyrics = ShowLyrics(self.song_user_searched)
-        lyrics.show_lyrics()
-        lyrics_translation.start()
+        # lyrics = ShowLyrics(self.song_user_searched)
+        # lyrics.show_lyrics()
+        # lyrics_translation.start()
         mpv_command = self.mpv_command.generate_mpv_command(
             self.search.song_url_searched
         )
         MPVPlayer().play(mpv_command, self.search.song_name_searched)
 
-        event.set()
+        # event.set()
         clear_screen()
 
 
