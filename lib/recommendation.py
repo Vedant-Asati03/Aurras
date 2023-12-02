@@ -26,8 +26,7 @@ import sqlite3
 
 import config.config as path
 from lib.authenticatespotify.spotify_auth_handler import (
-    SpotifyAuthHandler,
-    SpotifyConnectionStatus,
+    CheckSpotifyAuthenticationStatus,
 )
 
 
@@ -41,8 +40,7 @@ class SongRecommendations:
         Initialize SongRecommendations.
         """
         self.songs_retrieved = None
-        self.spotify_conn = SpotifyConnectionStatus().spotify_conn
-        self.spotify_auth = SpotifyAuthHandler()
+        self.spotify_auth = CheckSpotifyAuthenticationStatus()
 
         self._authentication_status()
 
@@ -88,12 +86,14 @@ class SongRecommendations:
         Recommend songs based on cached songs and save them to the recommendation database.
         """
         for song_name in self.songs_retrieved:
-            result = self.spotify_conn.search(q=song_name, limit=1, type="track")
+            result = self.spotify_auth.spotify_conn.search(
+                q=song_name, limit=1, type="track"
+            )
 
             if len(result["tracks"]["items"]) > 0:
                 song_id = result["tracks"]["items"][0]["id"]
 
-                recommended_song = self.spotify_conn.recommendations(
+                recommended_song = self.spotify_auth.spotify_conn.recommendations(
                     seed_tracks=[song_id], limit=1
                 )["tracks"][0]["name"]
 

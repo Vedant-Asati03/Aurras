@@ -3,9 +3,7 @@
 googletrans==4.0.0rc1
 keyboard==0.13.5
 lyrics-extractor==3.0.1
-pick==2.2.0
 prompt-toolkit==3.0.38
-pytube==12.1.0
 requests==2.28.1
 rich==12.6.0
 spotdl==3.9.6

@@ -15,7 +15,6 @@ import subprocess
 from pathlib import Path
 
 import config.config as path
-from config.config import Config
 from lib.term_utils import clear_screen
 
 
@@ -42,7 +41,7 @@ class SongDownloader:
             song_list_to_download (list): List of song names to download.
             directory_to_save_in (Path): The directory to save the downloaded songs in.
         """
-        self.config = Config()
+        self.config = path.Config()
         self.current_directory = Path.cwd()
         self.song_list_to_download = song_list_to_download
         self.directory_to_save_in = directory_to_save_in

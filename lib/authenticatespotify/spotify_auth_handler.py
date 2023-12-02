@@ -9,20 +9,14 @@ from lib.term_utils import clear_screen
 from lib.authenticatespotify.spotify_database_handler import SpotifyDatabase
 
 
-class SpotifyConnectionStatus:
+class SetupSpotifyConnection:
     def __init__(self) -> None:
-        self.spotify_conn = None
-        self.spotify_db = SpotifyDatabase()
-
-
-class SpotifyCredentialsManager(SpotifyConnectionStatus):
-    def __init__(self) -> None:
-        super().__init__()
         self.client_id = None
         self.client_secret = None
         self.scope = None
         self.username = None
         self.redirect_uri = None
+        self.spotify_conn = None
 
     def _fetch_auth_credentials_from_db(self):
         with sqlite3.connect(path.spotify_auth) as auth:
@@ -38,7 +32,7 @@ class SpotifyCredentialsManager(SpotifyConnectionStatus):
         self.username = credentials[3]
         self.redirect_uri = credentials[4]
 
-    def spotify_connection(self):
+    def create_spotify_connection(self):
         self._fetch_auth_credentials_from_db()
 
         token = util.prompt_for_user_token(
@@ -52,11 +46,12 @@ class SpotifyCredentialsManager(SpotifyConnectionStatus):
         self.spotify_conn = spotipy.Spotify(auth=token)
 
 
-class SpotifyAuthHandler:
+class CheckSpotifyAuthenticationStatus:
     def __init__(self) -> None:
         self.response = None
+        self.spotify_conn = None
         self.update_authentication_status = UpdateSpecifiedSettings("authenticated")
-        self.spotify_credentials = SpotifyCredentialsManager()
+        self.setup_spotify_connection = SetupSpotifyConnection()
         self.spotify_db = SpotifyDatabase()
 
     def _get_response(self):
@@ -74,17 +69,18 @@ class SpotifyAuthHandler:
 
         self.response = questionary.select(message=template, choices=choices).ask()
 
+    def _update_authenticated_settings(self, status: str):
+        self.update_authentication_status.update_specified_setting_directly(status)
+
     def _if_not_authenticated_then_authenticate(self):
         self.spotify_db.setup_auth_db()
-        self._update_authenticated_settings()
-
-    def _update_authenticated_settings(self):
-        self.update_authentication_status.update_specified_setting_directly("true")
+        self._update_authenticated_settings("true")
 
     def check_if_authenticated(self):
         try:
-            self.spotify_credentials.spotify_connection()
-            self._update_authenticated_settings()
+            self.setup_spotify_connection.create_spotify_connection()
+            self.spotify_conn = self.setup_spotify_connection.spotify_conn
+            self._update_authenticated_settings("true")
 
         except Exception:
             self._get_response()
@@ -94,6 +90,4 @@ class SpotifyAuthHandler:
                     self._if_not_authenticated_then_authenticate()
 
                 case _:
-                    self.update_authentication_status.update_specified_setting_directly(
-                        "false"
-                    )
+                    self._update_authenticated_settings("false")

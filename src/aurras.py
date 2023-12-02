@@ -9,12 +9,6 @@ from rich.console import Console
 # Add the project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-# from exceptions.exceptions import (
-#     PlaylistNotFoundError,
-#     SongsNotFoundError,
-#     NotAuthenticatedError,
-# )
-# from lib.logger import exception_log
 from utils.decorators import handle_exceptions
 from src.scripts.input_handler import HandleUserInput
 

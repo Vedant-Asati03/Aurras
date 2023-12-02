@@ -5,19 +5,19 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import questionary
 
+from lib.term_utils import clear_screen
 import config.config as path
 from config.default_settings import CreateDefaultSettings
-from lib.term_utils import clear_screen
 from src.command_palette.command_palette_config import DisplaySettings
 from src.search_utilities.search_utils import SongHistory, DynamicCompleter
 from src.scripts.downloadsong import SongDownloader
-from src.scripts.playlist import DownloadPlaylist, DeletePlaylist, ImportPlaylist
-from src.scripts.playsong import (
-    ListenSongOnline,
-    ListenSongOffline,
-    ListenPlaylistOnline,
-    ListenPlaylistOffline,
+from src.scripts.playlist.download_playlist import DownloadPlaylist
+from src.scripts.playlist.delete_playlist import DeletePlaylist
+from src.scripts.playlist.import_playlist.import_from_spotify import (
+    ImportSpotifyPlaylist,
 )
+from src.scripts.playsong.listen_online import ListenSongOnline, ListenPlaylistOnline
+from src.scripts.playsong.listen_offline import ListenSongOffline, ListenPlaylistOffline
 
 
 class HandleUserInput:
@@ -63,6 +63,9 @@ class HandleUserInput:
         self._get_user_input()
 
         match self.song:
+            case None | "":
+                self._get_user_input()
+
             case "play offline":
                 ListenSongOffline().listen_song_offline()
 
@@ -101,7 +104,7 @@ class HandleUserInput:
                         delete_playlist.delete_downloaded_playlist()
 
             case "import playlist":
-                ImportPlaylist().import_playlist()
+                ImportSpotifyPlaylist().import_spotify_playlist()
 
             case "download playlist":
                 DownloadPlaylist().download_playlist()
@@ -114,3 +117,12 @@ class HandleUserInput:
 
             case _:
                 ListenSongOnline(self.song).listen_song_online()
+
+
+class HandleInputCases:
+    def __init__(self) -> None:
+        pass
+
+
+def case_play_offline(self):
+    ...
