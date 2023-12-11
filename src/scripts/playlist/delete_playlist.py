@@ -3,7 +3,7 @@ from time import sleep
 import questionary
 from rich.console import Console
 
-import config.config as path
+from config import path
 from src.scripts.playlist.select_playlist_from_db import Select
 
 

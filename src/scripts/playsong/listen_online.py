@@ -1,8 +1,9 @@
 import sqlite3
 from rich.table import Table
 
-import config.config as path
-from lib.searchsong import SearchSong
+from config import path
+from config.config import Config
+from lib.manage_song_searches.handle_song_searches.search_song import SearchSong
 from src.scripts.playsong.mpv_player import MPVPlayer
 from src.scripts.playlist.select_playlist_from_db import Select
 
@@ -12,7 +13,7 @@ class OnlineSongPlayer:
 
     def __init__(self):
         """Initialize the SongPlayer class."""
-        self.config = path.Config()
+        self.config = Config()
         self.mpv_command = MPVPlayer()
 
 
@@ -36,8 +37,7 @@ class ListenSongOnline(OnlineSongPlayer):
             song_name (str): The name of the song to play.
         """
         super().__init__()
-        self.song_user_searched = song_user_searched
-        self.search = SearchSong(self.song_user_searched)
+        self.search = SearchSong(song_user_searched)
 
     def _get_song_info(self):
         self.search.search_song()
@@ -47,9 +47,9 @@ class ListenSongOnline(OnlineSongPlayer):
         self._get_song_info()
 
         mpv_command = self.mpv_command.generate_mpv_command(
-            self.search.song_url_searched
+            self.search.song_metadata.song_url_searched
         )
-        self.mpv_command.play(mpv_command, self.search.song_name_searched)
+        self.mpv_command.play(mpv_command, self.search.song_metadata.song_name_searched)
 
 
 class ListenPlaylistOnline(OnlineSongPlayer):

@@ -2,7 +2,7 @@ from time import sleep
 from pathlib import Path
 from rich.console import Console
 
-import config.config as path
+from config import path
 from src.scripts.downloadsong import SongDownloader
 from src.scripts.playlist.select_playlist_from_db import Select
 

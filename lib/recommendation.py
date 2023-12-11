@@ -25,7 +25,7 @@ Methods:
 import sqlite3
 
 import config.config as path
-from lib.authenticatespotify.spotify_auth_handler import (
+from lib.manage_spotify.spotify_auth_handler import (
     CheckSpotifyAuthenticationStatus,
 )
 

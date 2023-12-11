@@ -1,7 +1,7 @@
 from functools import wraps
 import logging
 
-import config.config as path
+from config import path
 
 
 # Set up logging

@@ -2,11 +2,11 @@ from pathlib import Path
 import questionary
 from rich.console import Console
 
-import config.config as path
+from config import path
 from lib.logger import debug_log
 from lib.term_utils import clear_screen
 from exceptions.exceptions import PlaylistNotFoundError, SongsNotFoundError
-from src.scripts.playsong.mpv_player import MPVPlayer
+from .mpv_player import MPVPlayer
 
 
 class OfflineSongPlayer:

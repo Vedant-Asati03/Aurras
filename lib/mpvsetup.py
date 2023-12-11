@@ -9,7 +9,7 @@ Example:
     ```
 """
 
-import config.config as path
+from config import path
 
 
 def mpv_setup():

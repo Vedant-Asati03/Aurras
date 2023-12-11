@@ -1,8 +1,9 @@
+import time
 import platform
 import subprocess
 from rich.console import Console
 
-import config.config as path
+from config import path
 from lib.mpvsetup import mpv_setup
 from lib.term_utils import clear_screen
 

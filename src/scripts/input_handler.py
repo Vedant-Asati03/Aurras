@@ -6,18 +6,19 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import questionary
 
 from lib.term_utils import clear_screen
-import config.config as path
-from config.default_settings import CreateDefaultSettings
+from config import path
+from config.settings.create_default_settings import CreateDefaultSettings
 from src.command_palette.command_palette_config import DisplaySettings
-from src.search_utilities.search_utils import SongHistory, DynamicCompleter
+from src.search_utilities.dynamic_search_bar import DynamicSearchBar
+from src.search_utilities.suggest_songs_from_history import SuggestSongsFromHistory
 from src.scripts.downloadsong import SongDownloader
-from src.scripts.playlist.download_playlist import DownloadPlaylist
-from src.scripts.playlist.delete_playlist import DeletePlaylist
-from src.scripts.playlist.import_playlist.import_from_spotify import (
+from .playlist.download_playlist import DownloadPlaylist
+from .playlist.delete_playlist import DeletePlaylist
+from .playlist.import_playlist.import_from_spotify import (
     ImportSpotifyPlaylist,
 )
-from src.scripts.playsong.listen_online import ListenSongOnline, ListenPlaylistOnline
-from src.scripts.playsong.listen_offline import ListenSongOffline, ListenPlaylistOffline
+from .playsong.listen_online import ListenSongOnline, ListenPlaylistOnline
+from .playsong.listen_offline import ListenSongOffline, ListenPlaylistOffline
 
 
 class HandleUserInput:
@@ -26,8 +27,8 @@ class HandleUserInput:
         Initialize the AurrasApp class.
         """
         self.song = None
-        self.console = Console()
-        self.dynamic_completer = DynamicCompleter()
+        self.case = HandleInputCases()
+        self.dynamic_search_bar = DynamicSearchBar()
 
     def _get_user_input(self):
         """
@@ -42,13 +43,14 @@ class HandleUserInput:
 
         self.song = (
             prompt(
-                completer=self.dynamic_completer,
+                # self.dynamic_search_bar.custom_message,
+                completer=self.dynamic_search_bar,
                 placeholder="Search Song",
                 style=style,
                 complete_while_typing=True,
                 clipboard=True,
                 mouse_support=True,
-                history=SongHistory(),
+                history=SuggestSongsFromHistory(),
                 auto_suggest=AutoSuggestFromHistory(),
             )
             .strip()
@@ -62,67 +64,73 @@ class HandleUserInput:
         """
         self._get_user_input()
 
-        match self.song:
-            case None | "":
-                self._get_user_input()
+        actions = {
+            "": self._get_user_input,
+            "play offline": self.case.play_offline,
+            "download song": self.case.download_song,
+            "play playlist": self.case.play_playlist,
+            "delete playlist": self.case.delete_playlist,
+            "import playlist": self.case.import_playlist,
+            "download playlist": self.case.download_playlist,
+            "settings": self.case.settings,
+            ">reset": self.case.reset_setting,
+        }
 
-            case "play offline":
-                ListenSongOffline().listen_song_offline()
-
-            case "download song":
-                songs_to_download = self.console.input(
-                    Text("Enter song name[s]: ", style="#A2DE96")
-                ).split(",")
-
-                download = SongDownloader(songs_to_download, path.downloaded_songs)
-                download.download_song()
-
-            case "play playlist":
-                online_offline = questionary.select(
-                    "", choices=["Play Online", "Play Offline"]
-                ).ask()
-                listen_playlist_online = ListenPlaylistOnline()
-                listen_playlist_offline = ListenPlaylistOffline()
-
-                match online_offline:
-                    case "Play Online":
-                        listen_playlist_online.listen_playlist_online()
-                    case "Play Offline":
-                        listen_playlist_offline.listen_playlist_offline()
-
-            case "delete playlist":
-                online_offline = questionary.select(
-                    "Select Playlist to Delete",
-                    choices=["Saved Playlists", "Downloaded Playlists"],
-                ).ask()
-                delete_playlist = DeletePlaylist()
-
-                match online_offline:
-                    case "Saved Playlists":
-                        delete_playlist.delete_saved_playlist()
-                    case "Downloaded Playlists":
-                        delete_playlist.delete_downloaded_playlist()
-
-            case "import playlist":
-                ImportSpotifyPlaylist().import_spotify_playlist()
-
-            case "download playlist":
-                DownloadPlaylist().download_playlist()
-
-            case "settings":
-                DisplaySettings().display_settings()
-
-            case ">reset":
-                CreateDefaultSettings().reset_default_settings()
-
-            case _:
-                ListenSongOnline(self.song).listen_song_online()
+        actions.get(self.song, lambda: self.case.song_searched(self.song))()
 
 
 class HandleInputCases:
     def __init__(self) -> None:
-        pass
+        self.console = Console()
 
+    def play_offline(self):
+        ListenSongOffline().listen_song_offline()
 
-def case_play_offline(self):
-    ...
+    def download_song(self):
+        songs_to_download = self.console.input(
+            Text("Enter song name[s]: ", style="#A2DE96")
+        ).split(",")
+
+        download = SongDownloader(songs_to_download, path.downloaded_songs)
+        download.download_song()
+
+    def play_playlist(self):
+        online_offline = questionary.select(
+            "", choices=["Play Online", "Play Offline"]
+        ).ask()
+        listen_playlist_online = ListenPlaylistOnline()
+        listen_playlist_offline = ListenPlaylistOffline()
+
+        match online_offline:
+            case "Play Online":
+                listen_playlist_online.listen_playlist_online()
+            case "Play Offline":
+                listen_playlist_offline.listen_playlist_offline()
+
+    def delete_playlist(self):
+        online_offline = questionary.select(
+            "Select Playlist to Delete",
+            choices=["Saved Playlists", "Downloaded Playlists"],
+        ).ask()
+        delete_playlist = DeletePlaylist()
+
+        match online_offline:
+            case "Saved Playlists":
+                delete_playlist.delete_saved_playlist()
+            case "Downloaded Playlists":
+                delete_playlist.delete_downloaded_playlist()
+
+    def import_playlist(self):
+        ImportSpotifyPlaylist().import_spotify_playlist()
+
+    def download_playlist(self):
+        DownloadPlaylist().download_playlist()
+
+    def settings(self):
+        DisplaySettings().display_settings()
+
+    def reset_setting(self):
+        CreateDefaultSettings().reset_default_settings()
+
+    def song_searched(self, song):
+        ListenSongOnline(song).listen_song_online()

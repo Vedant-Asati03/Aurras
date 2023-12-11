@@ -14,7 +14,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-import config.config as path
+from config import path
 from lib.term_utils import clear_screen
 
 
@@ -60,5 +60,5 @@ class SongDownloader:
             f"{sys.executable} {spotdl.__file__} {' '.join([f'\"{song}\"' for song in self.song_list_to_download])} -o {self.directory_to_save_in}",
             shell=True,
         )
-        (_ := path.downloaded_songs / ".spotdl-cache").unlink()
+        (_ := self.directory_to_save_in / ".spotdl-cache").unlink()
         clear_screen()
