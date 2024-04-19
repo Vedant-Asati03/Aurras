@@ -36,7 +36,10 @@ class SongCompleter(Completer):
             return []
 
         search_song = SearchFromYoutube(song_name_typing)
-        search_song.search_from_youtube()
+        try:
+            search_song.search_from_youtube()
+        except Exception:
+            return []
 
         self.song_recommendation = search_song.song_metadata.song_name_searched
 

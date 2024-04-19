@@ -14,7 +14,7 @@ class CommandPaletteInvoker(Completer):
         """
         Initializes the CustomCompleter class.
         """
-        self.custom_options = None
+        self.command_palette_options = DisplaySettings().formatted_choices
 
     def get_completions(self, document, complete_event) -> list:
         """
@@ -27,13 +27,12 @@ class CommandPaletteInvoker(Completer):
         Returns:
         - List[Completion]: A list of auto-completions.
         """
-        self.custom_options = DisplaySettings().formatted_choices
         text_before_cursor = document.text_before_cursor.lstrip()
 
         # Only provide completions if the input starts with '>'
         if text_before_cursor.startswith(">"):
             completions = [
-                Completion(option, start_position=0) for option in self.custom_options
+                Completion(option, start_position=0) for option in self.command_palette_options
             ]
             return completions
 

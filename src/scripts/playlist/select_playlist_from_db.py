@@ -1,4 +1,3 @@
-
 import sqlite3
 import questionary
 
@@ -14,13 +13,11 @@ class Select:
 
     def __init__(self):
         """Initialize the SelectPlaylist class."""
-        super().__init__()
         self.active_playlist = None
         self.songs_in_active_playlist = None
         self.active_song = None
 
-    def select_playlist_from_db(self):
-        """Select a playlist from the saved playlists."""
+    def load_playlist_from_db(self):
         with sqlite3.connect(path.saved_playlists) as playlists:
             cursor = playlists.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -28,9 +25,24 @@ class Select:
             tables = cursor.fetchall()
             table_names = [table[0] for table in tables]
 
-            self.active_playlist = questionary.select(
-                "Your Playlists\n\n", choices=table_names
-            ).ask()
+        return table_names
+
+    def select_playlist_from_db(self):
+        """Select a playlist from the saved playlists."""
+        table_names = self.load_playlist_from_db()
+
+        self.active_playlist = (
+            questionary.select(
+                "Your Playlists\n\n",
+                choices=[playlist.capitalize() for playlist in table_names],
+            )
+            .ask()
+            .lower()
+        )
+
+    def songs_from_active_playlist(self):
+        with sqlite3.connect(path.saved_playlists) as playlists:
+            cursor = playlists.cursor()
 
             cursor.execute(f"SELECT playlists_songs FROM '{self.active_playlist}'")
             songs_in_active_playlist = (
@@ -44,9 +56,14 @@ class Select:
             else:
                 raise PlaylistNotFoundError("Playlist Not Found!")
 
-    def select_song_to_listen(self):
+    def select_song_to_listen(self, playlist_name):
         """Select a song to listen to from the list of songs in the active playlist."""
-        self.select_playlist_from_db()
+        if playlist_name == "":
+            self.select_playlist_from_db()
+        else:
+            self.active_playlist = playlist_name
+
+        self.songs_from_active_playlist()
 
         self.active_song = questionary.select(
             "Select a song to play",

@@ -3,6 +3,7 @@
 """
 
 import sys
+# import asyncio
 from pathlib import Path
 from rich.console import Console
 
@@ -10,7 +11,10 @@ from rich.console import Console
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from utils.decorators import handle_exceptions
-from src.scripts.input_handler import HandleUserInput
+from src.scripts.inputs.input_handler import HandleUserInput
+# from src.scripts.playlist.import_playlist.active_playlist_sync.active_playlist_sync import (
+#     ActivePlaylistSync,
+# )
 
 
 class AurrasApp:
@@ -33,7 +37,14 @@ class AurrasApp:
             self.handle_input.handle_user_input()
 
 
+# async def update_playlist_at_start():
+#     active_playlist_sync = ActivePlaylistSync()
+#     await active_playlist_sync.update_imported_playlists()
+
+
 if __name__ == "__main__":
+    # asyncio.run(update_playlist_at_start())
+
     aurras_app = AurrasApp()
 
     # Apply the handle_exceptions decorator to the run method

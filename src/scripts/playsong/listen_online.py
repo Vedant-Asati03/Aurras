@@ -93,9 +93,9 @@ class ListenPlaylistOnline(OnlineSongPlayer):
 
         self.queued_songs = [row[0] for row in queued_songs]
 
-    def listen_playlist_online(self):
+    def listen_playlist_online(self, playlist_name=""):
         """Play the selected playlist."""
-        self.select_playlist.select_song_to_listen()
+        self.select_playlist.select_song_to_listen(playlist_name)
         self._queued_songs_in_playlist()
 
         for current_song in self.queued_songs:

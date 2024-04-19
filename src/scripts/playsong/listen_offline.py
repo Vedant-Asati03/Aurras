@@ -104,10 +104,6 @@ class ListenPlaylistOffline(OfflineSongPlayer):
         self.downloaded_playlists = None
         self.accessed_playlist_directory_listed = None
 
-    def _get_playlist_from_downloads(self):
-        self._select_playlist_to_listen()
-        self._select_song_to_listen_from_playlist()
-
     def _select_playlist_to_listen(self):
         """Select a downloaded playlist to listen to."""
         self.downloaded_playlists = self.config.list_directory(
@@ -115,6 +111,7 @@ class ListenPlaylistOffline(OfflineSongPlayer):
         )
         if self.downloaded_playlists is None:
             raise PlaylistNotFoundError("Playlist Not Found!")
+
         self.active_playlist = questionary.select(
             "Your Downloaded Playlists", choices=self.downloaded_playlists
         ).ask()
@@ -131,9 +128,14 @@ class ListenPlaylistOffline(OfflineSongPlayer):
         ).ask()
         clear_screen()
 
-    def listen_playlist_offline(self):
+    def listen_playlist_offline(self, playlist_name=""):
         """Play the selected playlist offline."""
-        self._get_playlist_from_downloads()
+        if playlist_name == "":
+            self._select_playlist_to_listen()
+        else:
+            self.active_playlist = playlist_name
+
+        self._select_song_to_listen_from_playlist()
 
         active_song_index = self.accessed_playlist_directory_listed.index(
             self.active_song

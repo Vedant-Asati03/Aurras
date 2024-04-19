@@ -64,7 +64,7 @@ class MPVPlayer:
         """
         clear_screen()
         self.console.print(
-            f"Listening - {current_song}\n",
+            f"Listening - {current_song.capitalize()}\n",
             end="\r",
             style="u #E8F3D6",
         )

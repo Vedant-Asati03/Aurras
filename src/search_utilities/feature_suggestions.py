@@ -13,13 +13,13 @@ class SuggestAppFeatures(Completer):
         """
         Initializes the CommandCompleter class.
         """
-        self.command_recommendations = [
-            "Play Offline",
-            "Download Song",
-            "Play Playlist",
-            "Delete Playlist",
-            "Import Playlist",
-            "Download Playlist",
+        self.app_features = [
+            "Play_Offline",
+            "Download_Song",
+            "Play_Playlist",
+            "Delete_Playlist",
+            "Import_Playlist",
+            "Download_Playlist",
             "Settings",
         ]
 
@@ -40,7 +40,7 @@ class SuggestAppFeatures(Completer):
         if text_before_cursor.startswith("?"):
             completions = [
                 Completion(command, start_position=0)
-                for command in self.command_recommendations
+                for command in self.app_features
             ]
             return completions
         return []

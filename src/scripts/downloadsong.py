@@ -11,6 +11,7 @@ Example:
 """
 
 import sys
+import asyncio
 import subprocess
 from pathlib import Path
 
@@ -48,13 +49,18 @@ class SongDownloader:
 
         path.downloaded_songs.mkdir(parents=True, exist_ok=True)
 
+    async def _import_spotdl(self):
+        from spotdl import __main__ as spotdl
+
+        return spotdl
+
     def download_song(self):
         """
         Download a song without videos using spotdl.
 
         This method downloads a song without videos using spotdl.
         """
-        from spotdl import __main__ as spotdl
+        spotdl = asyncio.run(self._import_spotdl())
 
         subprocess.check_call(
             f"{sys.executable} {spotdl.__file__} {' '.join([f'\"{song}\"' for song in self.song_list_to_download])} -o {self.directory_to_save_in}",
