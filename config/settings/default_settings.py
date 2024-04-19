@@ -1,22 +1,22 @@
 default_settings = {
-    "Max-Volume": "130",
-    "Show-Video": "NO",
-    "Show-Lyrics": "YES",
-    "Authenticated": "YES",
-    "Keyboard-Shortcuts": {
-        "End-Song": "q",
-        "Pause": "p",
-        "Translate-Lyrics": "t",
+    "max-volume": "130",
+    "show-video": "no",
+    "show-lyrics": "yes",
+    "authenticated": "yes",
+    "keyboard-shortcuts": {
+        "end-song": "q",
+        "pause": "p",
+        "translate-lyrics": "t",
     },
-    "Backup": {
-        "Auto-Backup": "ON",
-        "Manual-Backup": {
-            "Status": "OFF",
-            "Timed": {
-                "Status": "OFF",
-                "Daily": "OFF",
-                "Weekly": "OFF",
-                "Monthly": "OFF",
+    "backup": {
+        "auto-backup": "on",
+        "manual-backup": {
+            "status": "off",
+            "timed": {
+                "status": "off",
+                "daily": "off",
+                "weekly": "off",
+                "monthly": "off",
             },
         },
     },
