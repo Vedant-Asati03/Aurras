@@ -91,6 +91,7 @@ class ImportSpotifyPlaylist:
         """
         Import a playlist from Spotify and optionally download it.
         """
+        print("sada")
         self._get_playlist_to_import()
 
         clear_screen()

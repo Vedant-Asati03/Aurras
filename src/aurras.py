@@ -3,6 +3,7 @@
 """
 
 import sys
+
 # import asyncio
 from pathlib import Path
 from rich.console import Console
@@ -12,6 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from utils.decorators import handle_exceptions
 from src.scripts.inputs.input_handler import HandleUserInput
+
 # from src.scripts.playlist.import_playlist.active_playlist_sync.active_playlist_sync import (
 #     ActivePlaylistSync,
 # )

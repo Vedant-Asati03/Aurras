@@ -18,7 +18,7 @@ class HandleUserInput:
         self.user_input = None
         self.case = InputCases()
         self.dynamic_search_bar = DynamicSearchBar()
-        self.command_palette_options = DisplaySettings().formatted_choices
+        # self.command_palette_options = DisplaySettings().formatted_choices
 
     def _set_placeholder_style(self):
         style = Style.from_dict(
@@ -46,6 +46,7 @@ class HandleUserInput:
                 mouse_support=True,
                 history=SuggestSongsFromHistory(),
                 auto_suggest=AutoSuggestFromHistory(),
+                complete_in_thread=True,
             )
             .strip("?")
             .strip(">")
@@ -75,8 +76,8 @@ class HandleUserInput:
                 "delete_playlist": self.case.delete_playlist,
                 "import_playlist": self.case.import_playlist,
                 "download_playlist": self.case.download_playlist,
-                "settings": self.case.settings,
-                "reset": self.case.reset_setting,
+                # "settings": self.case.settings,
+                # "reset": self.case.reset_setting,
             }
 
             actions.get(

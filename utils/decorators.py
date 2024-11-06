@@ -1,8 +1,12 @@
 from functools import wraps
+from pathlib import Path
 import logging
 
 from config import path
 
+dir = Path.home() / ".aurras"
+
+dir.mkdir(parents=True, exist_ok=True)
 
 # Set up logging
 logging.basicConfig(filename=path.aurras_log, level=logging.ERROR)

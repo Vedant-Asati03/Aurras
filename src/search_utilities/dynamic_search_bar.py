@@ -1,7 +1,7 @@
 from prompt_toolkit.completion import Completer, WordCompleter
 
 from .feature_suggestions import SuggestAppFeatures
-from .invoke_command_palette import CommandPaletteInvoker
+# from .invoke_command_palette import CommandPaletteInvoker
 from .insearch_song_suggestions import SongCompleter
 from .playlist_suggestions import SuggestPlaylists
 
@@ -9,7 +9,7 @@ from .playlist_suggestions import SuggestPlaylists
 class DynamicSearchBar(Completer):
     def __init__(self):
         self.suggest_app_features = SuggestAppFeatures()
-        self.command_palette_invoker = CommandPaletteInvoker()
+        # self.command_palette_invoker = CommandPaletteInvoker()
         self.song_completer = SongCompleter()
         self.suggest_playlists = SuggestPlaylists()
 
@@ -36,10 +36,10 @@ class DynamicSearchBar(Completer):
             current_completer = (
                 self.suggest_playlists
             )  # Suggest app features when input starts with 'pn,' or 'pf,'
-        elif text_before_cursor.startswith(">"):
-            current_completer = (
-                self.command_palette_invoker
-            )  # Switch to command palette when input starts with '>'
+        # elif text_before_cursor.startswith(">"):
+        #     current_completer = (
+        #         self.command_palette_invoker
+        #     )  # Switch to command palette when input starts with '>'
             # self._show_message_command_palette()
         elif text_before_cursor.startswith("?"):
             current_completer = (

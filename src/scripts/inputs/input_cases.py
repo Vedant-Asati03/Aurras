@@ -2,10 +2,9 @@ from rich.text import Text
 from rich.console import Console
 import questionary
 
-from config import path
-from config.settings.create_default_settings import CreateDefaultSettings
+# from config.settings.create_default_settings import CreateDefaultSettings
 from src.scripts.downloadsong import SongDownloader
-from src.command_palette.command_palette_config import DisplaySettings
+# from src.command_palette.command_palette_config import DisplaySettings
 from src.scripts.playlist.delete_playlist import DeletePlaylist
 from src.scripts.playlist.download_playlist import DownloadPlaylist
 from src.scripts.playsong.listen_online import ListenSongOnline, ListenPlaylistOnline
@@ -27,8 +26,9 @@ class InputCases:
             songs_to_download = self.console.input(
                 Text("Enter song name[s]: ", style="#A2DE96")
             ).split(",")
+            print(songs_to_download)
 
-        download = SongDownloader(songs_to_download, path.downloaded_songs)
+        download = SongDownloader(songs_to_download)
         download.download_song()
 
     def play_playlist(self, online_offline=None, playlist_name=None):
@@ -72,11 +72,11 @@ class InputCases:
     def download_playlist(self, playlist_name=None):
         DownloadPlaylist().download_playlist(playlist_name)
 
-    def settings(self):
-        DisplaySettings().display_settings()
+    # def settings(self):
+    #     DisplaySettings().display_settings()
 
-    def reset_setting(self):
-        CreateDefaultSettings().reset_default_settings()
+    # def reset_setting(self):
+    #     CreateDefaultSettings().reset_default_settings()
 
     def song_searched(self, song):
         ListenSongOnline(song).listen_song_online()

@@ -25,7 +25,7 @@ def mpv_setup():
 
     if not mpv_conf_path.exists():
         with mpv_conf_path.open("w", encoding="UTF-8") as mpv_conf_file:
-            mpv_conf_file.write("--really-quiet\n--no-video\nvolume-max=130\n")
+            mpv_conf_file.write("--really-quiet\n--no-video\nvolume-max=100\n")
 
     # Create the input.conf file
     mpv_input_path = path.mpv / "input.conf"

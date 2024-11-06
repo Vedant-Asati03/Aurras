@@ -34,7 +34,7 @@ class SongDownloader:
         download_song(self): Download songs without videos and move them to the specified directory.
     """
 
-    def __init__(self, song_list_to_download: list, directory_to_save_in: Path):
+    def __init__(self, song_list_to_download: list):
         """
         Initializes the SongDownloader class.
 
@@ -45,7 +45,6 @@ class SongDownloader:
         self.config = path.Config()
         self.current_directory = Path.cwd()
         self.song_list_to_download = song_list_to_download
-        self.directory_to_save_in = directory_to_save_in
 
         path.downloaded_songs.mkdir(parents=True, exist_ok=True)
 
@@ -62,8 +61,9 @@ class SongDownloader:
         """
         spotdl = asyncio.run(self._import_spotdl())
 
+        print("Downloading songs...")
         subprocess.check_call(
-            f"{sys.executable} {spotdl.__file__} {' '.join([f'\"{song}\"' for song in self.song_list_to_download])} -o {self.directory_to_save_in}",
+            f"{sys.executable} {spotdl.__file__} {' '.join([f'\"{song}\"' for song in self.song_list_to_download])} -o {path.downloaded_songs}",
             shell=True,
         )
         (_ := self.directory_to_save_in / ".spotdl-cache").unlink()

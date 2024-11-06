@@ -1,12 +1,10 @@
 import yaml
 
-import config.settings.default_settings as default_settings_dict
-from config import path
+import path
+import default_settings as default_settings_dict
 
 
 class CreateDefaultSettings:
-    def __init__(self) -> None:
-        pass
 
     def create_dafault_settings(self):
         default_settings = default_settings_dict.default_settings

@@ -1,4 +1,3 @@
-import time
 import platform
 import subprocess
 from rich.console import Console
