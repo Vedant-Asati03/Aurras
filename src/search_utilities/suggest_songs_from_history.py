@@ -2,7 +2,7 @@ from sqlitedict import SqliteDict
 from prompt_toolkit.history import History
 
 from config import path
-from lib.logger import exception_log
+from libs.logger import exception_log
 
 
 class SuggestSongsFromHistory(History):

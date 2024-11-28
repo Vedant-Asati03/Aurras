@@ -5,8 +5,8 @@ from rich.console import Console
 
 from config import path
 
-from lib.term_utils import clear_screen
-from lib.manage_spotify.spotify_auth_handler import (
+from libs.term_utils import clear_screen
+from libs.manage_spotify.spotify_auth_handler import (
     CheckSpotifyAuthenticationStatus,
 )
 

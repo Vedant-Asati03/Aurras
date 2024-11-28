@@ -3,8 +3,8 @@ import subprocess
 from rich.console import Console
 
 from config import path
-from lib.mpvsetup import mpv_setup
-from lib.term_utils import clear_screen
+from libs.mpvsetup import mpv_setup
+from libs.term_utils import clear_screen
 
 
 class MPVPlayer:

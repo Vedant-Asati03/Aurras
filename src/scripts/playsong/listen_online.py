@@ -3,7 +3,7 @@ from rich.table import Table
 
 from config import path
 from config.config import Config
-from lib.manage_song_searches.handle_song_searches.search_song import SearchSong
+from libs.manage_song_searches.handle_song_searches.search_song import SearchSong
 from src.scripts.playsong.mpv_player import MPVPlayer
 from src.scripts.playlist.select_playlist_from_db import Select
 

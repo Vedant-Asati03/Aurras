@@ -2,7 +2,7 @@ import sqlite3
 import questionary
 
 from config import path
-from lib.term_utils import clear_screen
+from libs.term_utils import clear_screen
 from exceptions.exceptions import PlaylistNotFoundError
 
 

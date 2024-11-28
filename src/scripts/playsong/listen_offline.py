@@ -3,8 +3,8 @@ import questionary
 from rich.console import Console
 
 from config import path
-from lib.logger import debug_log
-from lib.term_utils import clear_screen
+from libs.logger import debug_log
+from libs.term_utils import clear_screen
 from exceptions.exceptions import PlaylistNotFoundError, SongsNotFoundError
 from .mpv_player import MPVPlayer
 

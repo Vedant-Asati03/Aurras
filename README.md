@@ -1,3 +1,5 @@
+
+
 # Aurras
 
 ![Alt text](assests/aurras.png)
@@ -6,10 +8,6 @@
 It lets you play any song you want.
 
 **It has a sleek simple to use interface.**
-
-
-# 
-
 
 # How It Works
 

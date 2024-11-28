@@ -1,5 +1,5 @@
 from prompt_toolkit.completion import Completer, Completion
-from lib.manage_song_searches.handle_song_searches.search_on_youtube import (
+from libs.manage_song_searches.handle_song_searches.search_on_youtube import (
     SearchFromYoutube,
 )
 

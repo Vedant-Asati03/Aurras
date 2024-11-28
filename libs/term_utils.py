@@ -1,7 +1,7 @@
 from platform import system
 from subprocess import CalledProcessError, run
 
-from lib.logger import exception_log
+from libs.logger import exception_log
 
 
 WINDOWS = system() == "Windows"

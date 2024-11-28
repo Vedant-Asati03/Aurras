@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 
 from config import path
-from lib.term_utils import clear_screen
+from libs.term_utils import clear_screen
 
 
 class SongDownloader:

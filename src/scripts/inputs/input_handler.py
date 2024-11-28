@@ -2,7 +2,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
-from lib.term_utils import clear_screen
+from libs.term_utils import clear_screen
 from src.scripts.inputs.input_cases import InputCases
 from src.search_utilities.dynamic_search_bar import DynamicSearchBar
 from src.search_utilities.suggest_songs_from_history import SuggestSongsFromHistory

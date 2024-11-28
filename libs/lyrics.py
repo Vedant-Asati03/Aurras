@@ -4,7 +4,7 @@ from rich.console import Console
 from googletrans import Translator
 from lyrics_extractor import SongLyrics
 
-from lib.term_utils import clear_screen
+from libs.term_utils import clear_screen
 
 
 class Lyrics:

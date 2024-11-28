@@ -20,7 +20,7 @@ from textual.binding import Binding
 from textual.reactive import reactive
 from textual_image.widget import Image
 
-from lib.manage_song_searches.handle_song_searches.search_on_youtube import (
+from libs.manage_song_searches.handle_song_searches.search_on_youtube import (
     SearchFromYoutube,
 )
 from pages.downloads import Downloads
