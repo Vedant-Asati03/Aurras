@@ -132,3 +132,4 @@ dmypy.json
 test.py
 tui.py
 todo.txt
+.vscode/
