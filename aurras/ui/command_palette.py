@@ -69,14 +69,21 @@ class CommandPalette:
         ).ask()
 
         if selected and not selected.startswith("Cancel"):
-            # Extract command ID from selection
+            # Extract command name from selection
             command_name = selected.split(":", 1)[0].strip()
+            self.execute_command(command_name)
 
-            # Find and execute the corresponding command
-            for cmd_id, cmd in self.commands.items():
-                if cmd["name"] == command_name:
-                    cmd["action"]()
-                    break
+    def execute_command(self, command_name):
+        """Execute a command by name."""
+        # Find and execute the corresponding command
+        for cmd_id, cmd in self.commands.items():
+            if cmd["name"] == command_name:
+                self.console.print(f"[bold cyan]Executing:[/bold cyan] {cmd['name']}")
+                cmd["action"]()
+                return True
+
+        self.console.print(f"[bold red]Unknown command:[/bold red] {command_name}")
+        return False
 
     def _toggle_lyrics(self):
         """Toggle the lyrics display setting."""
