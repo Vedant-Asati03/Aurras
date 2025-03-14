@@ -1,24 +1,24 @@
 """
 Command Palette Invoker Module
 
-This module provides a class for invoking the command palette.
+This module provides a class for invoking the command palette via completion.
 """
 
 from prompt_toolkit.completion import Completer, Completion
-from aurras.ui.command_palette import DisplaySettings
+from .command_palette import CommandPalette
 
 
 class CommandPaletteInvoker(Completer):
     """
     Auto-completion class for the command palette.
 
-    Attributes:
-        command_palette_options (list): List of options for the command palette.
+    This class shows command palette options when '>' is typed.
     """
 
     def __init__(self):
         """Initialize the CommandPaletteInvoker class."""
-        self.command_palette_options = DisplaySettings().formatted_choices
+        self.command_palette = CommandPalette()
+        self.commands = self.command_palette.commands
 
     def get_completions(self, document, complete_event):
         """
@@ -31,14 +31,36 @@ class CommandPaletteInvoker(Completer):
         Returns:
             list: A list of completions
         """
-        text_before_cursor = document.text_before_cursor.lstrip()
+        text_before_cursor = document.text_before_cursor.lower()
 
         # Only provide completions if the input starts with '>'
         if text_before_cursor.startswith(">"):
-            completions = [
-                Completion(option, start_position=0)
-                for option in self.command_palette_options
-            ]
-            return completions
+            # Get the text after > to allow filtering
+            search_text = text_before_cursor[1:].strip().lower()
 
-        return []
+            for cmd_id, cmd in self.commands.items():
+                name = cmd["name"]
+                desc = cmd["description"]
+                display = f"{name}: {desc}"
+
+                # Filter commands based on search text if any
+                if (
+                    not search_text
+                    or search_text in name.lower()
+                    or search_text in desc.lower()
+                ):
+                    # Start position is the length of the input including '>'
+                    yield Completion(
+                        display,
+                        start_position=-len(text_before_cursor),
+                        display=display,
+                        display_meta="Command",
+                    )
+
+            # Always add a cancel option
+            yield Completion(
+                "Cancel",
+                start_position=-len(text_before_cursor),
+                display="Cancel: Return to main interface",
+                display_meta="Command",
+            )
