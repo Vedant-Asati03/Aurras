@@ -33,6 +33,7 @@ PyYAML = "*"
 sqlitedict = "*"
 textual = "*"
 pillow = "*"
+spotdl = "*"  # Add spotdl to dependencies
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
