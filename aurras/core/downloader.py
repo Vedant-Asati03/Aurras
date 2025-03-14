@@ -62,19 +62,12 @@ class SongDownloader:
         os.chdir(output_dir)
 
         try:
-            # for song in self.song_list_to_download:
-                # print(f"Downloading: {song}")
-
             try:
-                # Use a simpler command format that's known to work
-                # Make sure to properly quote the song name to handle special characters
                 cmd = f"spotdl download {', '.join(self.song_list_to_download)}"
                 print(f"Running: {cmd}")
 
-                # Execute the download command
                 subprocess.run(cmd, shell=True, check=True)
 
-                # Check what files were downloaded
                 recent_files = glob.glob(f"{output_dir}/*")
                 print(f"Files in download directory: {len(recent_files)}")
                 if recent_files:
@@ -82,10 +75,8 @@ class SongDownloader:
                         print(f"  - {os.path.basename(f)}")
 
             except subprocess.CalledProcessError as e:
-                # print(f"Error downloading {song}: {e}")
                 print("Make sure you have spotdl installed correctly.")
 
-                # Try to install spotdl if it's not installed or not working
                 try:
                     print("Attempting to install/update spotdl...")
                     subprocess.check_call(
@@ -99,22 +90,17 @@ class SongDownloader:
                         ]
                     )
 
-                    # Try again with the same command
-                    # print(f"Retrying download for: {song}")
                     subprocess.run(cmd, shell=True, check=True)
                 except Exception as install_error:
                     print(f"Failed to fix spotdl installation: {install_error}")
                     # break
 
-            # List all files in the directory after downloads
             all_files = os.listdir(output_dir)
             print(f"Total files in download directory: {len(all_files)}")
 
         finally:
-            # Change back to original directory
             os.chdir(original_dir)
 
-            # Remove the spotdl cache file if it exists
             cache_file = _path_manager.downloaded_songs_dir / ".spotdl-cache"
             if cache_file.exists():
                 cache_file.unlink()
