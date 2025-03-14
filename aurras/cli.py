@@ -7,6 +7,8 @@ This module provides the command-line interface for the Aurras music player.
 import sys
 import argparse
 from pathlib import Path
+import logging
+import time
 
 from .utils.decorators import handle_exceptions
 from .ui.input_handler import HandleUserInput
@@ -14,6 +16,12 @@ from .core.downloader import SongDownloader
 from .player.online import ListenSongOnline
 from .playlist.download import DownloadPlaylist
 from .playlist.manager import Select
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("aurras.cli")
 
 
 class AurrasApp:
@@ -53,6 +61,7 @@ def display_help():
 USAGE:
   aurras                      - Start the interactive mode
   aurras "song_name"          - Play a song directly
+  aurras "song1, song2, ..."  - Queue multiple songs (use commas to separate)
   aurras -d, --download SONG  - Download a song
   aurras -p, --playlist NAME  - Play a playlist
   aurras -dp NAME             - Download a playlist
@@ -69,6 +78,8 @@ COMMAND SHORTCUTS (Interactive Mode):
 
 MAIN COMMANDS (Interactive Mode):
   • help                   - Display this help information
+  • queue                  - Display current song queue
+  • clear_queue            - Clear the current queue
   • play_offline           - Browse and play downloaded songs
   • download_song          - Download song(s) for offline listening
   • play_playlist          - Play songs from a playlist
@@ -87,70 +98,131 @@ For more information, visit: https://github.com/vedant-asati03/Aurras
 
 
 def download_song(song_name):
-    """Download a song."""
-    print(f"Downloading song: {song_name}")
-    downloader = SongDownloader([song_name])
-    downloader.download_song()
+    """Download a song or multiple songs."""
+    # Check if the song_name contains commas, indicating multiple songs
+    if "," in song_name:
+        songs = [s.strip() for s in song_name.split(",") if s.strip()]
+        print(f"Downloading {len(songs)} songs: {songs}")
+        downloader = SongDownloader(songs)
+        downloader.download_song()
+    else:
+        print(f"Downloading song: {song_name}")
+        downloader = SongDownloader([song_name])
+        downloader.download_song()
 
 
-def play_song(song_name):
-    """Play a song."""
-    print(f"Playing song: {song_name}")
+def play_song_directly(song_name):
+    """Play a single song directly, without using the queue system."""
+    logger.info(f"Playing song directly: {song_name}")
     player = ListenSongOnline(song_name)
     player.listen_song_online()
 
 
+def play_song(song_name):
+    """Play a song or multiple songs."""
+    logger.info(f"Command-line song argument: '{song_name}'")
+
+    # Check if song_name contains commas, indicating multiple songs
+    if "," in song_name:
+        songs = [s.strip() for s in song_name.split(",") if s.strip()]
+        logger.info(f"Playing {len(songs)} songs in sequence: {songs}")
+
+        # Play songs in sequence directly without queue
+        for i, song in enumerate(songs):
+            print(f"\n[{i + 1}/{len(songs)}] Now playing: {song}")
+            try:
+                play_song_directly(song)
+            except Exception as e:
+                logger.error(f"Error playing {song}: {e}")
+                print(f"Error playing {song}: {e}")
+    else:
+        logger.info(f"Playing single song: {song_name}")
+        play_song_directly(song_name)
+
+
 def play_playlist(playlist_name):
     """Play a playlist."""
-    print(f"Playing playlist: {playlist_name}")
-    select = Select()
-    select.active_playlist = playlist_name
-    select.songs_from_active_playlist()
-    for song in select.songs_in_active_playlist:
-        play_song(song)
+    # Check if the playlist name has commas (might be multiple playlists)
+    if "," in playlist_name:
+        playlists = [p.strip() for p in playlist_name.split(",") if p.strip()]
+        print(f"Playing {len(playlists)} playlists in sequence:")
+        for i, p_name in enumerate(playlists):
+            print(f"\n[{i + 1}/{len(playlists)}] Playing playlist: {p_name}")
+            select = Select()
+            select.active_playlist = p_name
+            select.songs_from_active_playlist()
+            for song in select.songs_in_active_playlist:
+                play_song_directly(song)
+    else:
+        print(f"Playing playlist: {playlist_name}")
+        select = Select()
+        select.active_playlist = playlist_name
+        select.songs_from_active_playlist()
+        for song in select.songs_in_active_playlist:
+            play_song_directly(song)
 
 
 def download_playlist(playlist_name):
-    """Download a playlist."""
-    print(f"Downloading playlist: {playlist_name}")
-    dl = DownloadPlaylist()
-    dl.download_playlist(playlist_name)
+    """Download a playlist or multiple playlists."""
+    # Check if the playlist name has commas
+    if "," in playlist_name:
+        playlists = [p.strip() for p in playlist_name.split(",") if p.strip()]
+        print(f"Downloading {len(playlists)} playlists:")
+        for i, p_name in enumerate(playlists):
+            print(f"\n[{i + 1}/{len(playlists)}] Downloading playlist: {p_name}")
+            dl = DownloadPlaylist()
+            dl.download_playlist(p_name)
+    else:
+        print(f"Downloading playlist: {playlist_name}")
+        dl = DownloadPlaylist()
+        dl.download_playlist(playlist_name)
 
 
 def main():
     """Main entry point for the Aurras application."""
-    # Set up argument parser for command-line arguments
-    parser = argparse.ArgumentParser(
-        description="Aurras - A high-end command line music player",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    logger.info("Starting Aurras CLI")
 
-    parser.add_argument("-v", "--version", action="version", version="Aurras 0.1.0")
-    parser.add_argument("-d", "--download", metavar="SONG", help="Download a song")
-    parser.add_argument("-p", "--playlist", metavar="NAME", help="Play a playlist")
-    parser.add_argument(
-        "-dp", "--download-playlist", metavar="NAME", help="Download a playlist"
-    )
-    parser.add_argument("song", nargs="?", help="Play a song directly")
+    try:
+        # Set up argument parser for command-line arguments
+        parser = argparse.ArgumentParser(
+            description="Aurras - A high-end command line music player",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
 
-    # Parse arguments
-    args = parser.parse_args()
+        parser.add_argument("-v", "--version", action="version", version="Aurras 0.1.0")
+        parser.add_argument("-d", "--download", metavar="SONG", help="Download a song")
+        parser.add_argument("-p, --playlist", metavar="NAME", help="Play a playlist")
+        parser.add_argument(
+            "-dp", "--download-playlist", metavar="NAME", help="Download a playlist"
+        )
+        parser.add_argument("song", nargs="?", help="Play a song directly")
 
-    # Handle different command-line arguments
-    # Note: Remove the check for args.help since argparse handles --help internally
-    if args.download:
-        download_song(args.download)
-    elif args.playlist:
-        play_playlist(args.playlist)
-    elif args.download_playlist:
-        download_playlist(args.download_playlist)
-    elif args.song:
-        play_song(args.song)
-    else:
-        # Default behavior: run the interactive app
-        app = AurrasApp()
-        app.run()
+        # Parse arguments
+        args = parser.parse_args()
+        logger.debug(f"Parsed arguments: {args}")
+
+        # Handle different command-line arguments
+        if args.download:
+            download_song(args.download)
+        elif args.playlist:
+            play_playlist(args.playlist)
+        elif args.download_playlist:
+            download_playlist(args.download_playlist)
+        elif args.song:
+            play_song(args.song)
+        else:
+            # Default behavior: run the interactive app
+            app = AurrasApp()
+            app.run()
+
+    except Exception as e:
+        logger.exception("Unhandled exception in main")
+        print(f"An error occurred: {e}")
+        return 1
+
+    logger.info("Aurras CLI completed successfully")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
