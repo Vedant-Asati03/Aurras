@@ -22,6 +22,9 @@ class SuggestAppFeatures(Completer):
             "Import_Playlist",
             "Download_Playlist",
             "Settings",
+            "Command_Palette",
+            ">",
+            "cmd",
         ]
 
     def get_completions(self, document, complete_event):
@@ -37,7 +40,7 @@ class SuggestAppFeatures(Completer):
         """
         text_before_cursor = document.text_before_cursor
 
-        # Only provide completions if the input starts with ' '
+        # Only provide completions if the input starts with '?'
         if text_before_cursor.startswith("?"):
             completions = [
                 Completion(command, start_position=0) for command in self.app_features
