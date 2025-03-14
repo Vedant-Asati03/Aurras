@@ -86,20 +86,22 @@ class HandleUserInput:
                 CommandPalette().show_command_palette()
                 return
 
-            # Otherwise, try to execute the selected command directly
-            palette = CommandPalette()
-
-            if command_text == "Cancel":
+            # Parse the command palette selection
+            if ":" in command_text:
+                command_name = command_text.split(":", 1)[0].strip()
+                self._execute_command_palette_action(command_name)
                 return
 
-            # Try to find and execute the command
-            for cmd_id, cmd in palette.commands.items():
-                cmd_name = cmd["name"]
-                cmd_desc = cmd["description"]
-                display = f"{cmd_name}: {cmd_desc}"
+            # Handle Cancel command
+            if command_text == "Cancel" or command_text == "cancel":
+                console.print("[dim]Command cancelled.[/dim]")
+                return
 
-                if command_text == display or command_text.startswith(f"{cmd_name}:"):
-                    console.print(f"[bold cyan]Executing:[/bold cyan] {cmd_name}")
+            # If command doesn't match format, try direct command execution
+            palette = CommandPalette()
+            for cmd_id, cmd in palette.commands.items():
+                if cmd["name"].lower() == command_text.lower():
+                    console.print(f"[bold cyan]Executing:[/bold cyan] {cmd['name']}")
                     cmd["action"]()
                     return
 
@@ -108,6 +110,21 @@ class HandleUserInput:
             console.print("[bold cyan]Opening command palette...[/bold cyan]")
             CommandPalette().show_command_palette()
             return
+
+        # Check for command matches with display names from command palette
+        palette = CommandPalette()
+        for cmd_id, cmd in palette.commands.items():
+            if (
+                f"{cmd['name'].lower()}: {cmd['description'].lower()}"
+                == self.user_input.lower()
+            ):
+                console.print(f"[bold cyan]Executing:[/bold cyan] {cmd['name']}")
+                cmd["action"]()
+                return
+            elif cmd["name"].lower() == self.user_input.lower():
+                console.print(f"[bold cyan]Executing:[/bold cyan] {cmd['name']}")
+                cmd["action"]()
+                return
 
         # First check for comma-separated songs - this should take highest priority
         if "," in self.user_input:
@@ -195,3 +212,16 @@ class HandleUserInput:
                 console.rule(f"[bold green]Playing: {self.user_input}")
                 self.case.song_searched(self.user_input)
                 return
+
+    def _execute_command_palette_action(self, command_name):
+        """Execute a command from the command palette by name."""
+        palette = CommandPalette()
+
+        for cmd_id, cmd in palette.commands.items():
+            if cmd["name"].lower() == command_name.lower():
+                console.print(f"[bold cyan]Executing:[/bold cyan] {cmd['name']}")
+                cmd["action"]()
+                return
+
+        # If command not found, show an error
+        console.print(f"[bold red]Unknown command:[/bold red] {command_name}")
