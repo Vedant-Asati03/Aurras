@@ -2,6 +2,9 @@ from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import time
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 from ..utils.terminal import clear_screen
 from ..ui.command_handler import InputCases
@@ -11,6 +14,9 @@ from ..ui.command_palette import DisplaySettings
 from ..ui.shortcut_handler import HandleShortcutInputs
 from ..player.online import ListenSongOnline
 from ..player.queue import QueueManager
+
+# Create a console for rich output
+console = Console()
 
 
 class HandleUserInput:
@@ -26,7 +32,8 @@ class HandleUserInput:
     def _set_placeholder_style(self):
         style = Style.from_dict(
             {
-                "placeholder": "ansilightgray",
+                "placeholder": "#AAAAAA italic",
+                "prompt": "bold cyan",
             }
         )
         return style
@@ -37,8 +44,9 @@ class HandleUserInput:
         """
         self.user_input = (
             prompt(
+                message="\n🎵 › ",
                 completer=self.dynamic_search_bar,
-                placeholder="Search Song",
+                placeholder="Search for a song or type a command...",
                 style=self._set_placeholder_style(),
                 complete_while_typing=True,
                 clipboard=True,
@@ -52,7 +60,10 @@ class HandleUserInput:
             .strip()
             .lower()
         )
-        print(f"\n> Processing input: '{self.user_input}'")
+
+        # Don't print empty input processing message
+        if self.user_input:
+            console.print(f"[dim]Processing: '{self.user_input}'[/dim]")
 
     def handle_user_input(self):
         """
@@ -66,29 +77,42 @@ class HandleUserInput:
 
         # First check for comma-separated songs - this should take highest priority
         if "," in self.user_input:
-            print(f"> Detected comma-separated input: '{self.user_input}'")
             songs = [s.strip() for s in self.user_input.split(",") if s.strip()]
             if songs:
-                print(f"> Playing sequence of {len(songs)} songs:")
-                for i, song in enumerate(songs):
-                    print(f"  {i + 1}. {song}")
+                # Create a nice panel to show the playlist
+                console.print(
+                    Panel(
+                        "\n".join(
+                            [
+                                f"[cyan]{i}.[/cyan] {song}"
+                                for i, song in enumerate(songs, 1)
+                            ]
+                        ),
+                        title="Song Playlist",
+                        border_style="green",
+                    )
+                )
 
                 try:
                     # Play each song directly in sequence
                     for i, song in enumerate(songs):
-                        print(f"\n> Now playing: {song} [{i + 1}/{len(songs)}]")
+                        console.rule(
+                            f"[bold green]Now playing: {song} [{i + 1}/{len(songs)}]"
+                        )
                         player = ListenSongOnline(song)
                         player.listen_song_online()
                 except KeyboardInterrupt:
-                    print("\n> Playback interrupted by user")
+                    console.print("\n[yellow]Playback interrupted[/yellow]")
                 except Exception as e:
-                    print(f"\n> Error during playback: {e}")
+                    console.print(
+                        f"\n[bold red]Error during playback:[/bold red] {str(e)}"
+                    )
 
                 return
 
         # Check for special keyboard shortcuts
         elif self.user_input == "b" or self.user_input == "back":
-            print("> Playing previous song")
+            console.print("[cyan]Finding previous song...[/cyan]")
             self.case.play_previous()
             return
 
@@ -108,19 +132,19 @@ class HandleUserInput:
                 "download_playlist": self.case.download_playlist,
                 "queue": self.case.show_queue,
                 "clear_queue": self.case.clear_queue,
-                "history": self.case.show_history,  # New command
-                "previous": self.case.play_previous,  # New command
-                "clear_history": self.case.clear_history,  # New command
+                "history": self.case.show_history,
+                "previous": self.case.play_previous,
+                "clear_history": self.case.clear_history,
             }
 
             # Check for commands
             if self.user_input in actions:
-                print(f"> Executing command: {self.user_input}")
+                console.print(f"[bold cyan]Executing:[/bold cyan] {self.user_input}")
                 actions[self.user_input]()
                 return
 
             # Default to single song
             else:
-                print(f"> Playing single song: {self.user_input}")
+                console.rule(f"[bold green]Playing: {self.user_input}")
                 self.case.song_searched(self.user_input)
                 return
