@@ -86,6 +86,12 @@ class HandleUserInput:
 
                 return
 
+        # Check for special keyboard shortcuts
+        elif self.user_input == "b" or self.user_input == "back":
+            print("> Playing previous song")
+            self.case.play_previous()
+            return
+
         # Only check shortcuts if not comma-separated
         check_if_shortcut_used = HandleShortcutInputs(
             self.user_input
@@ -102,6 +108,9 @@ class HandleUserInput:
                 "download_playlist": self.case.download_playlist,
                 "queue": self.case.show_queue,
                 "clear_queue": self.case.clear_queue,
+                "history": self.case.show_history,  # New command
+                "previous": self.case.play_previous,  # New command
+                "clear_history": self.case.clear_history,  # New command
             }
 
             # Check for commands
