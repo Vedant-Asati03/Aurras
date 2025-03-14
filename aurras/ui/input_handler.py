@@ -14,6 +14,7 @@ from ..ui.command_palette import DisplaySettings
 from ..ui.shortcut_handler import HandleShortcutInputs
 from ..player.online import ListenSongOnline
 from ..player.queue import QueueManager
+from ..ui.command_palette import CommandPalette
 
 # Create a console for rich output
 console = Console()
@@ -46,7 +47,7 @@ class HandleUserInput:
             prompt(
                 message="\n🎵 › ",
                 completer=self.dynamic_search_bar,
-                placeholder="Search for a song or type a command...",
+                placeholder="Search for a song or type a command... (Press > for command palette)",
                 style=self._set_placeholder_style(),
                 complete_while_typing=True,
                 clipboard=True,
@@ -56,7 +57,6 @@ class HandleUserInput:
                 complete_in_thread=True,
             )
             .strip("?")
-            .strip(">")
             .strip()
             .lower()
         )
@@ -73,6 +73,40 @@ class HandleUserInput:
 
         # If input is empty, get new input
         if not self.user_input:
+            return
+
+        # Check for command palette activation via > command
+        if self.user_input.startswith(">"):
+            # Extract the command name from the input
+            command_text = self.user_input[1:].strip()
+
+            # If it's just ">" without a command, open the full palette
+            if not command_text or command_text == "":
+                console.print("[bold cyan]Opening command palette...[/bold cyan]")
+                CommandPalette().show_command_palette()
+                return
+
+            # Otherwise, try to execute the selected command directly
+            palette = CommandPalette()
+
+            if command_text == "Cancel":
+                return
+
+            # Try to find and execute the command
+            for cmd_id, cmd in palette.commands.items():
+                cmd_name = cmd["name"]
+                cmd_desc = cmd["description"]
+                display = f"{cmd_name}: {cmd_desc}"
+
+                if command_text == display or command_text.startswith(f"{cmd_name}:"):
+                    console.print(f"[bold cyan]Executing:[/bold cyan] {cmd_name}")
+                    cmd["action"]()
+                    return
+
+        # Check for other command palette activations
+        elif self.user_input == "cmd" or self.user_input == "command_palette":
+            console.print("[bold cyan]Opening command palette...[/bold cyan]")
+            CommandPalette().show_command_palette()
             return
 
         # First check for comma-separated songs - this should take highest priority
