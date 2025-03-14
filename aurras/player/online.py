@@ -19,6 +19,17 @@ from ..playlist.manager import Select
 from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+from rich.box import ROUNDED
+from rich.style import Style
+from rich.text import Text
+
+# Create a global console for consistent styling
+console = Console()
+
 
 class OnlineSongPlayer:
     """Base class for playing songs online."""
@@ -51,30 +62,46 @@ class ListenSongOnline(OnlineSongPlayer):
         self.search = SearchSong(song_user_searched)
         self.queue_manager = QueueManager()
         self._is_part_of_queue = False
+        self.console = Console()
 
     def _get_song_info(self):
         """Search for the song and get its metadata."""
-        print(f">>> Searching for song: {self.search.song_user_searched}")
-        self.search.search_song()
-        print(f">>> Found song: {self.search.song_name_searched}")
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold green]Searching...[/bold green] {task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task(f"[cyan]{self.search.song_user_searched}[/cyan]")
+            self.search.search_song()
+            progress.update(task, advance=1)
+
+        text = Text()
+        text.append("Found: ", style="bold green")
+        text.append(self.search.song_name_searched, style="cyan")
+        console.print(text)
 
     def listen_song_online(self):
         """Play the song online by streaming it."""
         try:
             self._get_song_info()
 
-            print(f">>> Generating command to play: {self.search.song_name_searched}")
             mpv_command = self.mpv_command.generate_mpv_command(
                 self.search.song_url_searched
             )
 
-            print(f">>> Starting playback for: {self.search.song_name_searched}")
+            # Create a nice panel for playback info
+            song_info = Panel.fit(
+                f"[bold cyan]{self.search.song_name_searched}[/bold cyan]",
+                title="♪ Now Playing ♪",
+                border_style="green",
+                padding=(1, 2),
+            )
+            console.print(song_info)
 
-            # Create history manager
+            # Add to history
             history_manager = RecentlyPlayedManager()
 
-            # Add to play history before playing
-            # Only add if not called from previous/next navigation
             if not getattr(self, "_navigating_history", False):
                 history_manager.add_to_history(self.search.song_name_searched, "online")
 
@@ -82,60 +109,54 @@ class ListenSongOnline(OnlineSongPlayer):
             exit_code = self.mpv_command.play(
                 mpv_command, self.search.song_name_searched
             )
-            print(f">>> Song finished playing (exit code: {exit_code})")
 
-            # Handle the exit code to determine what to do next
+            # Process exit codes quietly
             if exit_code == 10:  # Previous song (b key)
-                print(">>> User requested previous song")
                 prev_song = history_manager.get_previous_song()
                 if prev_song and prev_song != self.search.song_name_searched:
-                    print(f">>> Playing previous song: {prev_song}")
+                    console.print(
+                        f"[bold blue]Playing previous:[/bold blue] {prev_song}"
+                    )
                     player = ListenSongOnline(prev_song)
-                    player._navigating_history = True  # Mark as navigating
+                    player._navigating_history = True
                     player._is_part_of_queue = True
                     player.listen_song_online()
                 else:
-                    print(">>> No previous song in history different from current")
-
-                # Return early to prevent further queue processing
+                    console.print("[yellow]No previous song available[/yellow]")
                 return
 
             elif exit_code == 11:  # Next song (n key)
-                print(">>> User requested next song")
                 next_song = history_manager.get_next_song()
                 if next_song:
-                    print(f">>> Playing next song in history: {next_song}")
+                    console.print(f"[bold blue]Playing next:[/bold blue] {next_song}")
                     player = ListenSongOnline(next_song)
-                    player._navigating_history = True  # Mark as navigating
+                    player._navigating_history = True
                     player._is_part_of_queue = True
                     player.listen_song_online()
                     return
-                # Let the normal queue processing continue below if no next in history
-                print(">>> No next song in history, checking queue")
 
             # Normal queue processing
             next_song = self.queue_manager.get_next_song()
             if next_song:
-                print(f"\n>>> Playing next song in queue: {next_song}")
+                console.print(f"[bold green]Next in queue:[/bold green] {next_song}")
                 next_player = ListenSongOnline(next_song)
                 next_player._is_part_of_queue = True
                 try:
                     next_player.listen_song_online()
                 except Exception as e:
-                    print(f">>> Error playing next song: {e}")
-                    # Continue to the next song in queue even if this one fails
+                    console.print(f"[bold red]Error:[/bold red] {str(e)}")
                     another_song = self.queue_manager.get_next_song()
                     if another_song:
                         ListenSongOnline(another_song).listen_song_online()
-            else:
-                print(">>> No more songs in queue")
 
         except Exception as e:
-            print(f">>> Error playing song: {e}")
+            console.print(f"[bold red]Error:[/bold red] {str(e)}")
             if not self._is_part_of_queue:
                 next_song = self.queue_manager.get_next_song()
                 if next_song:
-                    print(f"\n>>> Skipping to next song in queue: {next_song}")
+                    console.print(
+                        f"[bold green]Skipping to next song:[/bold green] {next_song}"
+                    )
                     next_player = ListenSongOnline(next_song)
                     next_player._is_part_of_queue = True
                     next_player.listen_song_online()
@@ -149,38 +170,30 @@ def play_song_sequence(songs: list):
         songs: List of song names to play
     """
     if not songs:
-        print(">>> No songs provided to play")
+        console.print("[yellow]No songs provided to play[/yellow]")
         return
 
     queue_manager = QueueManager()
-
-    # Clear any existing queue first to avoid conflicts
-    print(">>> Clearing any existing queue")
     queue_manager.clear_queue()
-
-    # Add all songs to the queue
-    print(f">>> Adding {len(songs)} songs to queue")
     queue_manager.add_to_queue(songs)
 
-    # Display current queue state
-    print(">>> Current queue state:")
-    queue_manager.display_queue()
+    # Display nicely formatted queue
+    table = Table(title="🎵 Song Queue", box=ROUNDED, border_style="cyan")
+    table.add_column("#", style="dim")
+    table.add_column("Song", style="green")
 
-    # Print queue information
-    print(f"\n>>> Added {len(songs)} songs to queue:")
-    for i, song in enumerate(songs):
-        print(f"  {i + 1}. {song}")
-    print()
+    for i, song in enumerate(songs, 1):
+        table.add_row(str(i), song)
+
+    console.print(table)
 
     # Start playing the first song
     first_song = queue_manager.get_next_song()
     if first_song:
-        print(f">>> Now playing: {first_song}")
+        console.rule(f"[bold green]Now playing: {first_song}")
         player = ListenSongOnline(first_song)
         player._is_part_of_queue = True
         player.listen_song_online()
-    else:
-        print(">>> Queue is empty, nothing to play")
 
 
 class ListenPlaylistOnline(OnlineSongPlayer):
