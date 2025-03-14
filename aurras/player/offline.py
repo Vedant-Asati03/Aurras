@@ -11,6 +11,7 @@ from ..utils.logger import debug_log
 from ..utils.terminal import clear_screen
 from ..utils.exceptions import PlaylistNotFoundError, SongsNotFoundError
 from ..player.mpv import MPVPlayer
+from ..player.history import RecentlyPlayedManager
 
 
 class OfflineSongPlayer:
@@ -74,6 +75,11 @@ class ListenSongOffline(OfflineSongPlayer):
             mpv_command = self.mpv_command.generate_mpv_command(
                 Path(_path_manager.downloaded_songs_dir, current_song)
             )
+
+            # Add to play history before playing
+            history_manager = RecentlyPlayedManager()
+            history_manager.add_to_history(current_song, "offline")
+
             self.mpv_command.play(mpv_command, current_song)
 
 
@@ -150,4 +156,11 @@ class ListenPlaylistOffline(OfflineSongPlayer):
             mpv_command = self.mpv_command.generate_mpv_command(
                 _path_manager.playlists_dir / self.active_playlist / self.active_song
             )
+
+            # Add to play history before playing
+            history_manager = RecentlyPlayedManager()
+            history_manager.add_to_history(
+                current_song, f"playlist:{self.active_playlist}"
+            )
+
             self.mpv_command.play(mpv_command, current_song)
