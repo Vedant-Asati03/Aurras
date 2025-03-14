@@ -122,3 +122,8 @@ class PathManager:
     def history_db(self):
         """Path to the play history database."""
         return self.construct_path("history.db")
+
+    @property
+    def lyrics_cache_db(self):
+        """Path to the lyrics cache database."""
+        return self.construct_path("lyrics_cache.db")
