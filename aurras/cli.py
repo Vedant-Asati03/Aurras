@@ -160,17 +160,17 @@ def download_song(song_name):
         downloader.download_song()
 
 
-def play_song_directly(song_name):
+def play_song_directly(song_name, show_lyrics=True):
     """Play a single song directly, without using the queue system."""
     logger.info(f"Playing song directly: {song_name}")
 
     with console.status(f"[bold green]Searching for: {song_name}[/bold green]"):
         player = ListenSongOnline(song_name)
 
-    player.listen_song_online()
+    player.listen_song_online(show_lyrics=show_lyrics)
 
 
-def play_song(song_name):
+def play_song(song_name, show_lyrics=True):
     """Play a song or multiple songs."""
     logger.info(f"Command-line song argument: '{song_name}'")
 
@@ -193,17 +193,17 @@ def play_song(song_name):
         for i, song in enumerate(songs):
             console.rule(f"[bold green]Now playing: {song} [{i + 1}/{len(songs)}]")
             try:
-                play_song_directly(song)
+                play_song_directly(song, show_lyrics=show_lyrics)
             except Exception as e:
                 logger.error(f"Error playing {song}: {e}")
                 console.print(f"[bold red]Error playing {song}: {str(e)}[/bold red]")
     else:
         logger.info(f"Playing single song: {song_name}")
         console.rule(f"[bold green]Now playing: {song_name}")
-        play_song_directly(song_name)
+        play_song_directly(song_name, show_lyrics=show_lyrics)
 
 
-def play_playlist(playlist_name):
+def play_playlist(playlist_name, show_lyrics=True):
     """Play a playlist."""
     # Check if the playlist name has commas (might be multiple playlists)
     if "," in playlist_name:
@@ -219,14 +219,14 @@ def play_playlist(playlist_name):
             select.active_playlist = p_name
             select.songs_from_active_playlist()
             for song in select.songs_in_active_playlist:
-                play_song_directly(song)
+                play_song_directly(song, show_lyrics=show_lyrics)
     else:
         console.rule(f"[bold green]Playing playlist: {playlist_name}")
         select = Select()
         select.active_playlist = playlist_name
         select.songs_from_active_playlist()
         for song in select.songs_in_active_playlist:
-            play_song_directly(song)
+            play_song_directly(song, show_lyrics=show_lyrics)
 
 
 def download_playlist(playlist_name):
@@ -258,10 +258,8 @@ def display_history(limit=20):
 def play_previous_song():
     """Play the previous song from history."""
     history_manager = RecentlyPlayedManager()
-
     with console.status("[bold green]Finding previous song in history...[/bold green]"):
         prev_song = history_manager.get_previous_song()
-
     if prev_song:
         console.print(f"[bold green]Playing previous song:[/bold green] {prev_song}")
         play_song_directly(prev_song)
@@ -272,14 +270,12 @@ def play_previous_song():
 def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
-
     try:
         # Set up argument parser for command-line arguments
         parser = argparse.ArgumentParser(
             description="Aurras - A high-end command line music player",
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-
         parser.add_argument("-v", "--version", action="version", version="Aurras 0.1.0")
         parser.add_argument("-d", "--download", metavar="SONG", help="Download a song")
         parser.add_argument("-p", "--playlist", metavar="NAME", help="Play a playlist")
@@ -295,11 +291,20 @@ def main():
             action="store_true",
             help="Play the previous song from history",
         )
+        # Add no-lyrics option
+        parser.add_argument(
+            "--no-lyrics",
+            action="store_true",
+            help="Disable lyrics display during playback",
+        )
         parser.add_argument("song", nargs="?", help="Play a song directly")
 
         # Parse arguments
         args = parser.parse_args()
         logger.debug(f"Parsed arguments: {args}")
+
+        # Show lyrics is true by default, unless --no-lyrics flag is used
+        show_lyrics = not args.no_lyrics
 
         # Handle different command-line arguments
         if args.history:
@@ -309,16 +314,15 @@ def main():
         elif args.download:
             download_song(args.download)
         elif args.playlist:
-            play_playlist(args.playlist)
+            play_playlist(args.playlist, show_lyrics=show_lyrics)
         elif args.download_playlist:
             download_playlist(args.download_playlist)
         elif args.song:
-            play_song(args.song)
+            play_song(args.song, show_lyrics=show_lyrics)
         else:
             # Default behavior: run the interactive app
             app = AurrasApp()
             app.run()
-
     except Exception as e:
         logger.exception("Unhandled exception in main")
         console.print(f"[bold red]An error occurred:[/bold red] {str(e)}")
