@@ -33,7 +33,9 @@ PyYAML = "*"
 sqlitedict = "*"
 textual = "*"
 pillow = "*"
-spotdl = "*"  # Add spotdl to dependencies
+spotdl = "*"
+lyrics_extractor = "*"
+youtube_dl = "*"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
