@@ -48,8 +48,8 @@ class MPVPlayer:
             mpv_command (str): The command to play the media file with MPV.
             current_song (str): Name of the current song being played.
 
-        Raises:
-            subprocess.CalledProcessError: If the MPV command execution fails.
+        Returns:
+            int: Exit code from MPV player (0=normal, 10=previous, 11=next)
         """
         # Don't clear screen before playing - let the user see the queue info
 
@@ -59,19 +59,24 @@ class MPVPlayer:
             style="u #E8F3D6",
         )
 
+        self.console.print(
+            "Controls: [q] Quit  [b] Previous song  [n] Next song  [←/→] Seek",
+            style="dim",
+        )
+
         try:
-            subprocess.run(
+            process = subprocess.run(
                 mpv_command,
-                check=True,
+                check=False,  # Don't raise exception on non-zero exit
                 shell=bool(self.os_windows),
             )
-            print(f"\nFinished playing: {current_song}")
-        except subprocess.CalledProcessError as e:
-            print(f"\nError playing {current_song}: {e}")
+            exit_code = process.returncode
+            print(f"\nFinished playing: {current_song} (exit code: {exit_code})")
+            return exit_code
+
         except KeyboardInterrupt:
             print(f"\nPlayback of {current_song} stopped by user")
-
-        # Don't clear screen after playing - we want to preserve output
+            return 0  # Normal exit code
 
 
 MPVPlayer.initialize_mpv()
