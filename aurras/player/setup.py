@@ -36,5 +36,13 @@ def mpv_setup():
     if not mpv_input_path.exists():
         with mpv_input_path.open("w", encoding="UTF-8") as mpv_input_file:
             mpv_input_file.write(
-                "UP    add volume 7\nDOWN    add volume -7\nWHEEL_UP   add volume 2\nWHEEL_DOWN    add volume -2\nq    quit\n"
+                "UP    add volume 7\n"
+                "DOWN    add volume -7\n"
+                "WHEEL_UP   add volume 2\n"
+                "WHEEL_DOWN    add volume -2\n"
+                "q    quit\n"
+                "b    quit 10\n"  # Exit code 10 for 'previous song'
+                "n    quit 11\n"  # Exit code 11 for 'next song'
+                "LEFT seek -5\n"
+                "RIGHT seek 5\n"
             )
