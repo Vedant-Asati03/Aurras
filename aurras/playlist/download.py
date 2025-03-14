@@ -28,6 +28,11 @@ class DownloadPlaylist:
         self.select_playlist = Select()
         if playlist_name is None:
             self.select_playlist.select_playlist_from_db()
+        elif "," in playlist_name:
+            # If there are multiple playlists, take only the first one for now
+            # (Multiple playlists should be handled by the caller)
+            first_playlist = playlist_name.split(",")[0].strip()
+            self.select_playlist.active_playlist = first_playlist
         else:
             self.select_playlist.active_playlist = playlist_name
 
