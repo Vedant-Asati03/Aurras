@@ -135,7 +135,20 @@ class HandleUserInput:
                 "history": self.case.show_history,
                 "previous": self.case.play_previous,
                 "clear_history": self.case.clear_history,
+                "toggle_lyrics": self.case.toggle_lyrics,
+                "cache_info": self.case.show_cache_info,  # Add new command
+                "cleanup_cache": self.case.cleanup_cache,  # Add new command
             }
+
+            # Check if it's the cleanup_cache command with arguments
+            if self.user_input.startswith("cleanup_cache "):
+                parts = self.user_input.split(" ", 1)
+                if len(parts) == 2 and parts[1].isdigit():
+                    console.print(
+                        f"[bold cyan]Cleaning cache older than {parts[1]} days[/bold cyan]"
+                    )
+                    self.case.cleanup_cache(int(parts[1]))
+                    return
 
             # Check for commands
             if self.user_input in actions:
