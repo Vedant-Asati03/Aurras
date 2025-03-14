@@ -13,20 +13,6 @@ from .setup import mpv_setup
 class MPVPlayer:
     """
     A class representing an MPV player for playing media files.
-
-    Attributes:
-        console (Console): An instance of the rich Console class for console output.
-        os_windows (bool): A boolean indicating whether the operating system is Windows.
-
-    Methods:
-        initialize_mpv()
-            Initialize the MPV player by setting up the configuration files.
-
-        generate_mpv_command(path_url: str) -> str:
-            Generate an MPV command for the given path or URL.
-
-        play(mpv_command: str)
-            Play a media file using the MPV player.
     """
 
     def __init__(self):
@@ -60,13 +46,12 @@ class MPVPlayer:
 
         Parameters:
             mpv_command (str): The command to play the media file with MPV.
+            current_song (str): Name of the current song being played.
 
         Raises:
             subprocess.CalledProcessError: If the MPV command execution fails.
         """
-        from ..utils.terminal import clear_screen
-
-        clear_screen()
+        # Don't clear screen before playing - let the user see the queue info
 
         self.console.print(
             f"Listening - {current_song.capitalize()}\n",
@@ -74,12 +59,19 @@ class MPVPlayer:
             style="u #E8F3D6",
         )
 
-        subprocess.run(
-            mpv_command,
-            check=True,
-            shell=bool(self.os_windows),
-        )
-        clear_screen()
+        try:
+            subprocess.run(
+                mpv_command,
+                check=True,
+                shell=bool(self.os_windows),
+            )
+            print(f"\nFinished playing: {current_song}")
+        except subprocess.CalledProcessError as e:
+            print(f"\nError playing {current_song}: {e}")
+        except KeyboardInterrupt:
+            print(f"\nPlayback of {current_song} stopped by user")
+
+        # Don't clear screen after playing - we want to preserve output
 
 
 MPVPlayer.initialize_mpv()
