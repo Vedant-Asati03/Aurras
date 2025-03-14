@@ -2,22 +2,19 @@ from rich.text import Text
 from rich.console import Console
 import questionary
 
-# from config.settings.create_default_settings import CreateDefaultSettings
 from ..core.downloader import SongDownloader
-
-# from src.command_palette.command_palette_config import DisplaySettings
 from ..playlist.delete import DeletePlaylist
 from ..playlist.download import DownloadPlaylist
-from ..player.online import ListenSongOnline, ListenPlaylistOnline
+from ..player.online import ListenSongOnline, ListenPlaylistOnline, play_song_sequence
 from ..player.offline import ListenSongOffline, ListenPlaylistOffline
-from ..services.spotify.importer import (
-    ImportSpotifyPlaylist,
-)
+from ..services.spotify.importer import ImportSpotifyPlaylist
+from ..player.queue import QueueManager
 
 
 class InputCases:
     def __init__(self) -> None:
         self.console = Console()
+        self.queue_manager = QueueManager()
 
     def display_help(self):
         """Display help information about available commands."""
@@ -28,8 +25,14 @@ class InputCases:
 
 [bold yellow]BASIC USAGE:[/]
   - Type a song name to search and play it
+  - Type multiple song names separated by commas to queue them
   - Use '?' for feature suggestions
   - Press Ctrl+C to exit
+
+[bold yellow]QUEUE COMMANDS:[/]
+  • [cyan]queue[/]                  - Display the current song queue
+  • [cyan]clear_queue[/]            - Clear the current song queue
+  • [cyan]song1, song2, ...[/]      - Play multiple songs in sequence
 
 [bold yellow]COMMAND SHORTCUTS:[/]
   • [cyan]d, song1, song2, ...[/]   - Download multiple songs
@@ -59,12 +62,20 @@ class InputCases:
         ListenSongOffline().listen_song_offline()
 
     def download_song(self, songs_to_download=None):
-        if songs_to_download == []:
-            songs_to_download = self.console.input(
-                Text("Enter song name[s]: ", style="#A2DE96")
-            ).split(",")
-            print(songs_to_download)
+        if songs_to_download is None or songs_to_download == []:
+            songs_input = self.console.input(
+                Text(
+                    "Enter song name[s] (separate multiple songs with commas): ",
+                    style="#A2DE96",
+                )
+            )
+            # Split by comma and strip whitespace
+            songs_to_download = [s.strip() for s in songs_input.split(",") if s.strip()]
+            if not songs_to_download:
+                self.console.print("No valid song names provided.")
+                return
 
+        print(f"Downloading {len(songs_to_download)} songs: {songs_to_download}")
         download = SongDownloader(songs_to_download)
         download.download_song()
 
@@ -109,11 +120,23 @@ class InputCases:
     def download_playlist(self, playlist_name=None):
         DownloadPlaylist().download_playlist(playlist_name)
 
-    # def settings(self):
-    #     DisplaySettings().display_settings()
-
-    # def reset_setting(self):
-    #     CreateDefaultSettings().reset_default_settings()
-
     def song_searched(self, song):
-        ListenSongOnline(song).listen_song_online()
+        if "," in song:
+            songs = [s.strip() for s in song.split(",")]
+            play_song_sequence(songs)
+        else:
+            ListenSongOnline(song).listen_song_online()
+
+    def show_queue(self):
+        """Show the current song queue."""
+        self.queue_manager.display_queue()
+
+    def clear_queue(self):
+        """Clear the current song queue."""
+        self.queue_manager.clear_queue()
+        self.console.print("Queue cleared")
+
+    def add_to_queue(self, song):
+        """Add a song to the queue."""
+        self.queue_manager.add_to_queue([song])
+        self.console.print(f"Added to queue: {song}")
