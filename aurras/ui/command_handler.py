@@ -9,6 +9,7 @@ from ..player.online import ListenSongOnline, ListenPlaylistOnline, play_song_se
 from ..player.offline import ListenSongOffline, ListenPlaylistOffline
 from ..services.spotify.importer import ImportSpotifyPlaylist
 from ..player.queue import QueueManager
+from ..player.history import RecentlyPlayedManager
 
 
 class InputCases:
@@ -140,3 +141,24 @@ class InputCases:
         """Add a song to the queue."""
         self.queue_manager.add_to_queue([song])
         self.console.print(f"Added to queue: {song}")
+
+    def show_history(self):
+        """Show the song play history."""
+        history_manager = RecentlyPlayedManager()
+        history_manager.display_history()
+
+    def play_previous(self):
+        """Play the previous song from history."""
+        history_manager = RecentlyPlayedManager()
+        prev_song = history_manager.get_previous_song()
+
+        if prev_song:
+            self.console.print(f"Playing previous song: {prev_song}")
+            ListenSongOnline(prev_song).listen_song_online()
+        else:
+            self.console.print("No previous songs in history.")
+
+    def clear_history(self):
+        """Clear the song play history."""
+        history_manager = RecentlyPlayedManager()
+        history_manager.clear_history()
