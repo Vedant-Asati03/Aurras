@@ -16,6 +16,7 @@ from ..utils.config import Config
 from ..services.youtube.search import SearchSong
 from ..player.mpv import MPVPlayer
 from ..playlist.manager import Select
+from ..player.queue import QueueManager
 
 
 class OnlineSongPlayer:
@@ -47,19 +48,99 @@ class ListenSongOnline(OnlineSongPlayer):
         """
         super().__init__()
         self.search = SearchSong(song_user_searched)
+        self.queue_manager = QueueManager()
+        self._is_part_of_queue = False
 
     def _get_song_info(self):
         """Search for the song and get its metadata."""
+        print(f">>> Searching for song: {self.search.song_user_searched}")
         self.search.search_song()
+        print(f">>> Found song: {self.search.song_name_searched}")
 
     def listen_song_online(self):
         """Play the song online by streaming it."""
-        self._get_song_info()
+        try:
+            self._get_song_info()
 
-        mpv_command = self.mpv_command.generate_mpv_command(
-            self.search.song_url_searched
-        )
-        self.mpv_command.play(mpv_command, self.search.song_name_searched)
+            print(f">>> Generating command to play: {self.search.song_name_searched}")
+            mpv_command = self.mpv_command.generate_mpv_command(
+                self.search.song_url_searched
+            )
+
+            print(f">>> Starting playback for: {self.search.song_name_searched}")
+            self.mpv_command.play(mpv_command, self.search.song_name_searched)
+
+            print(">>> Song finished playing")
+
+            # The issue might be that the queue is not properly maintained between playbacks
+            # Make sure the queue doesn't rely on class state that gets reset
+            next_song = self.queue_manager.get_next_song()
+            if next_song:
+                print(f"\n>>> Playing next song in queue: {next_song}")
+                next_player = ListenSongOnline(next_song)
+                next_player._is_part_of_queue = True
+                try:
+                    next_player.listen_song_online()
+                except Exception as e:
+                    print(f">>> Error playing next song: {e}")
+                    # Continue to the next song in queue even if this one fails
+                    another_song = self.queue_manager.get_next_song()
+                    if another_song:
+                        ListenSongOnline(another_song).listen_song_online()
+            else:
+                print(">>> No more songs in queue")
+
+        except Exception as e:
+            print(f">>> Error playing song: {e}")
+            if not self._is_part_of_queue:
+                next_song = self.queue_manager.get_next_song()
+                if next_song:
+                    print(f"\n>>> Skipping to next song in queue: {next_song}")
+                    next_player = ListenSongOnline(next_song)
+                    next_player._is_part_of_queue = True
+                    next_player.listen_song_online()
+
+
+def play_song_sequence(songs: list):
+    """
+    Play a sequence of songs.
+
+    Args:
+        songs: List of song names to play
+    """
+    if not songs:
+        print(">>> No songs provided to play")
+        return
+
+    queue_manager = QueueManager()
+
+    # Clear any existing queue first to avoid conflicts
+    print(">>> Clearing any existing queue")
+    queue_manager.clear_queue()
+
+    # Add all songs to the queue
+    print(f">>> Adding {len(songs)} songs to queue")
+    queue_manager.add_to_queue(songs)
+
+    # Display current queue state
+    print(">>> Current queue state:")
+    queue_manager.display_queue()
+
+    # Print queue information
+    print(f"\n>>> Added {len(songs)} songs to queue:")
+    for i, song in enumerate(songs):
+        print(f"  {i + 1}. {song}")
+    print()
+
+    # Start playing the first song
+    first_song = queue_manager.get_next_song()
+    if first_song:
+        print(f">>> Now playing: {first_song}")
+        player = ListenSongOnline(first_song)
+        player._is_part_of_queue = True
+        player.listen_song_online()
+    else:
+        print(">>> Queue is empty, nothing to play")
 
 
 class ListenPlaylistOnline(OnlineSongPlayer):
