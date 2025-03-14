@@ -191,7 +191,8 @@ def main():
 
         parser.add_argument("-v", "--version", action="version", version="Aurras 0.1.0")
         parser.add_argument("-d", "--download", metavar="SONG", help="Download a song")
-        parser.add_argument("-p, --playlist", metavar="NAME", help="Play a playlist")
+        # Fix the incorrect argument definition - separate the short and long forms
+        parser.add_argument("-p", "--playlist", metavar="NAME", help="Play a playlist")
         parser.add_argument(
             "-dp", "--download-playlist", metavar="NAME", help="Download a playlist"
         )
@@ -204,7 +205,7 @@ def main():
         # Handle different command-line arguments
         if args.download:
             download_song(args.download)
-        elif args.playlist:
+        elif args.playlist:  # Now this will work correctly
             play_playlist(args.playlist)
         elif args.download_playlist:
             download_playlist(args.download_playlist)
