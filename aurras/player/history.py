@@ -9,10 +9,16 @@ import time
 from typing import List, Optional
 from rich.console import Console
 from rich.table import Table
+from rich.box import ROUNDED
+from rich.panel import Panel
+from rich import print as rprint
 
 from ..utils.path_manager import PathManager
 
 _path_manager = PathManager()
+
+# Create a global console for consistent styling
+console = Console()
 
 
 class RecentlyPlayedManager:
@@ -218,10 +224,21 @@ class RecentlyPlayedManager:
         recent_songs = self.get_recent_songs(20)  # Show up to 20 recent songs
 
         if not recent_songs:
-            self.console.print("No song history found.")
+            console.print(
+                Panel(
+                    "[italic]No song history found.[/italic]",
+                    title="History",
+                    border_style="yellow",
+                )
+            )
             return
 
-        table = Table(title="Recently Played Songs")
+        table = Table(
+            title="🎵 Recently Played Songs",
+            box=ROUNDED,
+            border_style="cyan",
+            header_style="bold magenta",
+        )
         table.add_column("#", style="dim")
         table.add_column("Song", style="green")
         table.add_column("Played", style="blue")
@@ -234,7 +251,10 @@ class RecentlyPlayedManager:
             )
             table.add_row(str(i), song["song_name"], timestamp, song["source"])
 
-        self.console.print(table)
+        console.print(table)
+        console.print(
+            "[dim]Tip: Use 'b' key during playback to play previous song[/dim]"
+        )
 
     def clear_history(self) -> None:
         """Clear the song play history."""
