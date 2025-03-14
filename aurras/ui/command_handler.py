@@ -62,6 +62,10 @@ class InputCases:
         # Command shortcuts
         help_table.add_row("", "")
         help_table.add_row("[bold cyan]COMMAND SHORTCUTS[/bold cyan]", "")
+        help_table.add_row(
+            "  > ", "Open command palette (type '>' and space for quick access)"
+        )
+        help_table.add_row("  cmd", "Open command palette")
         help_table.add_row("  d, song1, song2, ...", "Download multiple songs")
         help_table.add_row("  dp, playlist_name", "Download a specific playlist")
         help_table.add_row("  pn, playlist_name", "Play a saved playlist online")
@@ -73,6 +77,7 @@ class InputCases:
         help_table.add_row("", "")
         help_table.add_row("[bold cyan]MAIN COMMANDS[/bold cyan]", "")
         help_table.add_row("  help", "Display this help information")
+        help_table.add_row("  command_palette", "Open command palette")
         help_table.add_row("  history", "Show recently played songs")
         help_table.add_row("  previous", "Play the previous song from history")
         help_table.add_row("  clear_history", "Clear your song history")
