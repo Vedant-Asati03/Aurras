@@ -13,6 +13,13 @@ from ..player.offline import ListenSongOffline, ListenPlaylistOffline
 from ..services.spotify.importer import ImportSpotifyPlaylist
 from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
+from ..core.settings import (
+    LoadDefaultSettings,
+    UpdateSpecifiedSettings,
+)  # Add this import
+from ..utils.cache_cleanup import cleanup_lyrics_cache, cleanup_all_caches
+import sqlite3
+import time
 
 # Create a single console for consistent styling
 console = Console()
@@ -74,6 +81,9 @@ class InputCases:
         help_table.add_row("  play_playlist", "Play songs from a playlist")
         help_table.add_row("  delete_playlist", "Delete a playlist")
         help_table.add_row("  import_playlist", "Import playlists from Spotify")
+        help_table.add_row("  toggle_lyrics", "Turn lyrics display on/off")
+        help_table.add_row("  cache_info", "Show information about cached data")
+        help_table.add_row("  cleanup_cache", "Delete old cached data")
 
         # Playback controls
         help_table.add_row("", "")
@@ -247,3 +257,86 @@ class InputCases:
             history_manager = RecentlyPlayedManager()
             history_manager.clear_history()
         console.print("[green]Song history cleared successfully[/green]")
+
+    def toggle_lyrics(self):
+        """Toggle lyrics display on/off."""
+        settings = LoadDefaultSettings()
+        current_setting = settings.settings.get("show-lyrics", "yes")
+
+        # Toggle the setting
+        new_setting = "no" if current_setting.lower() == "yes" else "yes"
+
+        # Update the setting
+        updater = UpdateSpecifiedSettings("show-lyrics")
+        updater.update_specified_setting_directly(new_setting)
+
+        # Show confirmation
+        status = "ON" if new_setting.lower() == "yes" else "OFF"
+        self.console.print(f"[green]Lyrics display: {status}[/green]")
+
+    def show_cache_info(self):
+        """Display information about cached data."""
+        from ..utils.path_manager import PathManager
+
+        _path_manager = PathManager()
+
+        # Create a table for the cache info
+        table = Table(title="🗄️ Cache Information", box=ROUNDED, border_style="cyan")
+        table.add_column("Cache Type", style="bold green")
+        table.add_column("Entries", style="cyan")
+        table.add_column("Size", style="magenta")
+        table.add_column("Oldest Entry", style="blue")
+
+        # Get lyrics cache info
+        try:
+            if _path_manager.lyrics_cache_db.exists():
+                with sqlite3.connect(_path_manager.lyrics_cache_db) as conn:
+                    cursor = conn.cursor()
+
+                    # Count entries
+                    cursor.execute("SELECT COUNT(*) FROM lyrics_cache")
+                    count = cursor.fetchone()[0]
+
+                    # Get oldest entry
+                    cursor.execute("SELECT MIN(fetched_at) FROM lyrics_cache")
+                    oldest = cursor.fetchone()[0]
+                    if oldest:
+                        oldest_date = time.strftime("%Y-%m-%d", time.localtime(oldest))
+                    else:
+                        oldest_date = "N/A"
+
+                    # Get file size
+                    size = _path_manager.lyrics_cache_db.stat().st_size
+                    size_str = f"{size / 1024:.1f} KB"
+
+                    table.add_row("Lyrics", str(count), size_str, oldest_date)
+            else:
+                table.add_row("Lyrics", "0", "0 KB", "N/A")
+
+            # Add more cache types here as needed
+
+            self.console.print(table)
+
+        except Exception as e:
+            self.console.print(
+                f"[bold red]Error getting cache info:[/bold red] {str(e)}"
+            )
+
+    def cleanup_cache(self, days=30):
+        """Clean up old cached data."""
+        days_to_keep = days
+        if isinstance(days, str) and days.isdigit():
+            days_to_keep = int(days)
+
+        with self.console.status("[cyan]Cleaning up cache...[/cyan]"):
+            results = cleanup_all_caches(days_to_keep)
+
+        if sum(results.values()) > 0:
+            self.console.print(f"[green]Cache cleanup complete:[/green]")
+            for cache_type, count in results.items():
+                if count > 0:
+                    self.console.print(
+                        f"  - {cache_type.title()}: {count} entries deleted"
+                    )
+        else:
+            self.console.print("[green]Cache is already clean![/green]")
