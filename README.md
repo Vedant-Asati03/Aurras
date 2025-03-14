@@ -1,52 +1,182 @@
+# Aurras Music Player
 
+![Aurras](assests/aurras.png)
 
-# Aurras
+**Aurras🎧** is a high-end **command line music player** that offers a seamless music experience directly in your terminal. It combines powerful search capabilities with an elegant interface, allowing you to enjoy your favorite music without leaving your command line environment.
 
-![Alt text](assests/aurras.png)
+<div align="center">
 
-**Aurras🎧** is a high end **command line music player**.
-It lets you play any song you want.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![MPV](https://img.shields.io/badge/player-mpv-orange)](https://mpv.io/)
+[![PyPI version](https://badge.fury.io/py/aurras.svg)](https://badge.fury.io/py/aurras)
 
-**It has a sleek simple to use interface.**
+</div>
 
-# How It Works
+## Table of Contents
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+  - [Standard Installation](#standard-installation)
+  - [Development Installation](#development-installation)
+- [Usage Guide](#usage-guide)
+  - [Command Line Arguments](#command-line-arguments)
+  - [Interactive Mode](#interactive-mode)
+  - [Command Shortcuts](#command-shortcuts)
+  - [Playlist Management](#playlist-management)
+  - [Spotify Integration](#spotify-integration)
+- [Project Structure](#project-structure)
+- [Technical Details](#technical-details)
+- [Development](#development)
+  - [Setup Development Environment](#setup-development-environment)
+  - [Testing](#testing)
+  - [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
-**Search Bar**
+## Features
 
-![Alt text](assests/SearchBar.png)
-**Playing Song - Shape Of You**
+* **Online Streaming** - Play any song directly without downloading
+* **Offline Playback** - Listen to your downloaded songs locally
+* **Smart Caching** - Searches local cache before making web requests for better performance
+* **Playlist Management** - Create, import, download and manage playlists
+* **Spotify Integration** - Import your Spotify playlists directly
+* **Command Shortcuts** - Quickly perform actions with intuitive shortcuts
+* **Lyrics Display** - View song lyrics while playing
+* **Auto-completion** - Smart song and playlist name suggestions
+* **Song Recommendations** - Get personalized song recommendations
+* **Backup & Restore** - Automatic backup of your preferences and playlists
+* **Flexible Configuration** - Customize settings through YAML configuration files
 
-![Alt text](assests/PlayingSong.png)
-<br>
+## Requirements
 
-**Downloading Song - Night Changes**
+- Python 3.12 or higher
+- MPV media player (for audio playback)
+- FFmpeg (required for audio processing)
+- Internet connection for streaming and downloading music
 
-![Alt text](assests/DownloadingSong.png)
-<br>
+## Installation
 
+### Standard Installation
 
-# Features
+The easiest way to install Aurras is via pip:
 
-* **play song online** directly, without downloading
-* **downlaod song**
-* A powerful feature called **Shuffle Play**
-* User can create his/her own **personalised playlists**
-* **Auto Corrects** the song name
-* Shows **Lyrics** of the song while playing
+```bash
+pip install aurras
+```
 
-<!-- 
-# Creating Playlist
+### Development Installation
 
-User can create his/her own personalised playlist.<br> he/ she can add/ remove a song  -->
+For development or to have the latest features, install from source:
 
+1. Clone the repository:
+```bash
+git clone https://github.com/vedant-asati03/Aurras.git
+cd Aurras
+```
 
-# Installation
+2. Run the development installation script:
+```bash
+chmod +x dev_install.sh
+./dev_install.sh
+```
 
-```pip install -r requirements.txt```
+This will install Aurras in development mode, allowing you to make changes to the code without having to reinstall the package each time.
 
+### External Dependencies
 
+1. Install FFmpeg (required for audio playback):
+```bash
+# Debian/Ubuntu
+sudo apt install ffmpeg
 
-```choco install ffmpeg```
+# Arch Linux
+sudo pacman -S ffmpeg
 
+# Fedora
+sudo dnf install ffmpeg
 
-```scoop install ffmpeg```
+# Windows (using Chocolatey)
+choco install ffmpeg
+
+# macOS (using Homebrew)
+brew install ffmpeg
+```
+
+2. Install MPV player:
+```bash
+# Debian/Ubuntu
+sudo apt install mpv
+
+# Arch Linux
+sudo pacman -S mpv
+
+# Fedora
+sudo dnf install mpv
+
+# Windows (using Chocolatey)
+choco install mpv
+
+# macOS (using Homebrew)
+brew install mpv
+```
+
+## Usage Guide
+
+### Command Line Arguments
+
+Aurras supports various command-line arguments for quick operations:
+
+### Interactive Mode
+
+### Command Shortcuts
+
+Aurras offers convenient shortcuts to quickly perform common actions:
+
+* `d, song1, song2, ...` - Download multiple songs
+* `dp, playlist_name` - Download a specific playlist
+* `pn, playlist_name` - Play a saved playlist online
+* `pf, playlist_name` - Play a downloaded playlist offline
+* `rs, playlist_name` - Remove a saved playlist
+* `rd, playlist_name` - Remove a downloaded playlist
+
+### Playlist Management
+
+### Spotify Integration
+
+Aurras can connect to your Spotify account to import playlists. When first using Spotify features, you'll be prompted to authenticate and provide your API credentials.
+
+1. Create a Spotify Developer account: https://developer.spotify.com/dashboard/
+2. Create an application to obtain your client ID and secret
+3. Set the redirect URI to `http://localhost:8888/callback`
+4. Enter these credentials when prompted by Aurras
+
+## Project Structure
+
+```
+aurras/
+├── core/           # Core functionality and settings
+├── player/         # Playback functionality (online and offline)
+├── playlist/       # Playlist management
+├── services/       # External service integrations
+│   ├── spotify/    # Spotify API integration
+│   └── youtube/    # YouTube search and streaming
+├── ui/             # User interface components
+└── utils/          # Utility functions and helpers
+```
+
+## Technical Details
+
+## Development
+
+### Setup Development Environment
+
+### Testing
+
+### Contributing
+
+## Troubleshooting
+
+## License
+
+MIT License - See LICENSE.txt for details
