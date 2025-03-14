@@ -17,6 +17,7 @@ from ..services.youtube.search import SearchSong
 from ..player.mpv import MPVPlayer
 from ..playlist.manager import Select
 from ..player.queue import QueueManager
+from ..player.history import RecentlyPlayedManager
 
 
 class OnlineSongPlayer:
@@ -68,12 +69,51 @@ class ListenSongOnline(OnlineSongPlayer):
             )
 
             print(f">>> Starting playback for: {self.search.song_name_searched}")
-            self.mpv_command.play(mpv_command, self.search.song_name_searched)
 
-            print(">>> Song finished playing")
+            # Create history manager
+            history_manager = RecentlyPlayedManager()
 
-            # The issue might be that the queue is not properly maintained between playbacks
-            # Make sure the queue doesn't rely on class state that gets reset
+            # Add to play history before playing
+            # Only add if not called from previous/next navigation
+            if not getattr(self, "_navigating_history", False):
+                history_manager.add_to_history(self.search.song_name_searched, "online")
+
+            # Play and get the exit code
+            exit_code = self.mpv_command.play(
+                mpv_command, self.search.song_name_searched
+            )
+            print(f">>> Song finished playing (exit code: {exit_code})")
+
+            # Handle the exit code to determine what to do next
+            if exit_code == 10:  # Previous song (b key)
+                print(">>> User requested previous song")
+                prev_song = history_manager.get_previous_song()
+                if prev_song and prev_song != self.search.song_name_searched:
+                    print(f">>> Playing previous song: {prev_song}")
+                    player = ListenSongOnline(prev_song)
+                    player._navigating_history = True  # Mark as navigating
+                    player._is_part_of_queue = True
+                    player.listen_song_online()
+                else:
+                    print(">>> No previous song in history different from current")
+
+                # Return early to prevent further queue processing
+                return
+
+            elif exit_code == 11:  # Next song (n key)
+                print(">>> User requested next song")
+                next_song = history_manager.get_next_song()
+                if next_song:
+                    print(f">>> Playing next song in history: {next_song}")
+                    player = ListenSongOnline(next_song)
+                    player._navigating_history = True  # Mark as navigating
+                    player._is_part_of_queue = True
+                    player.listen_song_online()
+                    return
+                # Let the normal queue processing continue below if no next in history
+                print(">>> No next song in history, checking queue")
+
+            # Normal queue processing
             next_song = self.queue_manager.get_next_song()
             if next_song:
                 print(f"\n>>> Playing next song in queue: {next_song}")
