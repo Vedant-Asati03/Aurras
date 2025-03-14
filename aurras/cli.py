@@ -16,6 +16,7 @@ from .core.downloader import SongDownloader
 from .player.online import ListenSongOnline
 from .playlist.download import DownloadPlaylist
 from .playlist.manager import Select
+from .player.history import RecentlyPlayedManager
 
 # Configure logging
 logging.basicConfig(
@@ -178,6 +179,24 @@ def download_playlist(playlist_name):
         dl.download_playlist(playlist_name)
 
 
+def display_history(limit=20):
+    """Display recently played songs."""
+    history_manager = RecentlyPlayedManager()
+    history_manager.display_history()
+
+
+def play_previous_song():
+    """Play the previous song from history."""
+    history_manager = RecentlyPlayedManager()
+    prev_song = history_manager.get_previous_song()
+
+    if prev_song:
+        print(f"Playing previous song: {prev_song}")
+        play_song_directly(prev_song)
+    else:
+        print("No previous songs in history.")
+
+
 def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
@@ -191,10 +210,18 @@ def main():
 
         parser.add_argument("-v", "--version", action="version", version="Aurras 0.1.0")
         parser.add_argument("-d", "--download", metavar="SONG", help="Download a song")
-        # Fix the incorrect argument definition - separate the short and long forms
         parser.add_argument("-p", "--playlist", metavar="NAME", help="Play a playlist")
         parser.add_argument(
             "-dp", "--download-playlist", metavar="NAME", help="Download a playlist"
+        )
+        # Add new arguments for history functionality
+        parser.add_argument(
+            "--history", action="store_true", help="Show recently played songs"
+        )
+        parser.add_argument(
+            "--previous",
+            action="store_true",
+            help="Play the previous song from history",
         )
         parser.add_argument("song", nargs="?", help="Play a song directly")
 
@@ -203,9 +230,13 @@ def main():
         logger.debug(f"Parsed arguments: {args}")
 
         # Handle different command-line arguments
-        if args.download:
+        if args.history:
+            display_history()
+        elif args.previous:
+            play_previous_song()
+        elif args.download:
             download_song(args.download)
-        elif args.playlist:  # Now this will work correctly
+        elif args.playlist:
             play_playlist(args.playlist)
         elif args.download_playlist:
             download_playlist(args.download_playlist)
