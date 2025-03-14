@@ -117,3 +117,8 @@ class PathManager:
     def custom_settings_file(self):
         """Path to the custom settings file."""
         return self.construct_path("custom_settings.yaml")
+
+    @property
+    def history_db(self):
+        """Path to the play history database."""
+        return self.construct_path("history.db")
