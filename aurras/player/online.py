@@ -81,7 +81,7 @@ class ListenSongOnline(OnlineSongPlayer):
         text.append(self.search.song_name_searched, style="cyan")
         console.print(text)
 
-    def listen_song_online(self):
+    def listen_song_online(self, show_lyrics=True):
         """Play the song online by streaming it."""
         try:
             self._get_song_info()
@@ -107,7 +107,7 @@ class ListenSongOnline(OnlineSongPlayer):
 
             # Play and get the exit code
             exit_code = self.mpv_command.play(
-                mpv_command, self.search.song_name_searched
+                mpv_command, self.search.song_name_searched, show_lyrics
             )
 
             # Process exit codes quietly
