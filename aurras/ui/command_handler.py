@@ -1,5 +1,8 @@
 from rich.text import Text
 from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.box import ROUNDED
 import questionary
 
 from ..core.downloader import SongDownloader
@@ -11,117 +14,187 @@ from ..services.spotify.importer import ImportSpotifyPlaylist
 from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
 
+# Create a single console for consistent styling
+console = Console()
+
 
 class InputCases:
     def __init__(self) -> None:
-        self.console = Console()
+        self.console = console
         self.queue_manager = QueueManager()
 
     def display_help(self):
         """Display help information about available commands."""
-        self.console.print("""
-[bold green]╭───────────────────────────────────────────────────╮[/]
-[bold green]│              AURRAS MUSIC PLAYER HELP             │[/]
-[bold green]╰───────────────────────────────────────────────────╯[/]
+        help_table = Table(
+            show_header=False,
+            box=ROUNDED,
+            border_style="bright_blue",
+            title="♪♫ AURRAS MUSIC PLAYER HELP ♫♪",
+            caption="Press Ctrl+C to exit any time",
+        )
 
-[bold yellow]BASIC USAGE:[/]
-  - Type a song name to search and play it
-  - Type multiple song names separated by commas to queue them
-  - Use '?' for feature suggestions
-  - Press Ctrl+C to exit
+        help_table.add_column("Section", style="bold cyan")
+        help_table.add_column("Description", style="green")
 
-[bold yellow]QUEUE COMMANDS:[/]
-  • [cyan]queue[/]                  - Display the current song queue
-  • [cyan]clear_queue[/]            - Clear the current song queue
-  • [cyan]song1, song2, ...[/]      - Play multiple songs in sequence
+        # Basic usage section
+        help_table.add_row("[bold cyan]BASIC USAGE[/bold cyan]", "")
+        help_table.add_row("  Type a song name", "Search and play a song")
+        help_table.add_row(
+            "  Type multiple songs with commas", "Play songs in sequence"
+        )
+        help_table.add_row("  Use '?' for feature suggestions", "Get command help")
+        help_table.add_row("  Press Ctrl+C to exit", "Exit the application")
 
-[bold yellow]COMMAND SHORTCUTS:[/]
-  • [cyan]d, song1, song2, ...[/]   - Download multiple songs
-  • [cyan]dp, playlist_name[/]      - Download a specific playlist
-  • [cyan]pn, playlist_name[/]      - Play a saved playlist online
-  • [cyan]pf, playlist_name[/]      - Play a downloaded playlist offline
-  • [cyan]rs, playlist_name[/]      - Remove a saved playlist
-  • [cyan]rd, playlist_name[/]      - Remove a downloaded playlist
+        # Queue commands
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]QUEUE COMMANDS[/bold cyan]", "")
+        help_table.add_row("  queue", "Display the current song queue")
+        help_table.add_row("  clear_queue", "Clear the current song queue")
+        help_table.add_row("  song1, song2, ...", "Play multiple songs in sequence")
 
-[bold yellow]MAIN COMMANDS:[/]
-  • [cyan]help[/]                   - Display this help information
-  • [cyan]play_offline[/]           - Browse and play downloaded songs
-  • [cyan]download_song[/]          - Download song(s) for offline listening
-  • [cyan]play_playlist[/]          - Play songs from a playlist
-  • [cyan]delete_playlist[/]        - Delete a playlist
-  • [cyan]import_playlist[/]        - Import playlists from Spotify
+        # Command shortcuts
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]COMMAND SHORTCUTS[/bold cyan]", "")
+        help_table.add_row("  d, song1, song2, ...", "Download multiple songs")
+        help_table.add_row("  dp, playlist_name", "Download a specific playlist")
+        help_table.add_row("  pn, playlist_name", "Play a saved playlist online")
+        help_table.add_row("  pf, playlist_name", "Play a downloaded playlist offline")
+        help_table.add_row("  rs, playlist_name", "Remove a saved playlist")
+        help_table.add_row("  rd, playlist_name", "Remove a downloaded playlist")
 
-[bold yellow]PLAYBACK CONTROLS:[/]
-  • [cyan]q[/]                      - End current song playback
-  • [cyan]p[/]                      - Pause/Resume playback
-  • [cyan]t[/]                      - Translate lyrics
-  • [cyan]UP/DOWN[/]                - Adjust volume
-  • [cyan]Mouse wheel[/]            - Fine tune volume
-""")
+        # Main commands
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]MAIN COMMANDS[/bold cyan]", "")
+        help_table.add_row("  help", "Display this help information")
+        help_table.add_row("  history", "Show recently played songs")
+        help_table.add_row("  previous", "Play the previous song from history")
+        help_table.add_row("  clear_history", "Clear your song history")
+        help_table.add_row("  play_offline", "Browse and play downloaded songs")
+        help_table.add_row("  download_song", "Download songs for offline listening")
+        help_table.add_row("  play_playlist", "Play songs from a playlist")
+        help_table.add_row("  delete_playlist", "Delete a playlist")
+        help_table.add_row("  import_playlist", "Import playlists from Spotify")
+
+        # Playback controls
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]PLAYBACK CONTROLS[/bold cyan]", "")
+        help_table.add_row("  q", "End current song playback")
+        help_table.add_row("  b", "Play previous song from history")
+        help_table.add_row("  n", "Skip to next song")
+        help_table.add_row("  p", "Pause/Resume playback")
+        help_table.add_row("  t", "Translate lyrics")
+        help_table.add_row("  UP/DOWN", "Adjust volume")
+        help_table.add_row("  Mouse wheel", "Fine tune volume")
+
+        console.print(help_table)
 
     def play_offline(self):
-        ListenSongOffline().listen_song_offline()
+        """Browse and play downloaded songs."""
+        try:
+            with console.status("[cyan]Loading offline songs...[/cyan]"):
+                player = ListenSongOffline()
+            player.listen_song_offline()
+        except Exception as e:
+            console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
     def download_song(self, songs_to_download=None):
+        """Download one or more songs."""
         if songs_to_download is None or songs_to_download == []:
             songs_input = self.console.input(
                 Text(
                     "Enter song name[s] (separate multiple songs with commas): ",
-                    style="#A2DE96",
+                    style="bold cyan",
                 )
             )
             # Split by comma and strip whitespace
             songs_to_download = [s.strip() for s in songs_input.split(",") if s.strip()]
             if not songs_to_download:
-                self.console.print("No valid song names provided.")
+                self.console.print("[yellow]No valid song names provided.[/yellow]")
                 return
 
-        print(f"Downloading {len(songs_to_download)} songs: {songs_to_download}")
+        # Create a nice panel to show download list
+        songs_list = "\n".join(
+            [f"[cyan]{i}.[/cyan] {song}" for i, song in enumerate(songs_to_download, 1)]
+        )
+        console.print(
+            Panel(
+                songs_list,
+                title=f"Downloading {len(songs_to_download)} Songs",
+                border_style="green",
+            )
+        )
+
+        # Download the songs
         download = SongDownloader(songs_to_download)
         download.download_song()
 
     def play_playlist(self, online_offline=None, playlist_name=None):
-        listen_playlist_online = ListenPlaylistOnline()
-        listen_playlist_offline = ListenPlaylistOffline()
+        """Play songs from a playlist."""
+        try:
+            listen_playlist_online = ListenPlaylistOnline()
+            listen_playlist_offline = ListenPlaylistOffline()
 
-        if online_offline is None:
-            online_offline = questionary.select(
-                "", choices=["Play Online", "Play Offline"]
-            ).ask()
+            if online_offline is None:
+                online_offline = questionary.select(
+                    "Select playback mode", choices=["Play Online", "Play Offline"]
+                ).ask()
 
-            online_offline = "n" if online_offline == "Play Online" else "f"
+                online_offline = "n" if online_offline == "Play Online" else "f"
 
-        match online_offline:
-            case "n":
-                listen_playlist_online.listen_playlist_online(playlist_name)
-            case "f":
-                listen_playlist_offline.listen_playlist_offline(playlist_name)
+            with console.status(f"[cyan]Loading playlist...[/cyan]"):
+                match online_offline:
+                    case "n":
+                        listen_playlist_online.listen_playlist_online(playlist_name)
+                    case "f":
+                        listen_playlist_offline.listen_playlist_offline(playlist_name)
+        except Exception as e:
+            console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
     def delete_playlist(self, saved_downloaded=None, playlist_name=""):
+        """Delete a playlist."""
         delete_playlist = DeletePlaylist()
 
         if saved_downloaded is None:
             saved_downloaded = questionary.select(
-                "Select Playlist to Delete",
+                "Select Playlist Type to Delete",
                 choices=["Saved Playlists", "Downloaded Playlists"],
             ).ask()
 
             saved_downloaded = "s" if saved_downloaded == "Saved Playlists" else "d"
 
-        match saved_downloaded:
-            case "s":
-                delete_playlist.delete_saved_playlist(playlist_name)
-            case "d":
-                print(playlist_name)
-                delete_playlist.delete_downloaded_playlist(playlist_name)
+        try:
+            match saved_downloaded:
+                case "s":
+                    with console.status(f"[cyan]Removing saved playlist...[/cyan]"):
+                        delete_playlist.delete_saved_playlist(playlist_name)
+                case "d":
+                    with console.status(
+                        f"[cyan]Removing downloaded playlist...[/cyan]"
+                    ):
+                        delete_playlist.delete_downloaded_playlist(playlist_name)
+        except Exception as e:
+            console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
     def import_playlist(self):
-        ImportSpotifyPlaylist().import_spotify_playlist()
+        """Import playlists from Spotify."""
+        try:
+            with console.status("[cyan]Connecting to Spotify...[/cyan]"):
+                importer = ImportSpotifyPlaylist()
+            importer.import_spotify_playlist()
+        except Exception as e:
+            console.print(f"[bold red]Error importing playlist:[/bold red] {str(e)}")
 
     def download_playlist(self, playlist_name=None):
-        DownloadPlaylist().download_playlist(playlist_name)
+        """Download a playlist."""
+        try:
+            with console.status("[cyan]Preparing to download playlist...[/cyan]"):
+                downloader = DownloadPlaylist()
+            downloader.download_playlist(playlist_name)
+        except Exception as e:
+            console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
     def song_searched(self, song):
+        """Handle a song search - either single song or comma-separated list."""
         if "," in song:
             songs = [s.strip() for s in song.split(",")]
             play_song_sequence(songs)
@@ -135,12 +208,12 @@ class InputCases:
     def clear_queue(self):
         """Clear the current song queue."""
         self.queue_manager.clear_queue()
-        self.console.print("Queue cleared")
+        self.console.print("[green]Queue cleared successfully[/green]")
 
     def add_to_queue(self, song):
         """Add a song to the queue."""
         self.queue_manager.add_to_queue([song])
-        self.console.print(f"Added to queue: {song}")
+        self.console.print(f"[green]Added to queue:[/green] {song}")
 
     def show_history(self):
         """Show the song play history."""
@@ -150,15 +223,27 @@ class InputCases:
     def play_previous(self):
         """Play the previous song from history."""
         history_manager = RecentlyPlayedManager()
-        prev_song = history_manager.get_previous_song()
+
+        with console.status("[cyan]Finding previous song...[/cyan]") as status:
+            prev_song = history_manager.get_previous_song()
 
         if prev_song:
-            self.console.print(f"Playing previous song: {prev_song}")
+            console.print(
+                f"[bold green]Playing previous song:[/bold green] {prev_song}"
+            )
             ListenSongOnline(prev_song).listen_song_online()
         else:
-            self.console.print("No previous songs in history.")
+            console.print(
+                Panel(
+                    "No previous songs found in history",
+                    title="History",
+                    border_style="yellow",
+                )
+            )
 
     def clear_history(self):
         """Clear the song play history."""
-        history_manager = RecentlyPlayedManager()
-        history_manager.clear_history()
+        with console.status("[cyan]Clearing song history...[/cyan]"):
+            history_manager = RecentlyPlayedManager()
+            history_manager.clear_history()
+        console.print("[green]Song history cleared successfully[/green]")
