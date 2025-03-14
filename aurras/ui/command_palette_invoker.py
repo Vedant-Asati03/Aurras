@@ -49,7 +49,7 @@ class CommandPaletteInvoker(Completer):
                     or search_text in name.lower()
                     or search_text in desc.lower()
                 ):
-                    # Start position is the length of the input including '>'
+                    # Ensure completion replaces the entire input
                     yield Completion(
                         display,
                         start_position=-len(text_before_cursor),
