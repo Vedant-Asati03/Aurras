@@ -126,11 +126,9 @@ class HandleUserInput:
                 cmd["action"]()
                 return
 
-        # First check for comma-separated songs - this should take highest priority
         if "," in self.user_input:
             songs = [s.strip() for s in self.user_input.split(",") if s.strip()]
             if songs:
-                # Create a nice panel to show the playlist
                 console.print(
                     Panel(
                         "\n".join(
