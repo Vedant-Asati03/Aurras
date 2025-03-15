@@ -1,8 +1,8 @@
-# Aurras Music Player
+# 🎵 Aurras Music Player
 
-![Aurras](assests/aurras.png)
+Aurras is a feature-rich command-line music player that lets you search, play, and manage music from various sources. With support for online streaming and offline playback, playlists, queue management, and more, it's the ultimate terminal-based music companion.
 
-**Aurras🎧** is a high-end **command line music player** that offers a seamless music experience directly in your terminal. It combines powerful search capabilities with an elegant interface, allowing you to enjoy your favorite music without leaving your command line environment.
+![Aurras Music Player](https://raw.githubusercontent.com/USERNAME/Aurras/main/assets/screenshot.png)
 
 <div align="center">
 
@@ -14,39 +14,37 @@
 </div>
 
 ## Table of Contents
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-  - [Standard Installation](#standard-installation)
-  - [Development Installation](#development-installation)
-- [Usage Guide](#usage-guide)
-  - [Command Line Arguments](#command-line-arguments)
-  - [Interactive Mode](#interactive-mode)
-  - [Command Shortcuts](#command-shortcuts)
-  - [Playlist Management](#playlist-management)
-  - [Spotify Integration](#spotify-integration)
-- [Project Structure](#project-structure)
-- [Technical Details](#technical-details)
-- [Development](#development)
-  - [Setup Development Environment](#setup-development-environment)
-  - [Testing](#testing)
-  - [Contributing](#contributing)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
+- [🎵 Aurras Music Player](#-aurras-music-player)
+  - [Table of Contents](#table-of-contents)
+  - [✨ Features](#-features)
+  - [Requirements](#requirements)
+  - [🚀 Installation](#-installation)
+    - [Development Installation](#development-installation)
+    - [External Dependencies](#external-dependencies)
+  - [📖 Usage](#-usage)
+    - [Basic Usage](#basic-usage)
+    - [Key Commands](#key-commands)
+    - [Playback Controls](#playback-controls)
+  - [🎬 Demo](#-demo)
+  - [Project Structure](#project-structure)
+  - [Technical Details](#technical-details)
+  - [Development](#development)
+    - [Setup Development Environment](#setup-development-environment)
+    - [Testing](#testing)
+  - [👥 Contributing](#-contributing)
+  - [Troubleshooting](#troubleshooting)
+  - [📝 License](#-license)
 
-## Features
+## ✨ Features
 
-* **Online Streaming** - Play any song directly without downloading
-* **Offline Playback** - Listen to your downloaded songs locally
-* **Smart Caching** - Searches local cache before making web requests for better performance
-* **Playlist Management** - Create, import, download and manage playlists
-* **Spotify Integration** - Import your Spotify playlists directly
-* **Command Shortcuts** - Quickly perform actions with intuitive shortcuts
-* **Lyrics Display** - View song lyrics while playing
-* **Auto-completion** - Smart song and playlist name suggestions
-* **Song Recommendations** - Get personalized song recommendations
-* **Backup & Restore** - Automatic backup of your preferences and playlists
-* **Flexible Configuration** - Customize settings through YAML configuration files
+- 🎧 **Online & Offline Playback** - Stream songs online or play downloaded tracks
+- 📋 **Queue Management** - Create and manage song queues easily
+- 📚 **Playlist Support** - Create, import, download, and manage playlists
+- 📥 **Download Support** - Download songs for offline listening
+- 🎤 **Lyrics Display** - View and translate lyrics while listening
+- 📱 **Spotify Integration** - Import your Spotify playlists
+- 🧠 **Smart History** - Track and replay your listening history
+- ⌨️ **Command Palette** - Quick access to all features
 
 ## Requirements
 
@@ -55,14 +53,18 @@
 - FFmpeg (required for audio processing)
 - Internet connection for streaming and downloading music
 
-## Installation
-
-### Standard Installation
-
-The easiest way to install Aurras is via pip:
+## 🚀 Installation
 
 ```bash
-pip install aurras
+# Clone the repository
+git clone https://github.com/USERNAME/Aurras.git
+cd Aurras
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run Aurras
+python -m aurras
 ```
 
 ### Development Installation
@@ -121,35 +123,61 @@ choco install mpv
 brew install mpv
 ```
 
-## Usage Guide
+## 📖 Usage
 
-### Command Line Arguments
+### Basic Usage
 
-Aurras supports various command-line arguments for quick operations:
+Just type a song name to search and play:
 
-### Interactive Mode
+```
+> Shape of You
+```
 
-### Command Shortcuts
+Play multiple songs in sequence by separating them with commas:
 
-Aurras offers convenient shortcuts to quickly perform common actions:
+```
+> Blinding Lights, Save Your Tears, Starboy
+```
 
-* `d, song1, song2, ...` - Download multiple songs
-* `dp, playlist_name` - Download a specific playlist
-* `pn, playlist_name` - Play a saved playlist online
-* `pf, playlist_name` - Play a downloaded playlist offline
-* `rs, playlist_name` - Remove a saved playlist
-* `rd, playlist_name` - Remove a downloaded playlist
+For songs with commas in their names, use quotes:
 
-### Playlist Management
+```
+> "Don't Stop Believin', Journey"
+```
 
-### Spotify Integration
+Access the command palette with `>` or `cmd`:
 
-Aurras can connect to your Spotify account to import playlists. When first using Spotify features, you'll be prompted to authenticate and provide your API credentials.
+```
+> cmd
+```
 
-1. Create a Spotify Developer account: https://developer.spotify.com/dashboard/
-2. Create an application to obtain your client ID and secret
-3. Set the redirect URI to `http://localhost:8888/callback`
-4. Enter these credentials when prompted by Aurras
+### Key Commands
+
+| Command           | Description                 |
+| ----------------- | --------------------------- |
+| `help`            | Display help information    |
+| `queue`           | Show the current song queue |
+| `clear_queue`     | Clear the queue             |
+| `history`         | View recently played songs  |
+| `previous`        | Play the previous song      |
+| `play_offline`    | Browse downloaded songs     |
+| `download_song`   | Download songs              |
+| `play_playlist`   | Play a playlist             |
+| `import_playlist` | Import from Spotify         |
+| `toggle_lyrics`   | Turn lyrics on/off          |
+
+### Playback Controls
+
+- `q` - End playback
+- `b` - Previous song
+- `n` - Next song
+- `p` - Pause/Resume
+- `t` - Translate lyrics
+- `UP`/`DOWN` - Adjust volume
+
+## 🎬 Demo
+
+Check out our [YouTube demo](https://youtube.com/watch?v=DEMO_ID) to see Aurras in action!
 
 ## Project Structure
 
@@ -173,10 +201,12 @@ aurras/
 
 ### Testing
 
-### Contributing
+## 👥 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Troubleshooting
 
-## License
+## 📝 License
 
-MIT License - See LICENSE.txt for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
