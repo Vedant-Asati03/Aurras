@@ -7,6 +7,8 @@ This module provides the command-line interface for the Aurras music player.
 import sys
 import argparse
 import logging
+import importlib.util
+import signal
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -20,6 +22,7 @@ from .player.online import ListenSongOnline
 from .playlist.download import DownloadPlaylist
 from .playlist.manager import Select
 from .player.history import RecentlyPlayedManager
+from .utils.initialization import initialize_application  # Add this import
 
 # Configure logging
 logging.basicConfig(
@@ -267,10 +270,58 @@ def play_previous_song():
         console.print("[yellow]No previous songs in history.[/yellow]")
 
 
+def check_optional_dependencies():
+    """Check for optional dependencies and show appropriate messages."""
+    missing_features = []
+
+    # Check for lyrics_extractor
+    try:
+        import lyrics_extractor
+
+        lyrics_available = True
+    except ImportError:
+        lyrics_available = False
+        missing_features.append("lyrics display")
+
+    # Check for googletrans
+    try:
+        import googletrans
+
+        translation_available = True
+    except ImportError:
+        translation_available = False
+        missing_features.append("lyrics translation")
+
+    # Check for keyboard
+    try:
+        import keyboard
+
+        keyboard_available = True
+    except ImportError:
+        keyboard_available = False
+        missing_features.append("keyboard shortcuts")
+
+    # Show message if features are missing
+    if missing_features and not getattr(
+        sys, "frozen", False
+    ):  # Don't show in packaged apps
+        message = f"[yellow]Some features are limited: {', '.join(missing_features)}.[/yellow]"
+        message += "\n[dim]Run 'python setup_dependencies.py --optional' to install optional dependencies.[/dim]"
+        console.print(message)
+
+    return True
+
+
 def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
     try:
+        # Initialize the application
+        initialize_application()
+
+        # Check optional dependencies at startup
+        check_optional_dependencies()
+
         # Set up argument parser for command-line arguments
         parser = argparse.ArgumentParser(
             description="Aurras - A high-end command line music player",
