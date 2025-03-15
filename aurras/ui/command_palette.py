@@ -12,6 +12,7 @@ from ..utils.path_manager import PathManager
 _path_manager = PathManager()
 
 from ..core.settings import LoadDefaultSettings, UpdateSpecifiedSettings
+from ..utils.backup_manager import BackupManager  # Add this import
 
 
 class CommandPalette:
@@ -33,6 +34,21 @@ class CommandPalette:
                 "name": "Toggle Lyrics Display",
                 "description": "Turn lyrics display on or off",
                 "action": self._toggle_lyrics,
+            },
+            "toggle_backup": {  # Add new command
+                "name": "Toggle Backup System",
+                "description": "Enable or disable automatic backups",
+                "action": self._toggle_backup,
+            },
+            "create_backup": {  # Add new command
+                "name": "Create Manual Backup",
+                "description": "Create a backup of your settings and data",
+                "action": self._create_manual_backup,
+            },
+            "restore_backup": {  # Add new command
+                "name": "Restore from Backup",
+                "description": "Restore settings and data from a backup",
+                "action": self._restore_from_backup,
             },
             "clear_history": {
                 "name": "Clear Play History",
@@ -95,6 +111,103 @@ class CommandPalette:
         # Show confirmation
         status = "ON" if new_value == "yes" else "OFF"
         self.console.print(f"[green]Lyrics display turned {status}[/green]")
+
+    def _toggle_backup(self):
+        """Toggle automatic backup on/off."""
+        settings_updater = UpdateSpecifiedSettings("backup")
+        current = (
+            settings_updater.settings.get("backup", {}).get("enabled", "yes").lower()
+        )
+        new_value = "no" if current == "yes" else "yes"
+
+        # Get existing backup settings or create new ones
+        backup_settings = settings_updater.settings.get("backup", {})
+        backup_settings["enabled"] = new_value
+
+        # Update the setting
+        with open(_path_manager.settings_file, "w") as config_file:
+            settings_updater.settings["backup"] = backup_settings
+            yaml.dump(
+                settings_updater.settings,
+                config_file,
+                default_flow_style=False,
+                indent=4,
+            )
+
+        # Show confirmation
+        status = "ON" if new_value == "yes" else "OFF"
+        self.console.print(f"[green]Automatic backups turned {status}[/green]")
+
+        # If enabling, ask about frequency
+        if new_value == "yes":
+            frequency = questionary.text(
+                "How often should backups occur (in days)?", default="7"
+            ).ask()
+
+            try:
+                days = int(frequency)
+                if days > 0:
+                    backup_settings["backup-frequency"] = str(days)
+                    # Update again with new frequency
+                    with open(_path_manager.settings_file, "w") as config_file:
+                        settings_updater.settings["backup"] = backup_settings
+                        yaml.dump(
+                            settings_updater.settings,
+                            config_file,
+                            default_flow_style=False,
+                            indent=4,
+                        )
+                    self.console.print(
+                        f"[green]Backup frequency set to {days} days[/green]"
+                    )
+            except ValueError:
+                self.console.print(
+                    "[yellow]Invalid number, using default 7 days[/yellow]"
+                )
+
+    def _create_manual_backup(self):
+        """Create a manual backup of user data."""
+        backup_manager = BackupManager()
+        backup_manager.create_backup(manual=True)
+
+    def _restore_from_backup(self):
+        """Restore data from a backup."""
+        backup_manager = BackupManager()
+
+        # List available backups
+        self.console.print("[cyan]Available backups:[/cyan]")
+        backups = backup_manager.list_available_backups()
+
+        if not backups:
+            return
+
+        # Ask which backup to restore
+        choice = questionary.text(
+            "Enter backup number to restore (or press Enter to cancel):", default=""
+        ).ask()
+
+        if not choice:
+            self.console.print("[yellow]Restoration cancelled[/yellow]")
+            return
+
+        try:
+            index = int(choice) - 1
+            if 0 <= index < len(backups):
+                # Confirm restoration
+                confirm = questionary.confirm(
+                    "This will overwrite your current settings and data. Continue?",
+                    default=False,
+                ).ask()
+
+                if confirm:
+                    backup_file = backups[index]["file"]
+                    backup_manager.restore_from_backup(backup_file)
+                else:
+                    self.console.print("[yellow]Restoration cancelled[/yellow]")
+            else:
+                self.console.print("[red]Invalid backup number[/red]")
+        except ValueError:
+            self.console.print("[red]Invalid input. Please enter a number.[/red]")
 
     def _clear_history(self):
         """Clear the play history."""
