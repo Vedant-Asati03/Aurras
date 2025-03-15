@@ -56,8 +56,16 @@ class InputCases:
         help_table.add_row("", "")
         help_table.add_row("[bold cyan]QUEUE COMMANDS[/bold cyan]", "")
         help_table.add_row("  queue", "Display the current song queue")
+        help_table.add_row("  add_to_queue", "Add a song to the current queue")
         help_table.add_row("  clear_queue", "Clear the current song queue")
         help_table.add_row("  song1, song2, ...", "Play multiple songs in sequence")
+
+        # History commands
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]HISTORY COMMANDS[/bold cyan]", "")
+        help_table.add_row("  history", "Show recently played songs")
+        help_table.add_row("  previous", "Play the previous song from history")
+        help_table.add_row("  clear_history", "Clear your song history")
 
         # Command shortcuts
         help_table.add_row("", "")
@@ -73,22 +81,27 @@ class InputCases:
         help_table.add_row("  rs, playlist_name", "Remove a saved playlist")
         help_table.add_row("  rd, playlist_name", "Remove a downloaded playlist")
 
-        # Main commands
+        # Playlist commands
         help_table.add_row("", "")
-        help_table.add_row("[bold cyan]MAIN COMMANDS[/bold cyan]", "")
-        help_table.add_row("  help", "Display this help information")
-        help_table.add_row("  command_palette", "Open command palette")
-        help_table.add_row("  history", "Show recently played songs")
-        help_table.add_row("  previous", "Play the previous song from history")
-        help_table.add_row("  clear_history", "Clear your song history")
-        help_table.add_row("  play_offline", "Browse and play downloaded songs")
-        help_table.add_row("  download_song", "Download songs for offline listening")
+        help_table.add_row("[bold cyan]PLAYLIST COMMANDS[/bold cyan]", "")
         help_table.add_row("  play_playlist", "Play songs from a playlist")
+        help_table.add_row("  download_playlist", "Download a playlist for offline use")
         help_table.add_row("  delete_playlist", "Delete a playlist")
         help_table.add_row("  import_playlist", "Import playlists from Spotify")
+
+        # Offline features
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]OFFLINE FEATURES[/bold cyan]", "")
+        help_table.add_row("  play_offline", "Browse and play downloaded songs")
+        help_table.add_row("  download_song", "Download songs for offline listening")
+
+        # Settings & cache
+        help_table.add_row("", "")
+        help_table.add_row("[bold cyan]SETTINGS & CACHE[/bold cyan]", "")
         help_table.add_row("  toggle_lyrics", "Turn lyrics display on/off")
         help_table.add_row("  cache_info", "Show information about cached data")
         help_table.add_row("  cleanup_cache", "Delete old cached data")
+        help_table.add_row("  cleanup_cache 7", "Delete cache older than 7 days")
 
         # Playback controls
         help_table.add_row("", "")
