@@ -65,6 +65,12 @@ class CommandPalette:
                 "description": "Display information about Aurras",
                 "action": self._show_about,
             },
+            "setup_spotify": {
+                "name": "Setup Spotify",
+                "description": "Configure Spotify API credentials",
+                "action": self._setup_spotify,
+                "category": "Services",
+            },
         }
 
     def show_command_palette(self):
@@ -266,6 +272,12 @@ class CommandPalette:
             padding=(1, 2),
         )
         self.console.print(about_panel)
+
+    def _setup_spotify(self):
+        """Set up Spotify API credentials."""
+        from ..ui.command_handler import InputCases
+
+        InputCases().setup_spotify()
 
 
 class DisplaySettings(LoadDefaultSettings):
