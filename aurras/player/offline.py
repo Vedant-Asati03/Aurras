@@ -1,6 +1,9 @@
 from pathlib import Path
 import questionary
 from rich.console import Console
+import random
+from rich.table import Table
+from rich.box import ROUNDED
 
 # Replace absolute import with relative import
 from ..utils.path_manager import PathManager
@@ -139,28 +142,102 @@ class ListenPlaylistOffline(OfflineSongPlayer):
         ).ask()
         clear_screen()
 
-    def listen_playlist_offline(self, playlist_name=""):
-        """Play the selected playlist offline."""
-        if playlist_name == "":
-            self._select_playlist_to_listen()
-        else:
-            self.active_playlist = playlist_name
+    def listen_playlist_offline(self, playlist_name="", shuffle=False):
+        """Play the selected playlist offline.
 
-        self._select_song_to_listen_from_playlist()
+        Args:
+            playlist_name (str): Optional name of the playlist to play
+            shuffle (bool): Whether to shuffle the playlist
+        """
+        try:
+            if playlist_name == "":
+                self._select_playlist_to_listen()
+            else:
+                # Verify the specified playlist exists
+                available_playlists = _path_manager.list_directory(
+                    _path_manager.playlists_dir
+                )
+                if available_playlists and playlist_name in available_playlists:
+                    self.active_playlist = playlist_name
+                else:
+                    self.console.print(
+                        f"[bold red]Playlist '{playlist_name}' not found![/bold red]"
+                    )
+                    self._select_playlist_to_listen()
 
-        active_song_index = self.accessed_playlist_directory_listed.index(
-            self.active_song
-        )
+            # Verify active playlist is set
+            if not self.active_playlist:
+                self.console.print("[bold red]No playlist selected.[/bold red]")
+                return
 
-        for current_song in self.accessed_playlist_directory_listed[active_song_index:]:
-            mpv_command = self.mpv_command.generate_mpv_command(
-                _path_manager.playlists_dir / self.active_playlist / self.active_song
-            )
+            # Get songs from the playlist
+            self._select_song_to_listen_from_playlist()
 
-            # Add to play history before playing
-            history_manager = RecentlyPlayedManager()
-            history_manager.add_to_history(
-                current_song, f"playlist:{self.active_playlist}"
-            )
+            # Verify active song is set
+            if not self.active_song:
+                self.console.print(
+                    f"[bold red]No song selected from playlist '{self.active_playlist}'.[/bold red]"
+                )
+                return
 
-            self.mpv_command.play(mpv_command, current_song)
+            # Get all songs from the accessed playlist directory
+            songs = self.accessed_playlist_directory_listed.copy()
+
+            if not songs:
+                self.console.print(
+                    f"[yellow]Playlist '{self.active_playlist}' is empty.[/yellow]"
+                )
+                return
+
+            # Find the index of the active song
+            active_song_index = songs.index(self.active_song)
+
+            # Get only songs from the active song onwards
+            songs_to_play = songs[active_song_index:]
+
+            if shuffle:
+                # Shuffle the songs
+                random.shuffle(songs_to_play)
+
+                # Create a nice table to show the shuffled playlist
+                shuffle_table = Table(
+                    title="🎲 Shuffled Playlist", box=ROUNDED, border_style="#D09CFA"
+                )
+                shuffle_table.add_column("#", style="dim")
+                shuffle_table.add_column("Song", style="#D7C3F1")
+
+                for i, song in enumerate(songs_to_play, 1):
+                    shuffle_table.add_row(str(i), song)
+
+                self.console.print(shuffle_table)
+
+            # Play each song
+            for current_song in songs_to_play:
+                try:
+                    playlist_path = _path_manager.playlists_dir / self.active_playlist
+                    song_path = playlist_path / current_song
+
+                    if not song_path.exists():
+                        self.console.print(
+                            f"[yellow]Song file not found: {song_path}[/yellow]"
+                        )
+                        continue
+
+                    mpv_command = self.mpv_command.generate_mpv_command(song_path)
+
+                    # Add to play history before playing
+                    history_manager = RecentlyPlayedManager()
+                    history_manager.add_to_history(
+                        current_song, f"playlist:{self.active_playlist}"
+                    )
+
+                    self.mpv_command.play(mpv_command, current_song)
+                except Exception as e:
+                    self.console.print(
+                        f"[bold red]Error playing '{current_song}': {str(e)}[/bold red]"
+                    )
+                    # Continue with next song
+                    continue
+
+        except Exception as e:
+            self.console.print(f"[bold red]Error playing playlist: {str(e)}[/bold red]")
