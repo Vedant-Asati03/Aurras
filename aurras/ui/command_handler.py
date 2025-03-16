@@ -194,7 +194,7 @@ class InputCases:
 
                 online_offline = "n" if online_offline == "Play Online" else "f"
 
-            with console.status(f"[cyan]Loading playlist...[/cyan]"):
+            with console.status("[cyan]Loading playlist...[/cyan]"):
                 # Check if playlist exists first
                 if playlist_name:
                     if online_offline == "n":
@@ -308,12 +308,10 @@ class InputCases:
         try:
             match saved_downloaded:
                 case "s":
-                    with console.status(f"[cyan]Removing saved playlist...[/cyan]"):
+                    with console.status("[cyan]Removing saved playlist...[/cyan]"):
                         delete_playlist.delete_saved_playlist(playlist_name)
                 case "d":
-                    with console.status(
-                        f"[cyan]Removing downloaded playlist...[/cyan]"
-                    ):
+                    with console.status("[cyan]Removing downloaded playlist...[/cyan]"):
                         delete_playlist.delete_downloaded_playlist(playlist_name)
         except Exception as e:
             console.print(f"[bold red]Error:[/bold red] {str(e)}")
