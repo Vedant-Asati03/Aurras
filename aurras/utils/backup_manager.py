@@ -112,7 +112,7 @@ class BackupManager:
             metadata = {
                 "timestamp": time.time(),
                 "date": datetime.now().isoformat(),
-                "version": "0.1.0",  # Application version
+                "version": "0.1.1",  # Application version
                 "items": {},
             }
 
