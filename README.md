@@ -7,7 +7,7 @@ Aurras is a feature-rich command-line music player that provides a seamless musi
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![MPV](https://img.shields.io/badge/player-mpv-orange)](https://mpv.io/)
-[![PyPI version](https://badge.fury.io/py/aurras.svg)](https://badge.fury.io/py/aurras)
+[![PyPI version](https://img.shields.io/badge/version-1.1.0-blue)](https://pypi.org/project/aurras/)
 
 ## Table of Contents
 
