@@ -39,6 +39,10 @@ Aurras is a feature-rich command-line music player that provides a seamless musi
   - [Troubleshooting](#troubleshooting)
   - [Project Structure](#project-structure)
   - [Contributing](#contributing)
+    - [Getting Started](#getting-started)
+    - [Contribution Guidelines](#contribution-guidelines)
+    - [Development Setup](#development-setup)
+    - [Bug Reports and Feature Requests](#bug-reports-and-feature-requests)
   - [License](#license)
 
 ## Overview
@@ -285,7 +289,34 @@ aurras/
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions to Aurras! Please check out our [CONTRIBUTING.md](CONTRIBUTING.md) file for detailed guidelines on how to contribute to the project.
+
+### Getting Started
+
+1. **Fork the repository** on GitHub
+2. **Clone your fork** locally
+3. **Create a branch** for your feature or bug fix
+4. **Make your changes**, adding tests when possible
+5. **Run the test suite** to ensure nothing is broken
+6. **Submit a pull request** with a clear description of the changes
+
+### Contribution Guidelines
+
+- Follow the existing code style and conventions
+- Write clear, documented, and testable code
+- Keep pull requests focused on a single feature or bug fix
+- Update documentation for any changed functionality
+
+### Development Setup
+
+See the [Development Installation](#development-installation) section for setting up your development environment.
+
+### Bug Reports and Feature Requests
+
+Please use the GitHub issue tracker to report bugs or suggest features.
+
+For more details, see our [full contribution guide](CONTRIBUTING.md).
+[](/CONTRIBUTING.md)
 
 ## License
 
