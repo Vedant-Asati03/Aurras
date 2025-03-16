@@ -32,18 +32,21 @@ class SongDownloader:
         song_list_to_download (list): List of song names to download.
     """
 
-    def __init__(self, song_list_to_download: list):
+    def __init__(self, song_list_to_download: list, output_directory=None):
         """
         Initializes the SongDownloader class.
 
         Args:
             song_list_to_download (list): List of song names to download.
+            output_directory (Path, optional): Specific output directory to save songs.
+                                             If None, uses default download directory.
         """
         self.current_directory = Path.cwd()
         self.song_list_to_download = song_list_to_download
+        self.output_directory = output_directory or _path_manager.downloaded_songs_dir
 
-        # Use the path manager instance instead of importing from config
-        _path_manager.downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure download directory exists
+        self.output_directory.mkdir(parents=True, exist_ok=True)
 
     def download_song(self):
         """
@@ -54,7 +57,7 @@ class SongDownloader:
         print("Downloading songs...")
 
         # Format output directory path as a string
-        output_dir = str(_path_manager.downloaded_songs_dir)
+        output_dir = str(self.output_directory)
         print(f"Songs will be saved to: {output_dir}")
 
         # Change to a temporary directory for download
@@ -75,6 +78,7 @@ class SongDownloader:
                         print(f"  - {os.path.basename(f)}")
 
             except subprocess.CalledProcessError as e:
+                print(f"Error downloading songs: {e}")
                 print("Make sure you have spotdl installed correctly.")
 
                 try:
@@ -101,7 +105,7 @@ class SongDownloader:
         finally:
             os.chdir(original_dir)
 
-            cache_file = _path_manager.downloaded_songs_dir / ".spotdl-cache"
+            cache_file = self.output_directory / ".spotdl-cache"
             if cache_file.exists():
                 cache_file.unlink()
 
