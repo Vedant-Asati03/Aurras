@@ -40,27 +40,59 @@ class DownloadPlaylist:
         self.select_playlist.songs_from_active_playlist()
 
     def _generate_download_playlist_path(self):
+        """Generate the path for downloading the playlist and configure the downloader."""
+        # Create a Path object for the playlist's directory
         self.downloaded_playlist_path = Path(
             _path_manager.playlists_dir, self.select_playlist.active_playlist.lower()
         )
-        self.download = SongDownloader(
-            self.select_playlist.songs_in_active_playlist,
-            self.downloaded_playlist_path,
-        )
+
+        # Create the directory
         self.downloaded_playlist_path.mkdir(parents=True, exist_ok=True)
+
+        # Initialize the downloader with the playlist songs and output directory
+        self.download = SongDownloader(
+            self.select_playlist.songs_in_active_playlist, self.downloaded_playlist_path
+        )
 
     def download_playlist(self, playlist_name):
         """Download the specified playlist."""
-        self._get_playlist_from_db(playlist_name)
-        self._get_songs_from_active_playlist()
-        self._generate_download_playlist_path()
+        try:
+            # Validate playlist name
+            if playlist_name is None or playlist_name == "":
+                self.console.print(
+                    "[yellow]No playlist specified. Please select one.[/yellow]"
+                )
 
-        self.console.print(
-            f"Downloading Playlist - {self.select_playlist.active_playlist}\n\n",
-            style="#D09CFA",
-        )
+            # Get the playlist data
+            self._get_playlist_from_db(playlist_name)
 
-        self.download.download_song()
+            # Verify active playlist is set
+            if not self.select_playlist.active_playlist:
+                self.console.print(
+                    "[bold red]No playlist selected or found.[/bold red]"
+                )
+                return
 
-        self.console.print("Download complete.", style="#D09CFA")
-        sleep(1)
+            self._get_songs_from_active_playlist()
+
+            # Verify songs were found
+            if not self.select_playlist.songs_in_active_playlist:
+                self.console.print(
+                    f"[yellow]Playlist '{self.select_playlist.active_playlist}' is empty. Nothing to download.[/yellow]"
+                )
+                return
+
+            self._generate_download_playlist_path()
+
+            self.console.print(
+                f"Downloading Playlist - {self.select_playlist.active_playlist}\n\n",
+                style="#D09CFA",
+            )
+
+            self.download.download_song()
+
+            self.console.print("Download complete.", style="#D09CFA")
+        except Exception as e:
+            self.console.print(
+                f"[bold red]Error downloading playlist: {str(e)}[/bold red]"
+            )
