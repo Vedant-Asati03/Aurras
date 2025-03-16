@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aurras"
-version = "1.1.0"
+version = "1.1.1"
 description = "A high-end command line music player"
 authors = ["vedant-asati03 <vedant.asati03@gmail.com>"]
 readme = "README.md"
