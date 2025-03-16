@@ -41,6 +41,9 @@ class ImportSpotifyPlaylist:
         # Define credentials file path
         self.credentials_file = credentials_dir / "spotify_credentials.json"
 
+        # Define token cache path
+        self.token_cache_path = _path_manager.app_dir / ".cache-spotify"
+
     def _setup_spotify_client(self):
         """Set up the Spotify client with proper authentication."""
         # Check if we have credentials
@@ -59,11 +62,64 @@ class ImportSpotifyPlaylist:
         redirect_uri = "http://localhost:8080"
 
         try:
-            # First, we'll try the direct approach with a manual code entry
-            # This is more reliable if there are issues with the automatic authentication
-            self.console.print(
-                Panel(
-                    Markdown("""
+            # Create the auth manager that will handle token caching
+            auth_manager = oauth2.SpotifyOAuth(
+                client_id=credentials["client_id"],
+                client_secret=credentials["client_secret"],
+                redirect_uri=redirect_uri,
+                scope=self.scope,
+                open_browser=False,
+                cache_path=str(self.token_cache_path),
+            )
+
+            # First, check if we have a cached token
+            token_info = None
+            if self.token_cache_path.exists():
+                try:
+                    token_info = auth_manager.get_cached_token()
+                except Exception:
+                    # If there's any issue with the cached token, we'll ignore it
+                    pass
+
+            # If we have a valid token, use it
+            if token_info and not auth_manager.is_token_expired(token_info):
+                self.console.print(
+                    "[green]Using existing Spotify authorization[/green]"
+                )
+                token = token_info["access_token"]
+
+            # If token exists but is expired, try to refresh it
+            elif (
+                token_info
+                and auth_manager.is_token_expired(token_info)
+                and token_info.get("refresh_token")
+            ):
+                self.console.print("[cyan]Refreshing Spotify authorization...[/cyan]")
+                try:
+                    token_info = auth_manager.refresh_access_token(
+                        token_info["refresh_token"]
+                    )
+                    token = token_info["access_token"]
+                    self.console.print(
+                        "[green]Successfully refreshed authorization[/green]"
+                    )
+                except Exception as e:
+                    self.console.print(
+                        f"[yellow]Failed to refresh token: {e}. Will need to re-authenticate.[/yellow]"
+                    )
+                    # If refresh fails, we'll continue with the full auth flow
+                    token_info = None
+                    token = None
+            else:
+                token_info = None
+                token = None
+
+            # If we don't have a valid token after trying to use/refresh the cached one,
+            # go through the full auth flow
+            if not token_info or not token:
+                self.console.print(
+                    Panel(
+                        Markdown("""
 # Spotify Authentication
 
 1. A browser window will open to authorize access to your Spotify account.
@@ -75,153 +131,119 @@ class ImportSpotifyPlaylist:
 
 ⚠️ Copy the URL from your BROWSER ADDRESS BAR AFTER authorization completes, not the initial URL!
                 """),
-                    title="Spotify Authorization Instructions",
-                    border_style="green",
-                )
-            )
-
-            # Create the auth manager
-            auth_manager = oauth2.SpotifyOAuth(
-                client_id=credentials["client_id"],
-                client_secret=credentials["client_secret"],
-                redirect_uri=redirect_uri,
-                scope=self.scope,
-                open_browser=False,
-                cache_path=str(_path_manager.app_dir / ".cache-spotify"),
-            )
-
-            # Get the auth URL
-            auth_url = auth_manager.get_authorize_url()
-
-            # Open browser with the authorization URL
-            self.console.print(
-                "[cyan]Opening browser for Spotify authorization...[/cyan]"
-            )
-
-            try:
-                webbrowser.open(auth_url)
-                self.console.print(
-                    "[green]Browser opened with authentication URL[/green]"
-                )
-            except:
-                self.console.print(
-                    "[yellow]Could not open browser automatically.[/yellow]"
-                )
-                self.console.print(f"Please open this URL manually: {auth_url}")
-
-            # Prompt user for the response URL
-            self.console.print(
-                "\n[bold yellow]⚠️ IMPORTANT: AFTER authorizing in your browser:[/bold yellow]"
-            )
-            self.console.print("[yellow]1. Look at your browser's address bar[/yellow]")
-            self.console.print(
-                "[yellow]2. Copy the FULL URL starting with 'http://localhost:8080'[/yellow]"
-            )
-            self.console.print(
-                "[yellow]3. Paste that URL below (NOT the original Spotify URL)[/yellow]"
-            )
-
-            # Manual code entry with validation
-            redirect_url = questionary.text(
-                "Enter the COMPLETE redirect URL from your browser (starts with http://localhost:8080):"
-            ).ask()
-
-            # Validate the URL format
-            if not redirect_url:
-                raise ValueError("Authentication cancelled")
-
-            if redirect_url.startswith("https://accounts.spotify.com"):
-                self.console.print(
-                    "\n[bold red]ERROR: You provided the original Spotify authorization URL, not the redirect URL![/bold red]"
-                )
-                self.console.print(
-                    "[yellow]The correct URL should start with 'http://localhost:8080' and appear in your browser AFTER authorization.[/yellow]"
-                )
-                raise ValueError(
-                    "Incorrect URL provided - need redirect URL, not original authorization URL"
-                )
-
-            if not redirect_url.startswith("http://localhost:8080"):
-                self.console.print(
-                    "\n[bold red]ERROR: The URL you provided doesn't start with 'http://localhost:8080'[/bold red]"
-                )
-                self.console.print(
-                    "[yellow]Please check that you're copying the correct URL from your browser after authorization.[/yellow]"
-                )
-                raise ValueError("Invalid redirect URL format")
-
-            # If we get here, we have a valid-looking redirect URL
-            # Extract the code and get the token
-            try:
-                code = auth_manager.parse_response_code(redirect_url)
-                token_info = auth_manager.get_access_token(code)
-                token = token_info["access_token"]
-
-                # Create the Spotify client with the token
-                self.spotify_client = spotipy.Spotify(auth=token)
-
-                # Test the connection
-                user = self.spotify_client.current_user()
-                self.console.print(
-                    f"[green]Successfully connected to Spotify as: {user['display_name']}![/green]"
-                )
-            except Exception as e:
-                if "invalid_grant" in str(e).lower():
-                    self.console.print(
-                        "\n[bold red]Authentication Error: Invalid authorization code[/bold red]"
+                        title="Spotify Authorization Instructions",
+                        border_style="green",
                     )
-                    self.console.print("[yellow]This usually happens when:[/yellow]")
+                )
+
+                # Get the auth URL
+                auth_url = auth_manager.get_authorize_url()
+
+                # Open browser with the authorization URL
+                self.console.print(
+                    "[cyan]Opening browser for Spotify authorization...[/cyan]"
+                )
+
+                try:
+                    webbrowser.open(auth_url)
                     self.console.print(
-                        "  [yellow]1. The code has expired (waited too long)[/yellow]"
+                        "[green]Browser opened with authentication URL[/green]"
+                    )
+                except:
+                    self.console.print(
+                        "[yellow]Could not open browser automatically.[/yellow]"
+                    )
+                    self.console.print(f"Please open this URL manually: {auth_url}")
+
+                # Prompt user for the response URL
+                self.console.print(
+                    "\n[bold yellow]⚠️ IMPORTANT: AFTER authorizing in your browser:[/bold yellow]"
+                )
+                self.console.print(
+                    "[yellow]1. Look at your browser's address bar[/yellow]"
+                )
+                self.console.print(
+                    "[yellow]2. Copy the FULL URL starting with 'http://localhost:8080'[/yellow]"
+                )
+                self.console.print(
+                    "[yellow]3. Paste that URL below (NOT the original Spotify URL)[/yellow]"
+                )
+
+                # Manual code entry with validation
+                redirect_url = questionary.text(
+                    "Enter the COMPLETE redirect URL from your browser (starts with http://localhost:8080):"
+                ).ask()
+
+                # Validate the URL format
+                if not redirect_url:
+                    raise ValueError("Authentication cancelled")
+
+                if redirect_url.startswith("https://accounts.spotify.com"):
+                    self.console.print(
+                        "\n[bold red]ERROR: You provided the original Spotify authorization URL, not the redirect URL![/bold red]"
                     )
                     self.console.print(
-                        "  [yellow]2. You provided the wrong URL[/yellow]"
+                        "[yellow]The correct URL should start with 'http://localhost:8080' and appear in your browser AFTER authorization.[/yellow]"
                     )
-                    self.console.print(
-                        "  [yellow]3. The redirect URI in your Spotify app doesn't match exactly[/yellow]"
+                    raise ValueError(
+                        "Incorrect URL provided - need redirect URL, not original authorization URL"
                     )
 
-                    # Offer to try again
-                    retry = questionary.confirm(
-                        "Would you like to try again?", default=True
-                    ).ask()
-                    if retry:
-                        # Recursive call to try again
-                        return self._setup_spotify_client()
-                raise
+                if not redirect_url.startswith("http://localhost:8080"):
+                    self.console.print(
+                        "\n[bold red]ERROR: The URL you provided doesn't start with 'http://localhost:8080'[/bold red]"
+                    )
+                    self.console.print(
+                        "[yellow]Please check that you're copying the correct URL from your browser after authorization.[/yellow]"
+                    )
+                    raise ValueError("Invalid redirect URL format")
+
+                # Extract the code and get the token
+                try:
+                    code = auth_manager.parse_response_code(redirect_url)
+                    token_info = auth_manager.get_access_token(code)
+                    token = token_info["access_token"]
+                    self.console.print(
+                        "[green]Authorization successful! Token saved for future use.[/green]"
+                    )
+                except Exception as e:
+                    if "invalid_grant" in str(e).lower():
+                        self.console.print(
+                            "\n[bold red]Authentication Error: Invalid authorization code[/bold red]"
+                        )
+                        self.console.print(
+                            "[yellow]This usually happens when:[/yellow]"
+                        )
+                        self.console.print(
+                            "  [yellow]1. The code has expired (waited too long)[/yellow]"
+                        )
+                        self.console.print(
+                            "  [yellow]2. You provided the wrong URL[/yellow]"
+                        )
+                        self.console.print(
+                            "  [yellow]3. The redirect URI in your Spotify app doesn't match exactly[/yellow]"
+                        )
+
+                        # Offer to try again
+                        retry = questionary.confirm(
+                            "Would you like to try again?", default=True
+                        ).ask()
+                        if retry:
+                            # Recursive call to try again
+                            return self._setup_spotify_client()
+                    raise
+
+            # Create the Spotify client with the token
+            self.spotify_client = spotipy.Spotify(auth=token)
+
+            # Test the connection
+            user = self.spotify_client.current_user()
+            self.console.print(
+                f"[green]Connected to Spotify as: {user['display_name']}![/green]"
+            )
 
         except Exception as e:
-            self.console.print(f"[bold red]Error connecting to Spotify: {e}[/bold red]")
-
-            # Provide helpful guidance based on error type
-            error_message = str(e).lower()
-            if "invalid_client" in error_message:
-                self.console.print(
-                    Panel(
-                        """
-[bold red]Invalid Client Error[/bold red]
-
-This usually means your Spotify client credentials are incorrect or the redirect URI doesn't match.
-
-To fix this:
-1. Go to your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications)
-2. Check that your Client ID and Secret are correct
-3. Make sure the Redirect URI is EXACTLY: http://localhost:8080
-   - No trailing slash
-   - Correct capitalization (all lowercase)
-4. Save your changes and try again
-
-If you continue to have problems, try creating a completely new Spotify application in the dashboard.
-                    """,
-                        title="Spotify Authentication Error",
-                        border_style="red",
-                        width=100,
-                    )
-                )
-                # Delete credentials to allow re-entry
-                if self.credentials_file.exists():
-                    self.credentials_file.unlink()
-
+            self._handle_auth_error(e)
             raise
 
     def _handle_auth_error(self, e):
