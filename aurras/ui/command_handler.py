@@ -16,13 +16,18 @@ from ..player.history import RecentlyPlayedManager
 from ..core.settings import (
     LoadDefaultSettings,
     UpdateSpecifiedSettings,
-)  # Add this import
+)
 from ..utils.cache_cleanup import cleanup_lyrics_cache, cleanup_all_caches
+from ..playlist.manager import Select
+from ..services.spotify.setup import SpotifySetup
+from ..utils.path_manager import PathManager  # Add this import
+
 import sqlite3
 import time
 
 # Create a single console for consistent styling
 console = Console()
+_path_manager = PathManager()  # Add this instantiation
 
 
 class InputCases:
@@ -85,6 +90,16 @@ class InputCases:
         help_table.add_row("", "")
         help_table.add_row("[bold cyan]PLAYLIST COMMANDS[/bold cyan]", "")
         help_table.add_row("  play_playlist", "Play songs from a playlist")
+        help_table.add_row("  shuffle_playlist", "Play a playlist in random order")
+        help_table.add_row("  view_playlist", "View the contents of a playlist")
+        help_table.add_row(
+            "  add_song_to_playlist", "Add a song to an existing playlist"
+        )
+        help_table.add_row(
+            "  remove_song_from_playlist", "Remove a song from a playlist"
+        )
+        help_table.add_row("  move_song_up", "Move a song up in the playlist order")
+        help_table.add_row("  move_song_down", "Move a song down in the playlist order")
         help_table.add_row("  download_playlist", "Download a playlist for offline use")
         help_table.add_row("  delete_playlist", "Delete a playlist")
         help_table.add_row("  import_playlist", "Import playlists from Spotify")
@@ -156,8 +171,14 @@ class InputCases:
         download = SongDownloader(songs_to_download)
         download.download_song()
 
-    def play_playlist(self, online_offline=None, playlist_name=None):
-        """Play songs from a playlist."""
+    def play_playlist(self, online_offline=None, playlist_name=None, shuffle=False):
+        """Play songs from a playlist.
+
+        Args:
+            online_offline (str, optional): 'n' for online, 'f' for offline
+            playlist_name (str, optional): Name of the playlist to play
+            shuffle (bool, optional): Whether to shuffle the playlist
+        """
         try:
             listen_playlist_online = ListenPlaylistOnline()
             listen_playlist_offline = ListenPlaylistOffline()
@@ -167,16 +188,110 @@ class InputCases:
                     "Select playback mode", choices=["Play Online", "Play Offline"]
                 ).ask()
 
+                if not online_offline:  # User cancelled selection
+                    console.print("[yellow]Playback cancelled.[/yellow]")
+                    return
+
                 online_offline = "n" if online_offline == "Play Online" else "f"
 
             with console.status(f"[cyan]Loading playlist...[/cyan]"):
+                # Check if playlist exists first
+                if playlist_name:
+                    if online_offline == "n":
+                        # Check if it exists in saved playlists
+                        playlist_manager = Select()
+                        available_playlists = playlist_manager.load_playlist_from_db()
+                        if not available_playlists or playlist_name.lower() not in [
+                            p.lower() for p in available_playlists
+                        ]:
+                            console.print(
+                                f"[bold red]Playlist '{playlist_name}' not found in saved playlists.[/bold red]"
+                            )
+                            return
+                    else:  # offline mode
+                        # Check if it exists in downloaded playlists
+                        available_playlists = _path_manager.list_directory(
+                            _path_manager.playlists_dir
+                        )
+                        if not available_playlists or playlist_name.lower() not in [
+                            p.lower() for p in available_playlists
+                        ]:
+                            console.print(
+                                f"[bold red]Playlist '{playlist_name}' not found in downloaded playlists.[/bold red]"
+                            )
+                            return
+
+                # Play the playlist
                 match online_offline:
                     case "n":
-                        listen_playlist_online.listen_playlist_online(playlist_name)
+                        listen_playlist_online.listen_playlist_online(
+                            playlist_name, shuffle=shuffle
+                        )
                     case "f":
-                        listen_playlist_offline.listen_playlist_offline(playlist_name)
+                        listen_playlist_offline.listen_playlist_offline(
+                            playlist_name, shuffle=shuffle
+                        )
         except Exception as e:
-            console.print(f"[bold red]Error:[/bold red] {str(e)}")
+            console.print(f"[bold red]Error playing playlist: {str(e)}[/bold red]")
+            import traceback
+
+            console.print(traceback.format_exc())
+
+    def shuffle_playlist(self, online_offline=None, playlist_name=None):
+        """Play a playlist in shuffle mode."""
+        self.play_playlist(online_offline, playlist_name, shuffle=True)
+
+    def view_playlist(self, playlist_name=None):
+        """View the contents of a playlist."""
+        try:
+            playlist_manager = Select()
+            playlist_manager.display_playlist_contents(playlist_name)
+        except Exception as e:
+            console.print(f"[bold red]Error viewing playlist:[/bold red] {str(e)}")
+
+    def add_song_to_playlist(self, playlist_name=None, song_name=None):
+        """Add a song to an existing playlist."""
+        try:
+            playlist_manager = Select()
+
+            if playlist_name is None:
+                playlist_manager.select_playlist_from_db()
+                playlist_name = playlist_manager.active_playlist
+
+            if song_name is None:
+                song_name = self.console.input(
+                    Text("Enter the name of the song to add: ", style="bold cyan")
+                )
+
+            if not song_name.strip():
+                self.console.print("[yellow]No song name provided.[/yellow]")
+                return
+
+            playlist_manager.add_song_to_playlist(playlist_name, song_name)
+        except Exception as e:
+            console.print(
+                f"[bold red]Error adding song to playlist:[/bold red] {str(e)}"
+            )
+
+    def remove_song_from_playlist(self, playlist_name=None, song_name=None):
+        """Remove a song from an existing playlist."""
+        try:
+            playlist_manager = Select()
+            playlist_manager.remove_song_from_playlist(playlist_name, song_name)
+        except Exception as e:
+            console.print(
+                f"[bold red]Error removing song from playlist:[/bold red] {str(e)}"
+            )
+
+    def move_song_in_playlist(self, direction="up", playlist_name=None, song_name=None):
+        """Move a song up or down within a playlist."""
+        try:
+            playlist_manager = Select()
+            playlist_manager.move_song_in_playlist(playlist_name, song_name, direction)
+        except Exception as e:
+            console.print(
+                f"[bold red]Error moving song in playlist:[/bold red] {str(e)}"
+            )
 
     def delete_playlist(self, saved_downloaded=None, playlist_name=""):
         """Delete a playlist."""
@@ -203,12 +318,109 @@ class InputCases:
         except Exception as e:
             console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
+    def setup_spotify(self):
+        """Set up Spotify API credentials."""
+        try:
+            spotify_setup = SpotifySetup()
+            if spotify_setup.setup_credentials():
+                console.print("[green]Spotify setup completed successfully.[/green]")
+                console.print(
+                    "You can now use [bold]import_playlist[/bold] to import your Spotify playlists."
+                )
+            else:
+                console.print("[yellow]Spotify setup was not completed.[/yellow]")
+        except Exception as e:
+            console.print(f"[bold red]Error during Spotify setup:[/bold red] {str(e)}")
+
     def import_playlist(self):
         """Import playlists from Spotify."""
         try:
-            with console.status("[cyan]Connecting to Spotify...[/cyan]"):
-                importer = ImportSpotifyPlaylist()
-            importer.import_spotify_playlist()
+            credentials_file = (
+                _path_manager.app_dir / "credentials" / "spotify_credentials.json"
+            )
+
+            # Check if credentials exist
+            if not credentials_file.exists():
+                console.print("[yellow]Spotify credentials not found.[/yellow]")
+                setup_now = questionary.confirm(
+                    "Would you like to set up Spotify now?", default=True
+                ).ask()
+
+                if setup_now:
+                    if not self.setup_spotify():
+                        return
+                else:
+                    console.print(
+                        "[yellow]Spotify setup is required to import playlists.[/yellow]"
+                    )
+                    console.print(
+                        "Use the [bold]setup_spotify[/bold] command to set up."
+                    )
+                    return
+
+            # Show warning about potential issues
+            console.print(
+                Panel(
+                    """
+[bold cyan]Before connecting to Spotify:[/bold cyan]
+
+If you experience authentication issues (like "Invalid redirect URI"):
+1. Double-check that your Spotify app's Redirect URI is EXACTLY: http://localhost:8080
+2. Make sure your Client ID and Secret are correct
+
+The next step will connect to Spotify. If you get stuck or see errors, you can:
+1. Press Ctrl+C to cancel
+2. Run 'setup_spotify' again with updated settings
+                """,
+                    title="Important Spotify Connection Info",
+                    border_style="yellow",
+                )
+            )
+
+            proceed = questionary.confirm(
+                "Ready to connect to Spotify?", default=True
+            ).ask()
+
+            if not proceed:
+                console.print("[yellow]Import cancelled.[/yellow]")
+                return
+
+            # Create the importer instance
+            importer = ImportSpotifyPlaylist()
+
+            # Set a reasonable timeout for the operation
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Spotify connection timed out")
+
+            # Set 60 second timeout
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)
+
+            try:
+                console.print("[cyan]Connecting to Spotify...[/cyan]")
+                importer.import_spotify_playlist()
+                # Turn off the alarm
+                signal.alarm(0)
+            except TimeoutError:
+                console.print("[bold red]Connection to Spotify timed out.[/bold red]")
+                console.print("This usually happens due to authentication issues.")
+
+                # Offer alternative
+                help_path = (
+                    _path_manager.app_dir / "services" / "spotify" / "auth_helper.py"
+                )
+                console.print(
+                    f"Try running the standalone auth helper: [cyan]python {help_path}[/cyan]"
+                )
+            except KeyboardInterrupt:
+                # Turn off the alarm
+                signal.alarm(0)
+                console.print("\n[yellow]Operation cancelled by user.[/yellow]")
+
+        except ValueError as e:
+            console.print(f"[yellow]{str(e)}[/yellow]")
         except Exception as e:
             console.print(f"[bold red]Error importing playlist:[/bold red] {str(e)}")
 
