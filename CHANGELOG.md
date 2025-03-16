@@ -9,7 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Advanced music recommendations based on listening history
 - Multi-language support
 
-## [1.1.0] - 2024-03-15
+## [1.1.1] - 2024-03-15
+
+### Added
+- Enhanced Spotify integration
+  - Implemented persistent token-based authentication
+  - Added automatic token refreshing to avoid repeated logins
+  - Improved error handling for authentication failures
+  - Enhanced user guidance during authentication process
+
+## [1.1.1] - 2024-03-15
 
 ### Added
 - Enhanced Spotify integration
@@ -50,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced playlist handling with better error feedback
 - Improved error handling for network failures
 
-## [0.1.0] - 2023-07-15
+## [0.1.1] - 2023-07-15
 
 ### Added
 - Initial release of Aurras Music Player
