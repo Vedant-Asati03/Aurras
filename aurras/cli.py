@@ -61,7 +61,7 @@ class AurrasApp:
             border_style="bright_blue",
             padding=(1, 2),
             title="♪♫ Aurras ♫♪",
-            subtitle="v0.1.0",
+            subtitle="v1.1.0",
         )
         console.print(panel)
 
@@ -327,7 +327,7 @@ def main():
             description="Aurras - A high-end command line music player",
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        parser.add_argument("-v", "--version", action="version", version="Aurras 0.1.0")
+        parser.add_argument("-v", "--version", action="version", version="Aurras 1.1.0")
         parser.add_argument("-d", "--download", metavar="SONG", help="Download a song")
         parser.add_argument("-p", "--playlist", metavar="NAME", help="Play a playlist")
         parser.add_argument(
