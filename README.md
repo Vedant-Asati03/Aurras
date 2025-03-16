@@ -35,7 +35,7 @@ Aurras is a feature-rich command-line music player that provides a seamless musi
   - [Advanced Features](#advanced-features)
     - [Intelligent Caching](#intelligent-caching)
     - [Token Authentication](#token-authentication)
-    - [Backup and Restore](#backup-and-restore)
+  - [Backup and Restore](#backup-and-restore)
   - [Troubleshooting](#troubleshooting)
   - [Project Structure](#project-structure)
   - [Contributing](#contributing)
@@ -45,7 +45,7 @@ Aurras is a feature-rich command-line music player that provides a seamless musi
 
 Aurras transforms your terminal into a powerful music player with rich features that rival many graphical applications. Search and play music from various sources, manage playlists, display lyrics, and enjoy a streamlined listening experience — all from your command line.
 
-[IMAGE PLACEHOLDER: Aurras playing a song with lyrics display]
+![Aurras playing song](/assets/playing-song.png)
 
 ## Features
 
@@ -241,13 +241,33 @@ Aurras intelligently caches frequently played songs to reduce load times and dat
 
 ### Token Authentication
 
-Securely authenticate with Spotify using token-based authentication.
+Aurras uses secure OAuth token-based authentication for Spotify and other integrated services. This provides:
 
-### Backup and Restore
+- **Revocation Support**: Easily revoke access when needed
 
-Protect your playlists and settings with automated backups.
+For detailed instructions on setting up Spotify authentication, see our [Spotify Integration Guide](/docs/spotify_integration.md).
+
+## Backup and Restore
+
+Aurras offers backup functionality to protect your music library:
+
+- **Automated Backups**: Regular backups of your playlists and settings
+- **Manual Backups**: Create backups on demand when needed
+- **Full Restoration**: Restore your complete library from any backup point
+
+Backup files are stored in a compressed format in your user directory.
 
 ## Troubleshooting
+
+If you encounter issues while using Aurras, please refer to our detailed [troubleshooting guide](/docs/troubleshooting.md) for common problems and their solutions.
+
+Common issues include:
+- Audio playback not working
+- Missing dependencies 
+- Authentication failures with Spotify
+- Download errors
+
+The troubleshooting guide provides step-by-step solutions and diagnostic procedures to resolve these and other technical issues.
 
 ## Project Structure
 
