@@ -4,27 +4,54 @@ Path Manager Module
 This module provides a centralized way to manage file paths in the Aurras application.
 """
 
+import os
 from pathlib import Path
+import platform
 
 
 class PathManager:
     """
-    Class for managing file paths in the Aurras application.
+    Manages paths for the application.
 
-    This class provides methods for constructing file paths and
-    accessing common paths used throughout the application.
+    This class provides access to all the important directories and files
+    used by the application, ensuring they exist and are accessible.
     """
 
     def __init__(self):
-        """Initialize the PathManager class."""
-        self._base_dir = Path.home() / ".aurras"
-        self._base_dir.mkdir(parents=True, exist_ok=True)
+        """Initialize path locations."""
+        # Determine the base app directory based on the OS
+        if platform.system() == "Windows":
+            self.app_dir = Path(os.path.expandvars("%APPDATA%")) / "Aurras"
+        else:
+            self.app_dir = Path.home() / ".aurras"
 
-        # Create required directories
-        self.playlists_dir.mkdir(parents=True, exist_ok=True)
-        self.downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
-        self.mpv_dir.mkdir(parents=True, exist_ok=True)
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # Create the app directory if it doesn't exist
+        self.app_dir.mkdir(parents=True, exist_ok=True)
+
+        # Define instance attributes for critical directories
+        self._config_dir = self.app_dir / "config"
+        self._database_dir = self.app_dir / "database"
+        self._downloaded_songs_dir = self.app_dir / "songs"
+        self._playlists_dir = self.app_dir / "playlists"
+        self._log_dir = self.app_dir / "logs"
+        self._mpv_dir = self.app_dir / "mpv"
+
+        # Create directories
+        self._config_dir.mkdir(parents=True, exist_ok=True)
+        self._database_dir.mkdir(parents=True, exist_ok=True)
+        self._downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
+        self._playlists_dir.mkdir(parents=True, exist_ok=True)
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+        self._mpv_dir.mkdir(parents=True, exist_ok=True)
+
+        # Define important file paths
+        self.config_file = self._config_dir / "config.yaml"
+        self.default_config = self._config_dir / "default_config.yaml"
+        self.history_db = self._database_dir / "play_history.db"
+        self.lyrics_cache_db = self._database_dir / "lyrics_cache.db"
+        self.saved_playlists = self._database_dir / "saved_playlists.db"
+        self.mpv_conf = self._mpv_dir / "mpv.conf"
+        self.input_conf = self._mpv_dir / "input.conf"
 
     def construct_path(self, *path_parts):
         """
@@ -36,94 +63,94 @@ class PathManager:
         Returns:
             Path: The constructed path.
         """
-        return self._base_dir.joinpath(*path_parts)
+        return self.app_dir.joinpath(*path_parts)
 
     def list_directory(self, directory_path):
         """
-        List entries in the specified directory.
+        List contents of a directory, filtering out hidden files.
 
         Args:
-            directory_path (Path): The directory to list.
+            directory_path (Path): Path to the directory to list
 
         Returns:
-            list: A list of directory entry names.
+            list: List of filenames in the directory
         """
-        if not directory_path.exists():
+        try:
+            if not directory_path.exists():
+                return []
+
+            # Get all files/directories in the specified path
+            items = os.listdir(directory_path)
+
+            # Filter out hidden files (those starting with .)
+            items = [item for item in items if not item.startswith(".")]
+
+            # Sort alphabetically
+            items.sort()
+
+            return items
+
+        except (FileNotFoundError, PermissionError):
+            # Return empty list if directory doesn't exist or isn't accessible
             return []
 
-        return [entry.name for entry in directory_path.iterdir()]
+    # Define properties for all directories with consistent naming
+    @property
+    def config_dir(self):
+        """Path to the configuration directory."""
+        return self._config_dir
 
     @property
-    def cache_db(self):
-        """Path to the cache database."""
-        return self.construct_path("cache.db")
-
-    @property
-    def saved_playlists(self):
-        """Path to the saved playlists database."""
-        return self.construct_path("playlists.db")
-
-    @property
-    def playlists_dir(self):
-        """Path to the playlists directory."""
-        return self.construct_path("playlists")
-
-    @property
-    def spotify_auth(self):
-        """Path to the Spotify authentication database."""
-        return self.construct_path("spotify_auth.db")
-
-    @property
-    def recommendation_db(self):
-        """Path to the recommendation database."""
-        return self.construct_path("recommendation.db")
+    def database_dir(self):
+        """Path to the database directory."""
+        return self._database_dir
 
     @property
     def downloaded_songs_dir(self):
         """Path to the downloaded songs directory."""
-        return self.construct_path("songs")
+        return self._downloaded_songs_dir
+
+    @property
+    def playlists_dir(self):
+        """Path to the playlists directory."""
+        return self._playlists_dir
+
+    @property
+    def log_dir(self):
+        """Path to the log directory."""
+        return self._log_dir
 
     @property
     def mpv_dir(self):
         """Path to the MPV directory."""
-        return self.construct_path("mpv")
-
-    @property
-    def mpv_conf(self):
-        """Path to the MPV configuration file."""
-        return self.mpv_dir / "mpv.conf"
-
-    @property
-    def input_conf(self):
-        """Path to the input configuration file."""
-        return self.mpv_dir / "input.conf"
-
-    @property
-    def logs_dir(self):
-        """Path to the logs directory."""
-        return self.construct_path("logs")
+        return self._mpv_dir
 
     @property
     def log_file(self):
         """Path to the current log file."""
-        return self.logs_dir / f"{Path(__file__).stem}.log"
+        return self._log_dir / f"{Path(__file__).stem}.log"
 
     @property
     def settings_file(self):
         """Path to the settings file."""
-        return self.construct_path("settings.yaml")
+        return self._config_dir / "settings.yaml"
 
     @property
     def custom_settings_file(self):
         """Path to the custom settings file."""
-        return self.construct_path("custom_settings.yaml")
+        return self._config_dir / "custom_settings.yaml"
 
     @property
-    def history_db(self):
-        """Path to the play history database."""
-        return self.construct_path("history.db")
+    def cache_db(self):
+        """Path to the cache database."""
+        return self._database_dir / "cache.db"
 
     @property
-    def lyrics_cache_db(self):
-        """Path to the lyrics cache database."""
-        return self.construct_path("lyrics_cache.db")
+    def recommendation_db(self):
+        """Path to the recommendation database."""
+        return self._database_dir / "recommendation.db"
+
+    @property
+    def spotify_auth_db(self):
+        """Path to the Spotify authentication cache."""
+        return self._database_dir / "spotify_auth.db"
