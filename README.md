@@ -150,7 +150,8 @@ choco install mpv
 
 Aurras currently offers two interface modes:
 
-1. **CLI Mode (Default)**: The traditional command-line interface
+1. **CLI Mode (Default)**: The traditional command-line interface, also includes the interactive mode
+2. **TUI Mode**: The better looking terminal-user interface **(Disclaimer: Support will be added in later release)**
 
 ### Aurras in usual CLI mode
 
