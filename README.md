@@ -23,7 +23,9 @@ Aurras is a feature-rich command-line music player that provides a seamless musi
       - [FFmpeg Installation](#ffmpeg-installation)
       - [MPV Installation](#mpv-installation)
   - [Usage](#usage)
-    - [Basic Commands](#basic-commands)
+    - [Running Aurras](#running-aurras)
+    - [Aurras in usual CLI mode](#aurras-in-usual-cli-mode)
+    - [Aurras in Interactive mode](#aurras-in-interactive-mode)
     - [Playback Controls](#playback-controls)
     - [Command Palette](#command-palette)
     - [Playlist Management](#playlist-management)
@@ -144,31 +146,57 @@ choco install mpv
 
 ## Usage
 
-### Basic Commands
+### Running Aurras
+
+Aurras currently offers two interface modes:
+
+1. **CLI Mode (Default)**: The traditional command-line interface
+
+### Aurras in usual CLI mode
+
+Playing songs
+
+```bash
+aurras "virginity syndrome, grenade"
+```
+
+Downloading songs
+
+```bash
+aurras -d "virginity syndrome, grenade"
+```
+
+For more options, type `aurras --help`
+
+### Aurras in Interactive mode
+
+Just type `aurras`
 
 Type a song name to search and play:
 
-```
+```text
 > Shape of You
 ```
 
 Play multiple songs in sequence by separating them with commas:
 
-```
+```text
 > Blinding Lights, Save Your Tears, Starboy
 ```
 
 For songs with commas in their names, use quotes:
 
-```
+```text
 > "Don't Stop Believin', Journey"
 ```
 
 Access the command palette with `>` or `cmd`:
 
-```
+```text
 > cmd
 ```
+
+Access the options menu with `?`
 
 ### Playback Controls
 
