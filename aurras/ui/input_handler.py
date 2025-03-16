@@ -1,22 +1,18 @@
 from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-import time
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 
-from ..utils.terminal import clear_screen
 from ..ui.command_handler import InputCases
 from ..ui.search_bar import DynamicSearchBar
 from ..ui.suggestions.history import SuggestSongsFromHistory
-from ..ui.command_palette import DisplaySettings
 from ..ui.shortcut_handler import HandleShortcutInputs
 from ..player.online import ListenSongOnline
 from ..player.queue import QueueManager
 from ..ui.command_palette import CommandPalette
 
-# Create a console for rich output
+
 console = Console()
 
 
@@ -185,8 +181,8 @@ class HandleUserInput:
                 "previous": self.case.play_previous,
                 "clear_history": self.case.clear_history,
                 "toggle_lyrics": self.case.toggle_lyrics,
-                "cache_info": self.case.show_cache_info,  # Add new command
-                "cleanup_cache": self.case.cleanup_cache,  # Add new command
+                "cache_info": self.case.show_cache_info,
+                "cleanup_cache": self.case.cleanup_cache,
                 "view_playlist": self.case.view_playlist,
                 "add_song_to_playlist": self.case.add_song_to_playlist,
                 "remove_song_from_playlist": self.case.remove_song_from_playlist,
@@ -196,7 +192,6 @@ class HandleUserInput:
                 "setup_spotify": self.case.setup_spotify,
             }
 
-            # Check if it's the cleanup_cache command with arguments
             if self.user_input.startswith("cleanup_cache "):
                 parts = self.user_input.split(" ", 1)
                 if len(parts) == 2 and parts[1].isdigit():
@@ -206,7 +201,6 @@ class HandleUserInput:
                     self.case.cleanup_cache(int(parts[1]))
                     return
 
-            # Add command shortcuts for new playlist commands
             if self.user_input.startswith("pl "):
                 playlist_name = self.user_input[3:].strip()
                 if playlist_name:
@@ -265,13 +259,11 @@ class HandleUserInput:
                 except:
                     pass
 
-            # Check for commands
             if self.user_input in actions:
                 console.print(f"[bold cyan]Executing:[/bold cyan] {self.user_input}")
                 actions[self.user_input]()
                 return
 
-            # Default to single song
             else:
                 console.rule(f"[bold green]Playing: {self.user_input}")
                 self.case.song_searched(self.user_input)
