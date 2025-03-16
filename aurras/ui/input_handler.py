@@ -187,6 +187,13 @@ class HandleUserInput:
                 "toggle_lyrics": self.case.toggle_lyrics,
                 "cache_info": self.case.show_cache_info,  # Add new command
                 "cleanup_cache": self.case.cleanup_cache,  # Add new command
+                "view_playlist": self.case.view_playlist,
+                "add_song_to_playlist": self.case.add_song_to_playlist,
+                "remove_song_from_playlist": self.case.remove_song_from_playlist,
+                "move_song_up": lambda: self.case.move_song_in_playlist("up"),
+                "move_song_down": lambda: self.case.move_song_in_playlist("down"),
+                "shuffle_playlist": self.case.shuffle_playlist,
+                "setup_spotify": self.case.setup_spotify,
             }
 
             # Check if it's the cleanup_cache command with arguments
@@ -198,6 +205,65 @@ class HandleUserInput:
                     )
                     self.case.cleanup_cache(int(parts[1]))
                     return
+
+            # Add command shortcuts for new playlist commands
+            if self.user_input.startswith("pl "):
+                playlist_name = self.user_input[3:].strip()
+                if playlist_name:
+                    console.print(
+                        f"[bold cyan]Viewing playlist:[/bold cyan] {playlist_name}"
+                    )
+                    self.case.view_playlist(playlist_name)
+                    return
+
+            # Fix: Add support for "plp" shortcut for play_playlist
+            if self.user_input.startswith("plp "):
+                playlist_name = self.user_input[4:].strip()
+                if playlist_name:
+                    console.print(
+                        f"[bold cyan]Playing playlist:[/bold cyan] {playlist_name}"
+                    )
+                    self.case.play_playlist("n", playlist_name)
+                    return
+
+            if self.user_input.startswith("spl "):
+                playlist_name = self.user_input[4:].strip()
+                if playlist_name:
+                    console.print(
+                        f"[bold cyan]Playing shuffled playlist:[/bold cyan] {playlist_name}"
+                    )
+                    self.case.shuffle_playlist("n", playlist_name)
+                    return
+
+            if self.user_input.startswith("aps "):
+                # Format: "aps playlist_name, song_name"
+                try:
+                    params = self.user_input[4:].split(",", 1)
+                    if len(params) == 2:
+                        playlist_name = params[0].strip()
+                        song_name = params[1].strip()
+                        console.print(
+                            f"[bold cyan]Adding song to playlist:[/bold cyan] {song_name} → {playlist_name}"
+                        )
+                        self.case.add_song_to_playlist(playlist_name, song_name)
+                        return
+                except:
+                    pass
+
+            if self.user_input.startswith("rps "):
+                # Format: "rps playlist_name, song_name"
+                try:
+                    params = self.user_input[4:].split(",", 1)
+                    if len(params) == 2:
+                        playlist_name = params[0].strip()
+                        song_name = params[1].strip()
+                        console.print(
+                            f"[bold cyan]Removing song from playlist:[/bold cyan] {song_name} from {playlist_name}"
+                        )
+                        self.case.remove_song_from_playlist(playlist_name, song_name)
+                        return
+                except:
+                    pass
 
             # Check for commands
             if self.user_input in actions:
