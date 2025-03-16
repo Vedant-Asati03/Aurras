@@ -262,7 +262,7 @@ class CommandPalette:
         """Show information about Aurras."""
         about_panel = Panel.fit(
             "\n[bold cyan]Aurras Music Player[/bold cyan]\n\n"
-            "Version: 0.1.0\n\n"
+            "Version: 1.1.0\n\n"
             "[green]A high-end command line music player with streaming,[/green]\n"
             "[green]lyrics display, and playlist management capabilities.[/green]\n\n"
             "Created by: Vedant Asati\n"
