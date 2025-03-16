@@ -216,26 +216,171 @@ class ListenPlaylistOnline(OnlineSongPlayer):
 
     def _queued_songs_in_playlist(self):
         """Retrieve the queued songs in the active playlist."""
-        with sqlite3.connect(self.path_manager.saved_playlists) as playlists:
-            cursor = playlists.cursor()
-            cursor.execute(
-                f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}' WHERE id >= (SELECT id FROM '{self.select_playlist.active_playlist}' WHERE playlists_songs = (:song))",
-                {"song": self.select_playlist.active_song},
-            )
-            queued_songs = cursor.fetchall()
+        try:
+            if not self.select_playlist.active_playlist:
+                console.print("[bold red]No playlist selected.[/bold red]")
+                self.queued_songs = []
+                return
 
-        self.queued_songs = [row[0] for row in queued_songs]
+            with sqlite3.connect(self.path_manager.saved_playlists) as playlists:
+                cursor = playlists.cursor()
 
-    def listen_playlist_online(self, playlist_name=""):
+                # First check if the table exists
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (self.select_playlist.active_playlist,),
+                )
+                if not cursor.fetchone():
+                    console.print(
+                        f"[bold red]Playlist '{self.select_playlist.active_playlist}' doesn't exist in the database.[/bold red]"
+                    )
+                    self.queued_songs = []
+                    return
+
+                # Now check if the song exists in the playlist
+                if self.select_playlist.active_song:
+                    cursor.execute(
+                        f"SELECT COUNT(*) FROM '{self.select_playlist.active_playlist}' WHERE playlists_songs = ?",
+                        (self.select_playlist.active_song,),
+                    )
+                    if cursor.fetchone()[0] == 0:
+                        console.print(
+                            f"[bold red]Song '{self.select_playlist.active_song}' not found in playlist.[/bold red]"
+                        )
+                        # Get all songs instead
+                        cursor.execute(
+                            f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}'"
+                        )
+                        self.queued_songs = [row[0] for row in cursor.fetchall()]
+                        return
+
+                    # Get songs from the active song onwards
+                    cursor.execute(
+                        f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}' WHERE id >= (SELECT id FROM '{self.select_playlist.active_playlist}' WHERE playlists_songs = ?)",
+                        (self.select_playlist.active_song,),
+                    )
+                    self.queued_songs = [row[0] for row in cursor.fetchall()]
+                else:
+                    # If no active song, get all songs
+                    cursor.execute(
+                        f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}'"
+                    )
+                    self.queued_songs = [row[0] for row in cursor.fetchall()]
+
+        except sqlite3.Error as e:
+            console.print(f"[bold red]Database error: {e}[/bold red]")
+            self.queued_songs = []
+
+    def listen_playlist_online(self, playlist_name="", shuffle=False):
         """
         Play the selected playlist.
 
         Args:
             playlist_name (str): Optional name of the playlist to play.
                                 If not provided, user will be prompted to select.
+            shuffle (bool): Whether to play the playlist in shuffle mode
         """
-        self.select_playlist.select_song_to_listen(playlist_name)
-        self._queued_songs_in_playlist()
+        try:
+            # Fix playlist selection logic to handle non-existent playlists
+            if playlist_name:
+                # Validate that the playlist exists before attempting to use it
+                with sqlite3.connect(self.path_manager.saved_playlists) as playlists:
+                    cursor = playlists.cursor()
+                    cursor.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                        (playlist_name.lower(),),
+                    )
+                    if not cursor.fetchone():
+                        console.print(
+                            f"[bold red]Playlist '{playlist_name}' doesn't exist.[/bold red]"
+                        )
+                        # Let the user select a playlist instead
+                        self.select_playlist.select_playlist_from_db()
+                    else:
+                        self.select_playlist.active_playlist = playlist_name.lower()
+                        # Get songs from the playlist
+                        self.select_playlist.songs_from_active_playlist()
 
-        for current_song in self.queued_songs:
-            ListenSongOnline(current_song).listen_song_online()
+                        # If there are songs, select the first one as active
+                        if self.select_playlist.songs_in_active_playlist:
+                            self.select_playlist.active_song = (
+                                self.select_playlist.songs_in_active_playlist[0]
+                            )
+                        else:
+                            console.print(
+                                f"[bold red]Playlist '{playlist_name}' is empty.[/bold red]"
+                            )
+                            return
+            else:
+                # Let user select a playlist and a starting song
+                self.select_playlist.select_song_to_listen("")
+
+            # Verify active playlist is selected
+            if not self.select_playlist.active_playlist:
+                console.print("[bold red]No playlist selected.[/bold red]")
+                return
+
+            # Verify active song is selected
+            if not self.select_playlist.active_song:
+                # If no song selected but we have a playlist, try to use the first song
+                if self.select_playlist.songs_in_active_playlist:
+                    self.select_playlist.active_song = (
+                        self.select_playlist.songs_in_active_playlist[0]
+                    )
+                    console.print(
+                        f"[yellow]Starting playback from first song: {self.select_playlist.active_song}[/yellow]"
+                    )
+                else:
+                    console.print(
+                        f"[bold red]No songs found in playlist '{self.select_playlist.active_playlist}'.[/bold red]"
+                    )
+                    return
+
+            if shuffle:
+                # Get shuffled songs if shuffle is enabled
+                shuffled_songs = self.select_playlist.shuffle_playlist(
+                    self.select_playlist.active_playlist
+                )
+
+                if not shuffled_songs:
+                    console.print(
+                        f"[yellow]Playlist '{self.select_playlist.active_playlist}' is empty.[/yellow]"
+                    )
+                    return
+
+                self.queued_songs = shuffled_songs
+
+                # Create a nice table to show the shuffled playlist
+                shuffle_table = Table(
+                    title="🎲 Shuffled Playlist", box=ROUNDED, border_style="#D09CFA"
+                )
+                shuffle_table.add_column("#", style="dim")
+                shuffle_table.add_column("Song", style="#D7C3F1")
+
+                for i, song in enumerate(self.queued_songs, 1):
+                    shuffle_table.add_row(str(i), song)
+
+                console.print(shuffle_table)
+            else:
+                self._queued_songs_in_playlist()
+
+                if not self.queued_songs:
+                    console.print(
+                        f"[yellow]No songs found in playlist '{self.select_playlist.active_playlist}' starting from '{self.select_playlist.active_song}'.[/yellow]"
+                    )
+                    return
+
+            # Play each song
+            for current_song in self.queued_songs:
+                try:
+                    player = ListenSongOnline(current_song)
+                    player.listen_song_online()
+                except Exception as e:
+                    console.print(
+                        f"[bold red]Error playing '{current_song}': {str(e)}[/bold red]"
+                    )
+                    # Continue with next song
+                    continue
+
+        except Exception as e:
+            console.print(f"[bold red]Error playing playlist: {str(e)}[/bold red]")
