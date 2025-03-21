@@ -24,8 +24,7 @@ Aurras is a feature-rich command-line music player that provides a seamless musi
       - [MPV Installation](#mpv-installation)
   - [Usage](#usage)
     - [Running Aurras](#running-aurras)
-    - [Aurras in usual CLI mode](#aurras-in-usual-cli-mode)
-    - [Aurras in Interactive mode](#aurras-in-interactive-mode)
+    - [Basic Commands](#basic-commands)
     - [Playback Controls](#playback-controls)
     - [Command Palette](#command-palette)
     - [Playlist Management](#playlist-management)
@@ -80,15 +79,7 @@ Aurras transforms your terminal into a powerful music player with rich features 
 ### Quick Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/vedant-asati03/Aurras.git
-cd Aurras
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run Aurras
-python -m aurras
+pip install aurras
 ```
 
 ### Development Installation
@@ -148,56 +139,35 @@ choco install mpv
 
 ### Running Aurras
 
-Aurras currently offers two interface modes:
+Aurras offers two interface modes:
 
-1. **CLI Mode (Default)**: The traditional command-line interface, also includes the interactive mode
-2. **TUI Mode**: The better looking terminal-user interface **(Disclaimer: Support will be added in later release)**
+1. **CLI Mode (Default)**: The traditional command-line interface
 
-### Aurras in usual CLI mode
-
-Playing songs
-
-```bash
-aurras "virginity syndrome, grenade"
-```
-
-Downloading songs
-
-```bash
-aurras -d "virginity syndrome, grenade"
-```
-
-For more options, type `aurras --help`
-
-### Aurras in Interactive mode
-
-Just type `aurras`
+### Basic Commands
 
 Type a song name to search and play:
 
-```text
+```
 > Shape of You
 ```
 
 Play multiple songs in sequence by separating them with commas:
 
-```text
+```
 > Blinding Lights, Save Your Tears, Starboy
 ```
 
 For songs with commas in their names, use quotes:
 
-```text
+```
 > "Don't Stop Believin', Journey"
 ```
 
 Access the command palette with `>` or `cmd`:
 
-```text
+```
 > cmd
 ```
-
-Access the options menu with `?`
 
 ### Playback Controls
 
