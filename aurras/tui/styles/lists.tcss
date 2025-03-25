@@ -1,0 +1,70 @@
+/*
+ * Styles for lists and related items
+ */
+
+/* Lists */
+ListView {
+    border: round $border-color;
+    padding: 0 1;
+    background: $surface;
+}
+
+ListView > .list-view--item {
+    background: $surface;
+}
+
+ListView > .list-view--item.hover {
+    background: $primary-background;
+}
+
+ListView > .list-view--item.selected {
+    background: $primary-darken-1;
+}
+
+/* Custom classes */
+.list-title {
+    background: $primary-background;
+    color: $primary;
+    text-style: bold;
+    padding: 0 2;
+    text-align: center;
+    border-bottom: solid $border-color;
+    margin-bottom: 1;
+}
+
+.filter-button {
+    width: 100%;
+    margin: 0;
+    margin-bottom: 1;
+    background: $panel;
+    color: $primary;
+}
+
+/* Settings screen */
+.settings-section {
+    border: round $border-color;
+    margin: 1 0;
+    padding: 0 1;
+    background: $surface;
+}
+
+.settings-section-title {
+    color: $accent;
+    text-style: bold;
+    text-align: center;
+    background: $primary-background;
+    padding: 0 1;
+    border-bottom: solid $border-color;
+    margin-bottom: 1;
+}
+
+.setting-row {
+    height: 3;
+    align: left middle;
+}
+
+.setting-label {
+    width: 40%;
+    padding: 0 1;
+    color: $text;
+}
