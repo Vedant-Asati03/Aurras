@@ -1,0 +1,57 @@
+/* 
+ * Main styles file for Aurras Music Player TUI
+ * Contains core styles that don't fit into other categories
+ */
+
+/* Import all the component styles */
+@import "variables.tcss"
+@import "global.tcss"
+@import "layout.tcss"
+@import "components.tcss"
+@import "panels.tcss"
+@import "player.tcss"
+@import "lists.tcss"
+@import "palette.tcss"
+
+/* Additional global styles */
+#app-title {
+    background: $panel;
+    color: $primary;
+    text-align: center;
+    text-style: bold;
+}
+
+/* Any app-level styles that don't fit in other files */
+.app-version {
+    color: $text-muted;
+    text-align: right;
+    padding: 0 1;
+}
+
+/* Help text and tips */
+.tip {
+    color: $text-muted;
+    text-style: italic;
+    margin: 1 0;
+}
+
+/* Status indicators */
+.status-indicator {
+    width: 1;
+    height: 1;
+    margin-right: 1;
+}
+
+.status-indicator.active {
+    color: $success;
+}
+
+.status-indicator.inactive {
+    color: $error;
+}
+
+.status-indicator.warning {
+    color: $warning;
+}
+
+/* Any additional global styles can go here */
