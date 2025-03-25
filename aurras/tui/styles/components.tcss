@@ -1,0 +1,94 @@
+/*
+ * Component styles for buttons, inputs and common widgets
+ */
+
+/* Button styles */
+Button {
+    border: round;
+    background: $panel;
+    color: $primary;
+    min-width: 4;
+    height: 1;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+Button:hover {
+    background: $primary-background;
+    color: $accent;
+    text-style: bold;
+}
+
+Button:focus {
+    color: $text;
+    background: $primary-darken-1;
+}
+
+/* Input fields */
+Input {
+    background: $panel;
+    color: $text;
+    border: solid $primary-darken-1;
+}
+
+Input:focus {
+    border: solid $primary;
+}
+
+/* Progress bar styling */
+ProgressBar {
+    color: $primary;
+}
+
+ProgressBar > .bar {
+    color: $primary;
+}
+
+/* Control button styling */
+.control-button {
+    border: none;
+    color: $primary;
+    background: transparent;
+}
+
+.control-button:hover {
+    color: $accent;
+    background: $selection;
+}
+
+/* Volume bar */
+.volume-bar {
+    min-width: 20;
+    height: 1;
+    color: $primary;
+}
+
+/* Title and subtitle styles */
+.title {
+    background: $primary-background;
+    color: $primary;
+    text-style: bold;
+    padding: 0 1;
+    text-align: center;
+    border-bottom: solid $border-color;
+}
+
+.subtitle {
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    text-align: center;
+}
+
+/* Empty state styles */
+.empty {
+    border: round $primary-darken-2;
+    border-title-align: center;
+    background: $surface;
+    hatch: cross $background;
+    content-align: center middle;
+    color: $text-muted;
+    text-style: italic bold;
+    height: 1fr;
+    padding: 1;
+}
