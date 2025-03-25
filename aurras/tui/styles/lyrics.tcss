@@ -1,0 +1,40 @@
+/* Lyrics screen styles */
+
+#lyrics {
+    background: $background;
+}
+
+#lyrics-container {
+    width: 100%;
+    height: 100%;
+    background: $surface;
+    color: $text;
+    border: round $accent;
+    padding: 1;
+}
+
+#lyrics-song-title {
+    text-align: center;
+    background: $panel;
+    color: $primary;
+    text-style: bold;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+#full-lyrics {
+    margin: 0 2;
+    padding: 0 2;
+}
+
+.translate-button {
+    background: $panel;
+    color: $primary;
+    margin: 1 0;
+    dock: bottom;
+}
+
+.translate-button:hover {
+    background: $primary-background;
+    color: $accent;
+}
