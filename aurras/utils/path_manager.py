@@ -6,7 +6,6 @@ This module provides a centralized way to manage file paths in the Aurras applic
 
 import os
 from pathlib import Path
-import platform
 
 
 class PathManager:
@@ -19,13 +18,7 @@ class PathManager:
 
     def __init__(self):
         """Initialize path locations."""
-        # Determine the base app directory based on the OS
-        if platform.system() == "Windows":
-            self.app_dir = Path(os.path.expandvars("%APPDATA%")) / "Aurras"
-        else:
-            self.app_dir = Path.home() / ".aurras"
-
-        # Create the app directory if it doesn't exist
+        self.app_dir = Path.home() / ".aurras"
         self.app_dir.mkdir(parents=True, exist_ok=True)
 
         # Define instance attributes for critical directories
