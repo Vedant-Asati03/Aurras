@@ -1,0 +1,15 @@
+/*
+ * Theme variables for Aurras Music Player TUI
+ * These variables are picked up from the current theme settings
+ */
+
+/* Global styles are applied to all elements */
+* {
+    scrollbar-size: 1 1;
+    scrollbar-color: $primary-darken-2 $panel;
+}
+
+/* Hover styling for scrollbars for better visibility */
+*:hover {
+    scrollbar-color: $primary $panel;
+}
