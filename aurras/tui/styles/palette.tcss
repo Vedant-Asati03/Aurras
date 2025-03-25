@@ -1,0 +1,52 @@
+/*
+ * Styles for command palette and search
+ */
+
+/* Use theme variables throughout the styles */
+CommandPalette Input {
+    background: $background;
+    color: $text;
+}
+
+/* Search palette customization */
+#mode-indicator {
+    background: $panel;
+    color: $text;
+}
+
+#mode-indicator.mode-search {
+    color: $primary;
+}
+
+#mode-indicator.mode-command {
+    color: $accent;
+}
+
+#mode-indicator.mode-option {
+    color: $warning;
+}
+
+#search-input {
+    background: $panel;
+    color: $text;
+    border: solid $primary-darken-1;
+}
+
+#search-input:focus {
+    border: solid $primary;
+}
+
+#results-list {
+    background: $surface;
+}
+
+/* Specific to command palette */
+#binding {
+    background: $panel; 
+    color: $primary;
+}
+
+#app-header {
+    color: $text;
+    background: $panel;
+}
