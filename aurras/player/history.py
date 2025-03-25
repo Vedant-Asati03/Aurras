@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.table import Table
 from rich.box import ROUNDED
 from rich.panel import Panel
-from rich import print as rprint
 
 from ..utils.path_manager import PathManager
 
@@ -52,7 +51,6 @@ class RecentlyPlayedManager:
         self._last_played_song = None
         self._initialize_db()
         self._initialized = True
-        print(">>> History manager initialized")
 
     def _initialize_db(self):
         """Initialize the database for storing play history."""
@@ -73,19 +71,25 @@ class RecentlyPlayedManager:
         Add a song to the play history.
 
         Args:
-            song_name: The name of the song that was played
-            source: Where the song came from (search, playlist, etc.)
+            song_name: Name of the song
+            source: Source of the song (e.g., 'search', 'playlist', 'offline')
         """
-        # Skip if it's the same song being played again right away
-        if self._last_played_song == song_name:
-            print(f">>> Skipping duplicate history entry for: {song_name}")
-            return
-
-        self._last_played_song = song_name
-        print(f">>> Adding to history: {song_name} (source: {source})")
-
+        # Directly check the database for the most recent entry to avoid relying on instance variable
         with sqlite3.connect(_path_manager.history_db) as conn:
             cursor = conn.cursor()
+
+            # Get the most recently played song from the database
+            cursor.execute(
+                "SELECT song_name FROM play_history ORDER BY played_at DESC LIMIT 1"
+            )
+            result = cursor.fetchone()
+
+            most_recent_song = result[0] if result else None
+
+            # If this song is the same as the most recently played one, don't add it
+            if most_recent_song == song_name:
+                print(f">>> Skipping duplicate history entry for: {song_name}")
+                return
 
             # Add the new song to history
             timestamp = int(time.time())
@@ -94,7 +98,10 @@ class RecentlyPlayedManager:
                 (song_name, timestamp, source),
             )
 
-            # Reset current position to the end (most recent)
+            # Update the instance variable for quick checks in subsequent calls
+            self._last_played_song = song_name
+
+            # Reset navigation position when adding a new song
             self._current_position = -1
 
             # Trim history if it exceeds maximum size
@@ -110,6 +117,7 @@ class RecentlyPlayedManager:
                 )
 
             conn.commit()
+            print(f">>> Added to history: {song_name}")
 
     def get_history_count(self) -> int:
         """Get the total number of songs in history."""
@@ -118,7 +126,7 @@ class RecentlyPlayedManager:
             cursor.execute("SELECT COUNT(*) FROM play_history")
             return cursor.fetchone()[0]
 
-    def get_recent_songs(self, limit: int = 10) -> List[dict]:
+    def get_recent_songs(self, limit: int = 10000) -> List[dict]:
         """
         Get the most recently played songs.
 
