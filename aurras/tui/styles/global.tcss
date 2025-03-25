@@ -1,0 +1,28 @@
+/*
+ * Global styles for Aurras Music Player TUI
+ */
+
+/* Main styles */
+Screen {
+    background: $background;
+}
+
+Footer {
+    background: transparent;
+}
+
+FooterKey {
+    .footer-key--key {
+        color: $primary;
+        text-style: bold;
+    }
+    .footer-key--description {
+        color: $text;
+    }
+}
+
+/* Common scrollable container styles */
+ScrollableContainer, VerticalScroll, ListView, OptionList {
+    scrollbar-size: 1 1;
+    scrollbar-color: $primary-darken-2 $panel;
+}
