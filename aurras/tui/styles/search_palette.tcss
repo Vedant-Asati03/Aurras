@@ -1,0 +1,64 @@
+/* Search palette styles */
+
+SearchPalette {
+    layout: vertical;
+    background: $surface;
+    min-width: 60;
+    max-width: 80;
+    height: auto;
+    max-height: 20;
+    border: round $primary;
+    margin: 1 1;
+    padding: 0;
+    dock: top;
+}
+
+#mode-indicator {
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+    background: $panel;
+    color: $text;
+    border-bottom: solid $primary-darken-2;
+}
+
+#mode-indicator.mode-search {
+    color: $primary;
+}
+
+#mode-indicator.mode-command {
+    color: $accent;
+}
+
+#mode-indicator.mode-option {
+    color: $warning;
+}
+
+#search-input {
+    margin: 0 1;
+    height: 1;
+    dock: top;
+    border: solid $primary-darken-1;
+}
+
+#search-input:focus {
+    border: solid $primary;
+}
+
+#search-results {
+    height: 1fr;
+    width: 100%;
+    overflow-y: auto;
+    padding: 0 1;
+}
+
+#results-list {
+    background: $surface;
+    width: 100%;
+    height: auto;
+}
+
+.highlighted {
+    background: $primary-darken-1;
+    color: $text;
+}
