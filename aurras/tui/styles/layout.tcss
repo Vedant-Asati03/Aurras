@@ -1,0 +1,77 @@
+/*
+ * Layout styles for Aurras Music Player TUI
+ */
+
+/* Main container layout */
+#main-container {
+    height: 100%;
+    layout: grid;
+    grid-size: 3;
+    grid-columns: 1fr 3fr 1fr;
+    background: $background;
+}
+
+/* Panel layouts */
+#left-panel {
+    border: hkey $primary-darken-1;
+    border-title-align: center;
+    border-title-color: $primary;
+    border-title-style: bold;
+    height: 100%;
+    min-width: 20;
+    background: $surface;
+    border-title-background: $panel;
+}
+
+#player-panel {
+    border: round $primary;
+    border-title-align: center;
+    border-title-color: $accent;
+    border-title-style: bold;
+    height: 100%;
+    max-width: 4fr;
+    min-width: 3fr;
+    background: $surface;
+    border-title-background: $panel;
+}
+
+#right-panel {
+    border: hkey $primary-darken-1;
+    border-subtitle-align: center;
+    border-subtitle-style: bold;
+    height: 100%;
+    max-width: 1fr;
+    background: $surface;
+    border-title-background: $panel;
+    border-subtitle-background: $panel;
+}
+
+/* Common container styling */
+.bordered {
+    border: round $primary-darken-1;
+    border-title-align: center;
+    border-title-background: $panel;
+}
+
+.panel-title {
+    text-align: center;
+    text-style: bold;
+    width: 100%;
+    color: $primary;
+    background: $panel;
+    padding: 0 1;
+    margin-bottom: 1;
+    border-bottom: solid $border-color;
+}
+
+#section-title {
+    text-align: center;
+    background: $panel;
+    color: $accent;
+    text-style: bold;
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+    margin-bottom: 1;
+    border: round $border-color;
+}
