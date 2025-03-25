@@ -1,0 +1,102 @@
+/*
+ * Player-specific styles
+ */
+
+/* Song info panel */
+#song-info {
+    border: round $primary-darken-1;
+    border-title-align: center;
+    text-align: center;
+    margin: 1 0;
+    align-horizontal: right;
+    transition: display 300ms;
+    border-title-background: $panel;
+}
+
+#song-name {
+    height: 100%;
+}
+
+#song-title {
+    text-style: bold;
+    color: $primary;
+    text-align: center;
+    padding: 1 1;
+}
+
+#song-details {
+    color: $text-muted;
+    text-align: center;
+    padding: 1 1;
+}
+
+#cover-container {
+    border: hkey $primary-darken-2;
+    width: 40%;
+    margin: 1 1;
+}
+
+/* Player controls */
+#info-control-container {
+    height: 4%;
+    width: 100%;
+}
+
+#time-total {
+    padding-left: 1;
+    color: $text;
+}
+
+#song-progress {
+    padding: 0 1;
+}
+
+#controls {
+    border: none;
+    width: auto;
+    align-horizontal: right;
+}
+
+/* Lyrics section */
+#lyrics-container {
+    border: round $accent;
+}
+
+#lyrics-preview {
+    height: 25vh;
+    border: round $primary-darken-1;
+    border-subtitle-align: left;
+    transition: height 400ms;
+    background: $panel;
+    border-title-background: $primary-background;
+    border-subtitle-background: $primary-background;
+}
+
+#lyrics-preview:focus {
+    border: double $accent;
+}
+
+.lyrics-expanded #lyrics-text {
+    max-height: 100vh;
+    overflow-y: auto;
+}
+
+#lyrics-text {
+    text-align: center;
+    color: $text;
+    height: auto;
+    margin: 1 1;
+}
+
+#show-lyrics {
+    dock: bottom;
+    margin-top: 1;
+    text-align: center;
+    background: $panel;
+    color: $primary;
+}
+
+#show-lyrics:hover {
+    background: $selection;
+    color: $accent;
+}
