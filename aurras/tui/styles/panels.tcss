@@ -1,0 +1,65 @@
+/*
+ * Styles for specific panel sections
+ */
+
+/*Left panel*/
+#left-panel {
+    border-title-align: left;
+}
+
+/* Left panel containers */
+#playlists-container {
+    border: round $primary-darken-2;
+    border-title-align: center;
+    height: 50%;
+    background: $surface;
+    border-title-background: $primary-background;
+}
+
+#saved-playlists-list, #downloaded-playlists-list {
+    border: round $primary-darken-2;
+    border-title-align: center;
+    border-title-background: $panel;
+    height: 1fr;
+}
+
+#tracks-container {
+    border: round $primary-darken-2;
+    border-title-align: center;
+    height: 50%;
+    background: $surface;
+    border-title-background: $primary-background;
+}
+
+#downloaded-tracks-list {
+    border: none;
+}
+
+/*Right panel*/
+#right-panel {
+    border-title-align: right;
+}
+
+/* Right panel containers */
+#song-queue {
+    border: round $primary-darken-1;
+    border-title-color: $primary;
+    border-title-align: center;
+    height: 60%;
+    background: $surface;
+    border-title-background: $primary-background;
+}
+
+#recently-played {
+    border: round $primary-darken-1;
+    border-title-color: $primary;
+    border-title-align: center;
+    height: 40%;
+    background: $surface;
+    border-title-background: $primary-background;
+}
+
+/* Transition effects */
+#left-panel, #right-panel, #song-queue, #recently-played {
+    transition: display 200ms;
+}
