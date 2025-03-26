@@ -17,7 +17,7 @@ from ..core.settings import (
     LoadDefaultSettings,
     UpdateSpecifiedSettings,
 )
-from ..utils.cache_cleanup import cleanup_lyrics_cache, cleanup_all_caches
+from ..utils.cache_cleanup import cleanup_all_caches
 from ..playlist.manager import Select
 from ..services.spotify.setup import SpotifySetup
 from ..utils.path_manager import PathManager  # Add this import
@@ -142,7 +142,8 @@ class InputCases:
 
     def download_song(self, songs_to_download=None):
         """Download one or more songs."""
-        if songs_to_download is None or songs_to_download == []:
+        print(songs_to_download)
+        if not songs_to_download:
             songs_input = self.console.input(
                 Text(
                     "Enter song name[s] (separate multiple songs with commas): ",
@@ -154,7 +155,10 @@ class InputCases:
             if not songs_to_download:
                 self.console.print("[yellow]No valid song names provided.[/yellow]")
                 return
-
+        else:
+            songs_to_download = [
+                song.strip() for song in songs_to_download.split(",") if song.strip()
+            ]
         # Create a nice panel to show download list
         songs_list = "\n".join(
             [f"[cyan]{i}.[/cyan] {song}" for i, song in enumerate(songs_to_download, 1)]
@@ -167,9 +171,11 @@ class InputCases:
             )
         )
 
-        # Download the songs
-        download = SongDownloader(songs_to_download)
-        download.download_song()
+        try:
+            download = SongDownloader(songs_to_download)
+            download.download_song()
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Download cancelled by user.[/yellow]")
 
     def play_playlist(self, online_offline=None, playlist_name=None, shuffle=False):
         """Play songs from a playlist.
@@ -431,13 +437,13 @@ The next step will connect to Spotify. If you get stuck or see errors, you can:
         except Exception as e:
             console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
-    def song_searched(self, song):
+    def song_searched(self, song, show_lyrics=True):
         """Handle a song search - either single song or comma-separated list."""
         if "," in song:
             songs = [s.strip() for s in song.split(",")]
             play_song_sequence(songs)
         else:
-            ListenSongOnline(song).listen_song_online()
+            ListenSongOnline(song).listen_song_online(show_lyrics)
 
     def show_queue(self):
         """Show the current song queue."""
