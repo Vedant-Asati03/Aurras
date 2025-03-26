@@ -6,30 +6,22 @@ This module provides functionality for playing songs online by streaming.
 
 import sqlite3
 from rich.table import Table
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.box import ROUNDED
+from rich.text import Text
 
-# Replace absolute import with relative import
 from ..utils.path_manager import PathManager
-
-_path_manager = PathManager()
-
 from ..utils.config import Config
 from ..services.youtube.search import SearchSong
-from ..player.mpv import MPVPlayer
+
+from .mpv import MPVPlayer
 from ..playlist.manager import Select
 from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
-from rich.box import ROUNDED
-from rich.style import Style
-from rich.text import Text
-
-# Create a global console for consistent styling
 console = Console()
-
 
 class OnlineSongPlayer:
     """Base class for playing songs online."""
@@ -37,7 +29,7 @@ class OnlineSongPlayer:
     def __init__(self):
         """Initialize the SongPlayer class."""
         self.config = Config()
-        self.mpv_command = MPVPlayer()
+        self.player = MPVPlayer()
 
 
 class ListenSongOnline(OnlineSongPlayer):
@@ -86,11 +78,6 @@ class ListenSongOnline(OnlineSongPlayer):
         try:
             self._get_song_info()
 
-            mpv_command = self.mpv_command.generate_mpv_command(
-                self.search.song_url_searched
-            )
-
-            # Create a nice panel for playback info
             song_info = Panel.fit(
                 f"[bold cyan]{self.search.song_name_searched}[/bold cyan]",
                 title="♪ Now Playing ♪",
@@ -99,43 +86,19 @@ class ListenSongOnline(OnlineSongPlayer):
             )
             console.print(song_info)
 
-            # Add to history
             history_manager = RecentlyPlayedManager()
 
             if not getattr(self, "_navigating_history", False):
                 history_manager.add_to_history(self.search.song_name_searched, "online")
 
-            # Play and get the exit code
-            exit_code = self.mpv_command.play(
-                mpv_command, self.search.song_name_searched, show_lyrics
+            self.player = MPVPlayer()
+
+            self.player.player(
+                self.search.song_url_searched,
+                self.search.song_name_searched,
+                show_lyrics,
             )
 
-            # Process exit codes quietly
-            if exit_code == 10:  # Previous song (b key)
-                prev_song = history_manager.get_previous_song()
-                if prev_song and prev_song != self.search.song_name_searched:
-                    console.print(
-                        f"[bold blue]Playing previous:[/bold blue] {prev_song}"
-                    )
-                    player = ListenSongOnline(prev_song)
-                    player._navigating_history = True
-                    player._is_part_of_queue = True
-                    player.listen_song_online()
-                else:
-                    console.print("[yellow]No previous song available[/yellow]")
-                return
-
-            elif exit_code == 11:  # Next song (n key)
-                next_song = history_manager.get_next_song()
-                if next_song:
-                    console.print(f"[bold blue]Playing next:[/bold blue] {next_song}")
-                    player = ListenSongOnline(next_song)
-                    player._navigating_history = True
-                    player._is_part_of_queue = True
-                    player.listen_song_online()
-                    return
-
-            # Normal queue processing
             next_song = self.queue_manager.get_next_song()
             if next_song:
                 console.print(f"[bold green]Next in queue:[/bold green] {next_song}")
@@ -160,6 +123,14 @@ class ListenSongOnline(OnlineSongPlayer):
                     next_player = ListenSongOnline(next_song)
                     next_player._is_part_of_queue = True
                     next_player.listen_song_online()
+
+        finally:
+            # Important: ensure player is terminated when done
+            if hasattr(self, "player") and self.player:
+                try:
+                    self.player.terminate()
+                except Exception:
+                    pass
 
 
 def play_song_sequence(songs: list):
