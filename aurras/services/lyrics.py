@@ -6,12 +6,10 @@ This module provides functionality for fetching, displaying, and translating son
 
 import threading
 import sqlite3
-import json
 from rich.console import Console
 from rich.panel import Panel
 from rich.box import ROUNDED
 
-# Use try-except to handle missing dependencies gracefully
 try:
     import keyboard
 
@@ -122,7 +120,6 @@ class LyricsManager:
         self.api_key = None
         self.lyrics_cache = LyricsCache()
 
-        # Only try to initialize SongLyrics if it's available
         if LYRICS_AVAILABLE:
             try:
                 self.api_key = SongLyrics(
@@ -139,7 +136,6 @@ class LyricsManager:
 
     def should_show_lyrics(self):
         """Check if lyrics should be shown based on settings and available modules."""
-        # Don't show lyrics if the required module is missing
         if not LYRICS_AVAILABLE:
             return False
 
