@@ -7,8 +7,6 @@ This module provides the command-line interface for the Aurras music player.
 import sys
 import argparse
 import logging
-import importlib.util
-import signal
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
