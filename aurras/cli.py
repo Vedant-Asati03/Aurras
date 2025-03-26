@@ -13,24 +13,20 @@ from rich.text import Text
 from rich.table import Table
 from rich.box import ROUNDED
 
+from .ui.command_handler import InputCases
 from .utils.decorators import handle_exceptions
 from .ui.input_handler import HandleUserInput
-from .core.downloader import SongDownloader
-from .player.online import ListenSongOnline
 from .playlist.download import DownloadPlaylist
-from .playlist.manager import Select
 from .player.history import RecentlyPlayedManager
-from .utils.initialization import initialize_application  # Add this import
+from .utils.initialization import initialize_application
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename="aurras.log",  # Log to file instead of console for cleaner UI
+    filename="aurras.log",
 )
 logger = logging.getLogger("aurras.cli")
 
-# Create a global console object
 console = Console()
 
 
@@ -140,99 +136,60 @@ def display_help():
 
 def download_song(song_name):
     """Download a song or multiple songs."""
-    # Check if the song_name contains commas, indicating multiple songs
-    if "," in song_name:
-        songs = [s.strip() for s in song_name.split(",") if s.strip()]
-        with console.status(
-            f"[bold green]Preparing to download {len(songs)} songs...[/bold green]"
-        ):
-            console.print(f"[bold]Songs to download:[/bold]")
-            for i, song in enumerate(songs, 1):
-                console.print(f"  [cyan]{i}.[/cyan] {song}")
+    logger.info(f"Command-line download argument: '{song_name}'")
 
-        downloader = SongDownloader(songs)
-        downloader.download_song()
-    else:
-        with console.status(
-            f"[bold green]Preparing to download: {song_name}[/bold green]"
-        ):
-            pass
-        downloader = SongDownloader([song_name])
-        downloader.download_song()
+    if song_name and (
+        (song_name.startswith('"') and song_name.endswith('"'))
+        or (song_name.startswith("'") and song_name.endswith("'"))
+    ):
+        song_name = song_name[1:-1]
 
-
-def play_song_directly(song_name, show_lyrics=True):
-    """Play a single song directly, without using the queue system."""
-    logger.info(f"Playing song directly: {song_name}")
-
-    with console.status(f"[bold green]Searching for: {song_name}[/bold green]"):
-        player = ListenSongOnline(song_name)
-
-    player.listen_song_online(show_lyrics=show_lyrics)
+    InputCases().download_song(song_name)
 
 
 def play_song(song_name, show_lyrics=True):
     """Play a song or multiple songs."""
     logger.info(f"Command-line song argument: '{song_name}'")
 
-    # Check if song_name contains commas, indicating multiple songs
-    if "," in song_name:
-        songs = [s.strip() for s in song_name.split(",") if s.strip()]
-        logger.info(f"Playing {len(songs)} songs in sequence: {songs}")
+    # Strip outer quotes if present
+    if song_name and (
+        (song_name.startswith('"') and song_name.endswith('"'))
+        or (song_name.startswith("'") and song_name.endswith("'"))
+    ):
+        song_name = song_name[1:-1]
 
-        # Create a table to display the playlist
-        table = Table(title="🎵 Song Playlist", box=ROUNDED, border_style="cyan")
-        table.add_column("#", style="dim")
-        table.add_column("Song", style="green")
-
-        for i, song in enumerate(songs, 1):
-            table.add_row(str(i), song)
-
-        console.print(table)
-
-        # Play songs in sequence directly without queue
-        for i, song in enumerate(songs):
-            console.rule(f"[bold green]Now playing: {song} [{i + 1}/{len(songs)}]")
-            try:
-                play_song_directly(song, show_lyrics=show_lyrics)
-            except Exception as e:
-                logger.error(f"Error playing {song}: {e}")
-                console.print(f"[bold red]Error playing {song}: {str(e)}[/bold red]")
-    else:
-        logger.info(f"Playing single song: {song_name}")
-        console.rule(f"[bold green]Now playing: {song_name}")
-        play_song_directly(song_name, show_lyrics=show_lyrics)
+    InputCases().song_searched(song_name, show_lyrics)
 
 
 def play_playlist(playlist_name, show_lyrics=True):
     """Play a playlist."""
-    # Check if the playlist name has commas (might be multiple playlists)
+    if playlist_name and (
+        (playlist_name.startswith('"') and playlist_name.endswith('"'))
+        or (playlist_name.startswith("'") and playlist_name.endswith("'"))
+    ):
+        playlist_name = playlist_name[1:-1]
+
     if "," in playlist_name:
         playlists = [p.strip() for p in playlist_name.split(",") if p.strip()]
         console.print(
             f"[bold green]Playing {len(playlists)} playlists in sequence:[/bold green]"
         )
         for i, p_name in enumerate(playlists):
-            console.rule(
-                f"[bold green]Playing playlist: {p_name} [{i + 1}/{len(playlists)}]"
-            )
-            select = Select()
-            select.active_playlist = p_name
-            select.songs_from_active_playlist()
-            for song in select.songs_in_active_playlist:
-                play_song_directly(song, show_lyrics=show_lyrics)
+            InputCases().play_playlist(playlist_name=p_name)
+
     else:
         console.rule(f"[bold green]Playing playlist: {playlist_name}")
-        select = Select()
-        select.active_playlist = playlist_name
-        select.songs_from_active_playlist()
-        for song in select.songs_in_active_playlist:
-            play_song_directly(song, show_lyrics=show_lyrics)
+        InputCases().play_playlist(playlist_name=playlist_name, show_lyrics=show_lyrics)
 
 
 def download_playlist(playlist_name):
     """Download a playlist or multiple playlists."""
-    # Check if the playlist name has commas
+    if playlist_name and (
+        (playlist_name.startswith('"') and playlist_name.endswith('"'))
+        or (playlist_name.startswith("'") and playlist_name.endswith("'"))
+    ):
+        playlist_name = playlist_name[1:-1]
+
     if "," in playlist_name:
         playlists = [p.strip() for p in playlist_name.split(",") if p.strip()]
         console.print(
@@ -250,7 +207,7 @@ def download_playlist(playlist_name):
         dl.download_playlist(playlist_name)
 
 
-def display_history(limit=20):
+def display_history(limit=30):
     """Display recently played songs."""
     history_manager = RecentlyPlayedManager()
     history_manager.display_history()
@@ -263,7 +220,7 @@ def play_previous_song():
         prev_song = history_manager.get_previous_song()
     if prev_song:
         console.print(f"[bold green]Playing previous song:[/bold green] {prev_song}")
-        play_song_directly(prev_song)
+        InputCases().song_searched(prev_song)
     else:
         console.print("[yellow]No previous songs in history.[/yellow]")
 
@@ -272,7 +229,6 @@ def check_optional_dependencies():
     """Check for optional dependencies and show appropriate messages."""
     missing_features = []
 
-    # Check for lyrics_extractor
     try:
         import lyrics_extractor
 
@@ -281,7 +237,6 @@ def check_optional_dependencies():
         lyrics_available = False
         missing_features.append("lyrics display")
 
-    # Check for googletrans
     try:
         import googletrans
 
@@ -290,7 +245,6 @@ def check_optional_dependencies():
         translation_available = False
         missing_features.append("lyrics translation")
 
-    # Check for keyboard
     try:
         import keyboard
 
@@ -299,10 +253,7 @@ def check_optional_dependencies():
         keyboard_available = False
         missing_features.append("keyboard shortcuts")
 
-    # Show message if features are missing
-    if missing_features and not getattr(
-        sys, "frozen", False
-    ):  # Don't show in packaged apps
+    if missing_features and not getattr(sys, "frozen", False):
         message = f"[yellow]Some features are limited: {', '.join(missing_features)}.[/yellow]"
         message += "\n[dim]Run 'python setup_dependencies.py --optional' to install optional dependencies.[/dim]"
         console.print(message)
@@ -310,17 +261,98 @@ def check_optional_dependencies():
     return True
 
 
+def process_command_line_args(argv):
+    """
+    Process command line arguments to properly handle comma-separated values with spaces.
+
+    Args:
+        argv: The raw sys.argv list
+
+    Returns:
+        list: Processed argument list
+    """
+    if len(argv) <= 1:
+        return argv
+
+    new_argv = [argv[0]]
+    i = 1
+
+    while i < len(argv):
+        arg = argv[i]
+
+        if arg.startswith("-"):
+            new_argv.append(arg)
+
+            # Options that take values
+            value_options = [
+                "-d",
+                "--download",
+                "-p",
+                "--playlist",
+                "-dp",
+                "--download-playlist",
+            ]
+
+            if arg in value_options and i + 1 < len(argv):
+                next_arg = argv[i + 1]
+
+                # If next arg isn't an option, it's the value for this option
+                if not next_arg.startswith("-"):
+                    # Process potentially comma-separated values
+                    combined_value = [next_arg]
+                    j = i + 2
+
+                    # Continue collecting parts as long as they're not new options
+                    # and there are commas indicating a list
+                    while (
+                        j < len(argv)
+                        and not argv[j].startswith("-")
+                        and ("," in next_arg or "," in argv[j - 1])
+                    ):
+                        combined_value.append(argv[j])
+                        j += 1
+
+                    new_argv.append(" ".join(combined_value))
+                    i = j - 1  # Skip ahead
+                else:
+                    # Option followed by another option - first one has no value
+                    pass
+            i += 1
+        else:
+            # Handle positional arguments
+            if i == len(argv) - 1 or argv[i + 1].startswith("-"):
+                # Simple case: last arg or next is an option
+                new_argv.append(arg)
+            elif "," in arg or (i > 1 and "," in argv[i - 1]):
+                # Part of a comma-separated list
+                combined_args = [arg]
+                j = i + 1
+
+                while j < len(argv) and not argv[j].startswith("-"):
+                    combined_args.append(argv[j])
+                    j += 1
+
+                new_argv.append(" ".join(combined_args))
+                i = j - 1  # Skip the parts we've combined
+            else:
+                # Standard argument
+                new_argv.append(arg)
+            i += 1
+
+    return new_argv
+
+
 def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
     try:
-        # Initialize the application
         initialize_application()
 
-        # Check optional dependencies at startup
         check_optional_dependencies()
 
-        # Set up argument parser for command-line arguments
+        if len(sys.argv) > 1:
+            sys.argv = process_command_line_args(sys.argv)
+
         parser = argparse.ArgumentParser(
             description="Aurras - A high-end command line music player",
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -331,16 +363,21 @@ def main():
         parser.add_argument(
             "-dp", "--download-playlist", metavar="NAME", help="Download a playlist"
         )
-        # Add new arguments for history functionality
         parser.add_argument(
             "--history", action="store_true", help="Show recently played songs"
+        )
+        parser.add_argument(
+            "--shuffle", action="store_true", help="Play songs in random order"
+        )
+        parser.add_argument("--repeat", action="store_true", help="Repeat playback")
+        parser.add_argument(
+            "--search", metavar="QUERY", help="Search for songs matching query"
         )
         parser.add_argument(
             "--previous",
             action="store_true",
             help="Play the previous song from history",
         )
-        # Add no-lyrics option
         parser.add_argument(
             "--no-lyrics",
             action="store_true",
@@ -348,14 +385,19 @@ def main():
         )
         parser.add_argument("song", nargs="?", help="Play a song directly")
 
-        # Parse arguments
         args = parser.parse_args()
         logger.debug(f"Parsed arguments: {args}")
 
         # Show lyrics is true by default, unless --no-lyrics flag is used
         show_lyrics = not args.no_lyrics
 
-        # Handle different command-line arguments
+        # Check for shuffle and repeat options
+        # play_options = {}
+        # if hasattr(args, "shuffle") and args.shuffle:
+        #     play_options["shuffle"] = True
+        # if hasattr(args, "repeat") and args.repeat:
+        #     play_options["repeat"] = True
+
         if args.history:
             display_history()
         elif args.previous:
@@ -369,7 +411,7 @@ def main():
         elif args.song:
             play_song(args.song, show_lyrics=show_lyrics)
         else:
-            # Default behavior: run the interactive app
+            # Default behavior: run the interactive mode
             app = AurrasApp()
             app.run()
     except Exception as e:
