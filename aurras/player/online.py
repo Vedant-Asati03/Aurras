@@ -5,12 +5,13 @@ This module provides functionality for playing songs online by streaming.
 """
 
 import sqlite3
+from typing import List, Union
+import random
 from rich.table import Table
 from rich.console import Console
-from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.box import ROUNDED
-from rich.text import Text
+import logging
 
 from ..utils.path_manager import PathManager
 from ..utils.config import Config
@@ -22,6 +23,8 @@ from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
 
 console = Console()
+logger = logging.getLogger(__name__)
+
 
 class OnlineSongPlayer:
     """Base class for playing songs online."""
@@ -29,329 +32,281 @@ class OnlineSongPlayer:
     def __init__(self):
         """Initialize the SongPlayer class."""
         self.config = Config()
-        self.player = MPVPlayer()
+        self.player = None  # Store the player instance
 
 
 class ListenSongOnline(OnlineSongPlayer):
     """
-    A class for listening to a song online.
+    A class for listening to songs online with support for single songs,
+    multiple songs, and playlists.
 
     Attributes:
-        song_user_searched (str): The name of the song to search and play.
-
-    Methods:
-        listen_song_online(): Play the song online.
+        search: SearchSong instance with search queries
+        queue_manager: QueueManager instance for queue management
+        history_manager: RecentlyPlayedManager for tracking song history
     """
 
-    def __init__(self, song_user_searched: str):
+    def __init__(self, song_input: Union[str, List[str]]):
         """
         Initialize the ListenSongOnline class.
 
         Args:
-            song_user_searched (str): The name of the song to search and play.
+            song_input: Either a single song as a string or a list of songs to play
         """
         super().__init__()
-        self.search = SearchSong(song_user_searched)
+        # Normalize input to a list if it's a string
+        self.search_queries = (
+            [song_input] if isinstance(song_input, str) else song_input
+        )
+        self.search = SearchSong(self.search_queries)
         self.queue_manager = QueueManager()
+        self.history_manager = RecentlyPlayedManager()
+        self.path_manager = PathManager()
         self._is_part_of_queue = False
-        self.console = Console()
+
+    def add_player(self, player):
+        """
+        Store the player instance for later access.
+
+        Args:
+            player: The MPVPlayer instance
+        """
+        self.player = player
+        logger.debug("Player instance added to ListenSongOnline")
 
     def _get_song_info(self):
-        """Search for the song and get its metadata."""
+        """Search for the song(s) and get metadata."""
         with Progress(
             SpinnerColumn(),
             TextColumn("[bold green]Searching...[/bold green] {task.description}"),
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task(f"[cyan]{self.search.song_user_searched}[/cyan]")
+            task = progress.add_task(f"[cyan]{', '.join(self.search_queries)}[/cyan]")
             self.search.search_song()
             progress.update(task, advance=1)
 
-        text = Text()
-        text.append("Found: ", style="bold green")
-        text.append(self.search.song_name_searched, style="cyan")
-        console.print(text)
-
-    def listen_song_online(self, show_lyrics=True):
-        """Play the song online by streaming it."""
-        try:
-            self._get_song_info()
-
-            song_info = Panel.fit(
-                f"[bold cyan]{self.search.song_name_searched}[/bold cyan]",
-                title="♪ Now Playing ♪",
-                border_style="green",
-                padding=(1, 2),
-            )
-            console.print(song_info)
-
-            history_manager = RecentlyPlayedManager()
-
-            if not getattr(self, "_navigating_history", False):
-                history_manager.add_to_history(self.search.song_name_searched, "online")
-
-            self.player = MPVPlayer()
-
-            self.player.player(
-                self.search.song_url_searched,
-                self.search.song_name_searched,
-                show_lyrics,
-            )
-
-            next_song = self.queue_manager.get_next_song()
-            if next_song:
-                console.print(f"[bold green]Next in queue:[/bold green] {next_song}")
-                next_player = ListenSongOnline(next_song)
-                next_player._is_part_of_queue = True
-                try:
-                    next_player.listen_song_online()
-                except Exception as e:
-                    console.print(f"[bold red]Error:[/bold red] {str(e)}")
-                    another_song = self.queue_manager.get_next_song()
-                    if another_song:
-                        ListenSongOnline(another_song).listen_song_online()
-
-        except Exception as e:
-            console.print(f"[bold red]Error:[/bold red] {str(e)}")
-            if not self._is_part_of_queue:
-                next_song = self.queue_manager.get_next_song()
-                if next_song:
-                    console.print(
-                        f"[bold green]Skipping to next song:[/bold green] {next_song}"
-                    )
-                    next_player = ListenSongOnline(next_song)
-                    next_player._is_part_of_queue = True
-                    next_player.listen_song_online()
-
-        finally:
-            # Important: ensure player is terminated when done
-            if hasattr(self, "player") and self.player:
-                try:
-                    self.player.terminate()
-                except Exception:
-                    pass
-
-
-def play_song_sequence(songs: list):
-    """
-    Play a sequence of songs.
-
-    Args:
-        songs: List of song names to play
-    """
-    if not songs:
-        console.print("[yellow]No songs provided to play[/yellow]")
-        return
-
-    queue_manager = QueueManager()
-    queue_manager.clear_queue()
-    queue_manager.add_to_queue(songs)
-
-    # Display nicely formatted queue
-    table = Table(title="🎵 Song Queue", box=ROUNDED, border_style="cyan")
-    table.add_column("#", style="dim")
-    table.add_column("Song", style="green")
-
-    for i, song in enumerate(songs, 1):
-        table.add_row(str(i), song)
-
-    console.print(table)
-
-    # Start playing the first song
-    first_song = queue_manager.get_next_song()
-    if first_song:
-        console.rule(f"[bold green]Now playing: {first_song}")
-        player = ListenSongOnline(first_song)
-        player._is_part_of_queue = True
-        player.listen_song_online()
-
-
-class ListenPlaylistOnline(OnlineSongPlayer):
-    """
-    A class for listening to a playlist online.
-
-    Attributes:
-        table (Table): Rich table for displaying playlist information.
-        queued_songs (list): List of queued songs in the playlist.
-        select_playlist (PlaylistSelector): Playlist selection utility.
-    """
-
-    def __init__(self):
-        """Initialize the ListenPlaylistOnline class."""
-        super().__init__()
-        self.table = Table(show_header=False, header_style="bold magenta")
-        self.queued_songs = []
-        self.select_playlist = Select()
-        self.path_manager = PathManager()
-
-    def _queued_songs_in_playlist(self):
-        """Retrieve the queued songs in the active playlist."""
-        try:
-            if not self.select_playlist.active_playlist:
-                console.print("[bold red]No playlist selected.[/bold red]")
-                self.queued_songs = []
-                return
-
-            with sqlite3.connect(self.path_manager.saved_playlists) as playlists:
-                cursor = playlists.cursor()
-
-                # First check if the table exists
-                cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (self.select_playlist.active_playlist,),
-                )
-                if not cursor.fetchone():
-                    console.print(
-                        f"[bold red]Playlist '{self.select_playlist.active_playlist}' doesn't exist in the database.[/bold red]"
-                    )
-                    self.queued_songs = []
-                    return
-
-                # Now check if the song exists in the playlist
-                if self.select_playlist.active_song:
-                    cursor.execute(
-                        f"SELECT COUNT(*) FROM '{self.select_playlist.active_playlist}' WHERE playlists_songs = ?",
-                        (self.select_playlist.active_song,),
-                    )
-                    if cursor.fetchone()[0] == 0:
-                        console.print(
-                            f"[bold red]Song '{self.select_playlist.active_song}' not found in playlist.[/bold red]"
-                        )
-                        # Get all songs instead
-                        cursor.execute(
-                            f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}'"
-                        )
-                        self.queued_songs = [row[0] for row in cursor.fetchall()]
-                        return
-
-                    # Get songs from the active song onwards
-                    cursor.execute(
-                        f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}' WHERE id >= (SELECT id FROM '{self.select_playlist.active_playlist}' WHERE playlists_songs = ?)",
-                        (self.select_playlist.active_song,),
-                    )
-                    self.queued_songs = [row[0] for row in cursor.fetchall()]
-                else:
-                    # If no active song, get all songs
-                    cursor.execute(
-                        f"SELECT playlists_songs FROM '{self.select_playlist.active_playlist}'"
-                    )
-                    self.queued_songs = [row[0] for row in cursor.fetchall()]
-
-        except sqlite3.Error as e:
-            console.print(f"[bold red]Database error: {e}[/bold red]")
-            self.queued_songs = []
-
-    def listen_playlist_online(self, playlist_name="", shuffle=False):
+    def listen_song_online(self, show_lyrics=True, playlist_name=None, shuffle=False):
         """
-        Play the selected playlist.
+        Play the song(s) online by streaming.
 
         Args:
-            playlist_name (str): Optional name of the playlist to play.
-                                If not provided, user will be prompted to select.
-            shuffle (bool): Whether to play the playlist in shuffle mode
+            show_lyrics: Whether to show lyrics during playback
+            playlist_name: Optional name of playlist these songs belong to
+            shuffle: Whether to shuffle the playback order
         """
         try:
-            # Fix playlist selection logic to handle non-existent playlists
+            # If we're playing a playlist, extract the songs first
             if playlist_name:
-                # Validate that the playlist exists before attempting to use it
-                with sqlite3.connect(self.path_manager.saved_playlists) as playlists:
-                    cursor = playlists.cursor()
-                    cursor.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                        (playlist_name.lower(),),
-                    )
-                    if not cursor.fetchone():
-                        console.print(
-                            f"[bold red]Playlist '{playlist_name}' doesn't exist.[/bold red]"
-                        )
-                        # Let the user select a playlist instead
-                        self.select_playlist.select_playlist_from_db()
-                    else:
-                        self.select_playlist.active_playlist = playlist_name.lower()
-                        # Get songs from the playlist
-                        self.select_playlist.songs_from_active_playlist()
-
-                        # If there are songs, select the first one as active
-                        if self.select_playlist.songs_in_active_playlist:
-                            self.select_playlist.active_song = (
-                                self.select_playlist.songs_in_active_playlist[0]
-                            )
-                        else:
-                            console.print(
-                                f"[bold red]Playlist '{playlist_name}' is empty.[/bold red]"
-                            )
-                            return
-            else:
-                # Let user select a playlist and a starting song
-                self.select_playlist.select_song_to_listen("")
-
-            # Verify active playlist is selected
-            if not self.select_playlist.active_playlist:
-                console.print("[bold red]No playlist selected.[/bold red]")
+                self._prepare_playlist(playlist_name, shuffle)
                 return
 
-            # Verify active song is selected
-            if not self.select_playlist.active_song:
-                # If no song selected but we have a playlist, try to use the first song
-                if self.select_playlist.songs_in_active_playlist:
-                    self.select_playlist.active_song = (
-                        self.select_playlist.songs_in_active_playlist[0]
-                    )
-                    console.print(
-                        f"[yellow]Starting playback from first song: {self.select_playlist.active_song}[/yellow]"
-                    )
-                else:
-                    console.print(
-                        f"[bold red]No songs found in playlist '{self.select_playlist.active_playlist}'.[/bold red]"
-                    )
-                    return
+            # Regular song search
+            self._get_song_info()
 
-            if shuffle:
-                # Get shuffled songs if shuffle is enabled
-                shuffled_songs = self.select_playlist.shuffle_playlist(
-                    self.select_playlist.active_playlist
-                )
+            if not self.search.song_name_searched:
+                console.print("[bold red]No song found with that name.[/bold red]")
+                return
 
-                if not shuffled_songs:
-                    console.print(
-                        f"[yellow]Playlist '{self.select_playlist.active_playlist}' is empty.[/yellow]"
-                    )
-                    return
+            # Get history songs
+            # Default playback (searched songs only)
+            if (
+                not hasattr(self.search, "include_history")
+                or not self.search.include_history
+            ):
+                self._play_without_history(show_lyrics)
+                return
 
-                self.queued_songs = shuffled_songs
+            # Play with history integration
+            self._play_with_history(show_lyrics)
 
-                # Create a nice table to show the shuffled playlist
-                shuffle_table = Table(
-                    title="🎲 Shuffled Playlist", box=ROUNDED, border_style="#D09CFA"
-                )
-                shuffle_table.add_column("#", style="dim")
-                shuffle_table.add_column("Song", style="#D7C3F1")
-
-                for i, song in enumerate(self.queued_songs, 1):
-                    shuffle_table.add_row(str(i), song)
-
-                console.print(shuffle_table)
-            else:
-                self._queued_songs_in_playlist()
-
-                if not self.queued_songs:
-                    console.print(
-                        f"[yellow]No songs found in playlist '{self.select_playlist.active_playlist}' starting from '{self.select_playlist.active_song}'.[/yellow]"
-                    )
-                    return
-
-            # Play each song
-            for current_song in self.queued_songs:
-                try:
-                    player = ListenSongOnline(current_song)
-                    player.listen_song_online()
-                except Exception as e:
-                    console.print(
-                        f"[bold red]Error playing '{current_song}': {str(e)}[/bold red]"
-                    )
-                    # Continue with next song
-                    continue
-
+        except KeyboardInterrupt:
+            console.print("[yellow]Playback stopped by user[/yellow]")
         except Exception as e:
-            console.print(f"[bold red]Error playing playlist: {str(e)}[/bold red]")
+            console.print(f"[bold red]Error during playback: {e}[/bold red]")
+            logger.error(f"Playback error: {e}", exc_info=True)
+        finally:
+            # Important: ensure player is terminated when done
+            self._cleanup_player()
+
+    def _play_without_history(self, show_lyrics=True):
+        """Play songs without including history."""
+        logger.info(
+            f"Standard playback without history: {len(self.search.song_name_searched)} songs"
+        )
+        console.rule("[bold green]Playing Without History")
+
+        # Create and store the player instance
+        mpv = MPVPlayer(loglevel="error")
+        self.add_player(mpv)
+
+        # Add to history
+        if not getattr(self, "_navigating_history", False):
+            for song in self.search.song_name_searched:
+                self.history_manager.add_to_history(song, "online")
+
+        # Standard playback
+        mpv.player(
+            self.search.song_url_searched,
+            self.search.song_name_searched,
+            show_lyrics,
+        )
+        logger.debug("Song played successfully")
+
+    def _play_with_history(self, show_lyrics=True):
+        """Play songs with history integration."""
+        # Get recent history
+        recent_history = self.history_manager.get_recent_songs(20)
+
+        # IMPORTANT: Reverse the history list so oldest songs play first
+        # History comes from DB ordered by most recent first, we need oldest first
+        recent_history.reverse()
+
+        history_songs = [song["song_name"] for song in recent_history]
+
+        # SIMPLIFIED APPROACH: Just make a combined list with history first
+        all_songs = history_songs + self.search.song_name_searched
+        start_index = len(history_songs)  # This is where the searched songs start
+
+        # Find URLs for history songs
+        history_urls = []
+        for song_name in history_songs:
+            # For simplicity, we'll just use the song name as search query
+            # This will use YouTube search on demand for each history song
+            temp_search = SearchSong([song_name])
+            temp_search.search_song(
+                include_history=False
+            )  # Don't include history to avoid recursion
+
+            if temp_search.song_url_searched:
+                history_urls.append(temp_search.song_url_searched[0])
+            else:
+                # If we can't find a URL, skip this song
+                logger.warning(f"Could not find URL for history song: {song_name}")
+                continue
+
+        all_urls = history_urls + self.search.song_url_searched
+
+        # Display info
+        logger.info(
+            f"Playing with history integration: {len(all_songs)} total songs, starting at {start_index}"
+        )
+        console.rule("[bold green]Queue with History")
+
+        # Display info about history
+        if history_songs:
+            history_str = ", ".join(history_songs[: min(3, len(history_songs))])
+            console.print(
+                f"[dim]History songs in queue ({len(history_songs)}): {history_str}...[/dim]"
+            )
+
+        # Display info about searched songs
+        searched_str = ", ".join(
+            self.search.song_name_searched[
+                : min(3, len(self.search.song_name_searched))
+            ]
+        )
+        console.print(f"[green]Starting with: {searched_str}...[/green]")
+
+        # Create and store the player instance
+        mpv = MPVPlayer(loglevel="error")
+        self.add_player(mpv)
+
+        # Add searched songs to history
+        if not getattr(self, "_navigating_history", False):
+            for song in self.search.song_name_searched:
+                self.history_manager.add_to_history(song, "online")
+
+        # Play with history and start index
+        mpv.player(all_urls, all_songs, show_lyrics, start_index)
+
+    def _prepare_playlist(self, playlist_name: str, shuffle: bool = False):
+        """
+        Prepare and play songs from a playlist.
+
+        Args:
+            playlist_name: Name of the playlist to play
+            shuffle: Whether to shuffle the playlist
+        """
+        playlist_select = Select()
+
+        # Verify the playlist exists
+        with sqlite3.connect(self.path_manager.saved_playlists) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (playlist_name.lower(),),
+            )
+            if not cursor.fetchone():
+                console.print(
+                    f"[bold red]Playlist '{playlist_name}' doesn't exist.[/bold red]"
+                )
+                return
+
+            # Set the active playlist
+            playlist_select.active_playlist = playlist_name.lower()
+
+            # Get all songs from the playlist
+            cursor.execute(f"SELECT playlists_songs FROM '{playlist_name.lower()}'")
+            playlist_songs = [row[0] for row in cursor.fetchall()]
+
+        if not playlist_songs:
+            console.print(f"[bold red]Playlist '{playlist_name}' is empty.[/bold red]")
+            return
+
+        # Shuffle if requested
+        if shuffle:
+            random.shuffle(playlist_songs)
+            # Create a nice table to show the shuffled playlist
+            shuffle_table = Table(
+                title="🎲 Shuffled Playlist", box=ROUNDED, border_style="#D09CFA"
+            )
+            shuffle_table.add_column("#", style="dim")
+            shuffle_table.add_column("Song", style="#D7C3F1")
+
+            for i, song in enumerate(playlist_songs, 1):
+                shuffle_table.add_row(str(i), song)
+
+            console.print(shuffle_table)
+        else:
+            # Create a nice table to show the playlist
+            playlist_table = Table(
+                title=f"🎵 Playlist: {playlist_name}", box=ROUNDED, border_style="cyan"
+            )
+            playlist_table.add_column("#", style="dim")
+            playlist_table.add_column("Song", style="green")
+
+            for i, song in enumerate(playlist_songs, 1):
+                playlist_table.add_row(str(i), song)
+
+            console.print(playlist_table)
+
+        # Play each song in the playlist
+        for i, song in enumerate(playlist_songs):
+            try:
+                console.rule(
+                    f"[bold green]Playing {i + 1}/{len(playlist_songs)}: {song}"
+                )
+
+                # Create a new search for each song
+                song_player = ListenSongOnline(song)
+                song_player.listen_song_online(show_lyrics=True)
+
+                # Add to history
+                self.history_manager.add_to_history(song, f"playlist:{playlist_name}")
+            except KeyboardInterrupt:
+                console.print("[yellow]Playback stopped by user[/yellow]")
+                break
+            except Exception as e:
+                console.print(f"[bold red]Error playing '{song}': {e}[/bold red]")
+                logger.error(f"Error playing playlist song: {e}", exc_info=True)
+                # Continue with next song
+                continue
+
+    def _cleanup_player(self):
+        """Clean up the player instance to avoid resource leaks."""
+        if hasattr(self, "player") and self.player:
+            try:
+                del self.player
+            except Exception as e:
+                logger.warning(f"Error cleaning up player: {e}")
