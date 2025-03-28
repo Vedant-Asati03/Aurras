@@ -1,108 +1,647 @@
 """
 YouTube Search Module
 
-This module provides functionality for searching songs on YouTube.
+This module provides functionality for searching songs on YouTube with improved
+organization, error handling, and maintainability.
 """
 
-from math import e
-from ...core.cache.updater import UpdateSearchHistoryDatabase
+from typing import List, Dict, Optional, Any, Protocol, NamedTuple, Tuple
+import logging
 from ytmusicapi import YTMusic
 
+from ...core.cache.updater import UpdateSearchHistoryDatabase
 from ...core.cache.search_db import SearchFromSongDataBase
+from ...player.history import RecentlyPlayedManager
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
-class SongMetadata:
-    """Class for storing song metadata."""
+# Define clear data structures
+class SongResult(NamedTuple):
+    """Represents a single song search result."""
 
-    def __init__(self):
-        """Initialize the SongMetadata class."""
-        self.song_name_searched = None
-        self.song_url_searched = None
-        self.song_thumbnail_url = None
-        self.song_duration = None
+    name: str
+    url: str
+    thumbnail_url: str = ""
+    is_from_history: bool = False  # Flag to mark history songs
 
 
-class SearchSong(SongMetadata):
-    def __init__(self, song_user_searched) -> None:
-        self.update_song_history = UpdateSearchHistoryDatabase()
-        self.search_from_yt = SearchFromYoutube(song_user_searched)
-        self.search_from_db = SearchFromSongDataBase()
-        self.song_user_searched = song_user_searched
+# Define interfaces for better separation
+class SearchProvider(Protocol):
+    """Interface for any search provider."""
 
-    def search_song(self):
+    def search(self, queries: List[str]) -> List[SongResult]:
+        """Search for songs."""
+        ...
+
+
+class CacheProvider(Protocol):
+    """Interface for any cache provider."""
+
+    def get_songs(self, queries: List[str]) -> Dict[str, SongResult]:
+        """Get songs from cache."""
+        ...
+
+    def save_songs(self, query_to_song: Dict[str, SongResult]) -> None:
+        """Save songs to cache."""
+        ...
+
+    def get_recent_songs(self, limit: int = 30) -> List[SongResult]:
+        """Get recently played songs."""
+        ...
+
+
+# Implementation classes
+class YouTubeSearchProvider:
+    """Provider for YouTube song searches."""
+
+    def __init__(self) -> None:
+        self._temp_storage: Dict[str, SongResult] = {}
+
+    def search(self, queries: List[str]) -> List[SongResult]:
+        """Search for songs on YouTube."""
+        results = []
+
+        for query in queries:
+            # Check temp storage first
+            if query in self._temp_storage:
+                results.append(self._temp_storage[query])
+                continue
+
+            # Search YouTube
+            try:
+                song_result = self._search_single_query(query)
+                if song_result:
+                    results.append(song_result)
+                    self._temp_storage[query] = song_result
+            except Exception as e:
+                logger.error(f"Error searching YouTube for '{query}': {e}")
+
+        return results
+
+    def _search_single_query(self, query: str) -> Optional[SongResult]:
+        """Search for a single query on YouTube."""
+        try:
+            with YTMusic() as ytmusic:
+                results = ytmusic.search(query, filter="songs", limit=1)
+
+                if not results:
+                    logger.warning(f"No results found for: {query}")
+                    return None
+
+                song_data = results[0]
+                video_id = song_data.get("videoId")
+
+                if not video_id:
+                    logger.warning(f"No video ID found for: {query}")
+                    return None
+
+                title = song_data.get("title", "Unknown Song")
+                url = f"https://www.youtube.com/watch?v={video_id}"
+
+                # Get thumbnail if available
+                thumbnail_url = ""
+                if "thumbnails" in song_data and song_data["thumbnails"]:
+                    thumbnail_url = song_data["thumbnails"][0]["url"]
+
+                return SongResult(title, url, thumbnail_url)
+
+        except Exception as e:
+            logger.error(f"YTMusic API error for '{query}': {e}")
+            raise
+
+
+class DatabaseCacheProvider:
+    """Provider for database caching of song searches."""
+
+    def __init__(self) -> None:
+        self.search_db = SearchFromSongDataBase()
+        self.updater = UpdateSearchHistoryDatabase()
+        self.history_manager = RecentlyPlayedManager()
+
+    def get_songs(self, queries: List[str]) -> Dict[str, SongResult]:
+        """Get songs from the database cache."""
+        result = {}
+        song_dict = self.search_db.initialize_song_dict()
+
+        for query in queries:
+            if query in song_dict:
+                song_name, song_url = song_dict[query]
+                result[query] = SongResult(song_name, song_url)
+
+        return result
+
+    def save_songs(self, query_to_song: Dict[str, SongResult]) -> None:
+        """Save songs to the database cache."""
+        try:
+            for query, song in query_to_song.items():
+                self.updater.save_to_cache(query, song.name, song.url)
+                logger.debug(f"Cached: {query} -> {song.name}")
+        except Exception as e:
+            logger.warning(f"Failed to update search cache: {str(e)}")
+
+    def get_recent_songs(self, limit: int = 30) -> List[SongResult]:
         """
-        Main method for searching a song. Checks the cache for similar songs
-        and searches on YouTube if not found.
+        Get recently played songs from history.
+
+        Args:
+            limit: Maximum number of recent songs to return
+
+        Returns:
+            List of recent songs from history as SongResult objects
         """
-        song_dict = self.search_from_db.initialize_song_dict()
+        try:
+            # Get recent songs from the history manager
+            recent_songs = self.history_manager.get_recent_songs(limit)
+            logger.debug(f"Retrieved {len(recent_songs)} songs from history")
 
-        if self.song_user_searched in song_dict:
-            (
-                self.song_name_searched,
-                self.song_url_searched,
-            ) = song_dict[self.song_user_searched]
+            # Get song details from database for URLs
+            song_dict = self.search_db.initialize_song_dict()
+            logger.debug(f"Retrieved {len(song_dict)} songs from cache dictionary")
 
-        else:
-            self.search_from_yt.search_from_youtube()
+            # Create a set to track seen songs to avoid duplicates
+            seen_songs = set()
+            results = []
+            missing_urls = []
 
-            self.song_name_searched = self.search_from_yt.song_name_searched
-            self.song_url_searched = self.search_from_yt.song_url_searched
+            # Process recent songs and find their URLs
+            for song_record in recent_songs:
+                song_name = song_record["song_name"]
 
-            self.update_song_history.save_to_cache(
-                self.song_user_searched,
-                self.search_from_yt.song_name_searched,
-                self.search_from_yt.song_url_searched,
+                # Skip duplicates
+                if song_name in seen_songs:
+                    continue
+
+                seen_songs.add(song_name)
+
+                # Find URL in dictionary (matching by song name)
+                url = None
+                for query, (name, song_url) in song_dict.items():
+                    if name.lower() == song_name.lower():  # Case-insensitive comparison
+                        url = song_url
+                        break
+
+                # If we found a URL, add to results
+                if url:
+                    results.append(SongResult(song_name, url, is_from_history=True))
+                else:
+                    # Keep track of songs with missing URLs for logging
+                    missing_urls.append(song_name)
+
+                    # Fall back to using the song name as search query for immediate playback
+                    # Create a temporary YouTube search just for this song
+                    try:
+                        temp_search = SongSearch()
+                        temp_results = temp_search.search(
+                            song_name, include_history=False
+                        )
+                        if temp_results:
+                            # Use the first result as fallback
+                            results.append(
+                                SongResult(
+                                    song_name,
+                                    temp_results[0].url,
+                                    temp_results[0].thumbnail_url,
+                                    is_from_history=True,
+                                )
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to find URL for history song '{song_name}': {e}"
+                        )
+
+            if missing_urls:
+                logger.warning(
+                    f"Could not find URLs for {len(missing_urls)} history songs: {missing_urls[:5]}..."
+                )
+
+            logger.debug(f"Found {len(results)} songs with URLs in history")
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to get recent songs: {str(e)}")
+            return []
+
+
+class SongSearch:
+    """Main search coordinator that combines multiple search providers."""
+
+    def __init__(
+        self,
+        cache_provider: Optional[CacheProvider] = None,
+        search_provider: Optional[SearchProvider] = None,
+    ) -> None:
+        """Initialize with optional providers (for easier testing)."""
+        self.cache_provider = cache_provider or DatabaseCacheProvider()
+        self.search_provider = search_provider or YouTubeSearchProvider()
+        self.results: List[SongResult] = []
+        self.history_results: List[SongResult] = []
+        self.queue_start_index: int = (
+            0  # Index where searched songs start in combined results
+        )
+
+    def search(
+        self,
+        queries: List[str] | str,
+        include_history: bool = True,
+        history_limit: int = 30,
+    ) -> List[SongResult]:
+        """
+        Search for songs across all available sources.
+
+        Args:
+            queries: One or more search terms
+            include_history: Whether to include history songs before searched songs
+            history_limit: Maximum number of history songs to include
+
+        Returns:
+            List of song results (history + searched songs)
+        """
+        # Normalize input to list
+        if isinstance(queries, str):
+            queries = [queries]
+
+        self.results = []
+        self.history_results = []
+
+        try:
+            # Get history if requested
+            if include_history:
+                logger.info(f"Including up to {history_limit} history songs in queue")
+                self.history_results = self.cache_provider.get_recent_songs(
+                    history_limit
+                )
+                logger.info(f"Added {len(self.history_results)} history songs to queue")
+
+                # Debug output to verify ordering
+                if self.history_results:
+                    history_samples = [r.name for r in self.history_results[:3]]
+                    logger.debug(f"History song samples: {', '.join(history_samples)}")
+
+            # Set queue start index to length of history
+            self.queue_start_index = len(self.history_results)
+            logger.debug(f"Queue will start at index {self.queue_start_index}")
+
+            # First check cache for searched songs
+            cached_songs = self.cache_provider.get_songs(queries)
+
+            # Track which queries need online search
+            queries_to_search = []
+            query_to_result = {}
+
+            # Process cached results
+            for query in queries:
+                if query in cached_songs:
+                    self.results.append(cached_songs[query])
+                    logger.debug(f"Found in cache: {query}")
+                else:
+                    queries_to_search.append(query)
+
+            # If we have queries that need searching
+            if queries_to_search:
+                logger.info(f"Searching online for {len(queries_to_search)} songs")
+                online_results = self.search_provider.search(queries_to_search)
+
+                # Match results back to queries for caching
+                if len(online_results) == len(queries_to_search):
+                    for i, result in enumerate(online_results):
+                        query = queries_to_search[i]
+                        query_to_result[query] = result
+
+                # Update cache with new results
+                if query_to_result:
+                    self.cache_provider.save_songs(query_to_result)
+
+                # Add online results to final results
+                self.results.extend(online_results)
+
+            # Combine history with search results
+            combined_results = self.history_results + self.results
+
+            # Debug output to verify final ordering
+            if combined_results:
+                start_examples = [
+                    r.name for r in combined_results[: min(3, len(combined_results))]
+                ]
+                if self.queue_start_index < len(combined_results):
+                    searched_examples = [
+                        r.name
+                        for r in combined_results[
+                            self.queue_start_index : self.queue_start_index + 3
+                        ]
+                    ]
+                    logger.debug(f"First items in queue: {', '.join(start_examples)}")
+                    logger.debug(
+                        f"First searched items: {', '.join(searched_examples)}"
+                    )
+
+            logger.info(
+                f"Found {len(self.results)} searched songs and {len(self.history_results)} history songs"
             )
+            return combined_results
+
+        except Exception as e:
+            logger.error(f"Error during song search: {str(e)}")
+            raise
+
+    def get_playback_info(self) -> Tuple[List[SongResult], int]:
+        """
+        Get combined results and the index to start playback from.
+
+        Returns:
+            Tuple containing the combined list of songs and the index to start playback from
+        """
+        combined_results = self.history_results + self.results
+        return combined_results, self.queue_start_index
+
+    @property
+    def song_names(self) -> List[str]:
+        """Get a list of song names from the search results (no history)."""
+        return [result.name for result in self.results]
+
+    @property
+    def song_urls(self) -> List[str]:
+        """Get a list of song URLs from the search results (no history)."""
+        return [result.url for result in self.results]
+
+    @property
+    def song_thumbnails(self) -> List[str]:
+        """Get a list of song thumbnail URLs from the search results (no history)."""
+        return [result.thumbnail_url for result in self.results]
+
+    @property
+    def all_song_names(self) -> List[str]:
+        """Get a list of all song names including history."""
+        return [result.name for result in self.history_results + self.results]
+
+    @property
+    def all_song_urls(self) -> List[str]:
+        """Get a list of all song URLs including history."""
+        return [result.url for result in self.history_results + self.results]
+
+    @property
+    def all_song_thumbnails(self) -> List[str]:
+        """Get a list of all song thumbnail URLs including history."""
+        return [result.thumbnail_url for result in self.history_results + self.results]
+
+
+# Maintain backward compatibility
+class SongMetadata:
+    """Base class for storing and managing song metadata (for backward compatibility)."""
+
+    def __init__(self) -> None:
+        self.song_name_searched: List[str] = []
+        self.song_url_searched: List[str] = []
+        self.song_thumbnail_url: List[str] = []
+        # New properties for history and queue management
+        self.history_songs: List[str] = []
+        self.history_urls: List[str] = []
+        self.queue_start_index: int = 0
 
 
 class SearchFromYoutube(SongMetadata):
-    def __init__(self, song_user_searched) -> None:
+    """Class for searching songs directly from YouTube (for backward compatibility)."""
+
+    def __init__(self, search_queries: List[str]) -> None:
+        """
+        Initialize YouTube search with search queries.
+
+        Args:
+            search_queries: List of song names to search for on YouTube
+        """
         super().__init__()
-        self.song_user_searched = song_user_searched
-        self.temporary_metadata_storage = dict()
+        self.search_queries = search_queries
+        self.temporary_metadata_storage: Dict[str, str] = {}
 
-    def _update_temporary_storage(self):
+    def search_from_youtube(self) -> None:
         """
-        Updates the temporary storage with the song name and its URL.
+        Search for all queries on YouTube and extract song metadata.
+        Handles both new searches and retrieving from temporary storage.
         """
-        self.temporary_metadata_storage.update(
-            {self.song_name_searched: self.song_url_searched}
+        try:
+            # Clear previous results to avoid appending to old data
+            self.song_name_searched = []
+            self.song_url_searched = []
+            self.song_thumbnail_url = []
+
+            # Check for existing songs in temporary storage
+            for query in self.search_queries:
+                cached_url = self._get_temporary_url(query)
+                if cached_url:
+                    # Use cached data
+                    logger.debug(f"Using cached result for: {query}")
+                    self.song_name_searched.append(query)
+                    self.song_url_searched.append(cached_url)
+                else:
+                    # Search YouTube for new songs
+                    logger.debug(f"Searching YouTube for: {query}")
+                    self._search_and_extract_song_metadata(query)
+
+            logger.info(f"Found {len(self.song_name_searched)} songs on YouTube")
+        except Exception as e:
+            logger.error(f"YouTube search failed: {str(e)}")
+            # Re-raise as we want to propagate the error
+            raise
+
+    def _search_and_extract_song_metadata(self, query: str) -> None:
+        """
+        Search for a single query on YouTube and extract its metadata.
+
+        Args:
+            query: Song name to search for
+        """
+        search_results = self._execute_youtube_search(query)
+        if not search_results:
+            logger.warning(f"No results found for: {query}")
+            return
+
+        # Extract metadata from search result
+        song_metadata = search_results[0]
+        video_id = song_metadata.get("videoId")
+        title = song_metadata.get("title", "Unknown Song")
+
+        if not video_id:
+            logger.warning(f"No video ID found for: {query}")
+            return
+
+        # Get thumbnail URL if available
+        thumbnail_url = ""
+        if "thumbnails" in song_metadata and song_metadata["thumbnails"]:
+            thumbnail_url = song_metadata["thumbnails"][0]["url"]
+
+        # Construct YouTube URL
+        youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        # Store the results
+        self.song_name_searched.append(title)
+        self.song_url_searched.append(youtube_url)
+        if thumbnail_url:
+            self.song_thumbnail_url.append(thumbnail_url)
+
+        # Update temporary storage
+        self._update_temporary_storage(title, youtube_url)
+
+    def _execute_youtube_search(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Execute the actual YouTube search.
+
+        Args:
+            query: Song name to search for
+
+        Returns:
+            List of search results from YTMusic API
+        """
+        try:
+            with YTMusic() as ytmusic:
+                results = ytmusic.search(query, filter="songs", limit=1)
+                return results if results else []
+        except Exception as e:
+            logger.error(f"YTMusic API error for '{query}': {str(e)}")
+            return []
+
+    def _update_temporary_storage(self, song_name: str, song_url: str) -> None:
+        """
+        Update temporary storage with song name and URL.
+
+        Args:
+            song_name: Name of the song
+            song_url: URL of the song
+        """
+        self.temporary_metadata_storage[song_name] = song_url
+        # Also store with original query as key for better matching
+        if self.search_queries and len(self.song_name_searched) <= len(
+            self.search_queries
+        ):
+            idx = len(self.song_name_searched) - 1
+            if idx >= 0 and idx < len(self.search_queries):
+                self.temporary_metadata_storage[self.search_queries[idx]] = song_url
+
+    def _get_temporary_url(self, song_name: str) -> Optional[str]:
+        """
+        Get URL for a song from temporary storage.
+
+        Args:
+            song_name: Name of the song to find
+
+        Returns:
+            URL of the song if found, None otherwise
+        """
+        return self.temporary_metadata_storage.get(song_name)
+
+
+class SearchSong(SongMetadata):
+    """
+    Primary song search class that combines database and YouTube searches.
+    """
+
+    def __init__(self, search_queries: List[str]) -> None:
+        super().__init__()
+        self.update_song_history = UpdateSearchHistoryDatabase()
+        self.search_from_db = SearchFromSongDataBase()
+
+        # Use the new implementation under the hood
+        self.search_queries = (
+            search_queries if isinstance(search_queries, list) else [search_queries]
         )
+        self._new_search = SongSearch()
+        self.search_from_yt = SearchFromYoutube(self.search_queries)
+        self.include_history = True  # Default to including history
 
-    def _get_temporary_url(self):
+    def search_song(
+        self, include_history: bool = True, history_limit: int = 20
+    ) -> None:
         """
-        Retrieves the temporary URL for the searched song from the storage.
+        Main search method using the new implementation.
+
+        Args:
+            include_history: Whether to include history songs in the queue
+            history_limit: Maximum number of history songs to include
         """
-        # print(self.temporary_metadata_storage)
-        return self.temporary_metadata_storage.get(self.song_user_searched)
+        try:
+            logger.info(
+                f"Searching for songs with history={include_history}, limit={history_limit}"
+            )
 
-    def _search_youtube_for_song(self):
+            # Store the setting
+            self.include_history = include_history
+
+            # Search with history included
+            combined_results = self._new_search.search(
+                self.search_queries,
+                include_history=include_history,
+                history_limit=history_limit,
+            )
+
+            # Store the queue start index
+            self.queue_start_index = self._new_search.queue_start_index
+            logger.info(
+                f"Queue will start at index {self.queue_start_index} of {len(combined_results)} total songs"
+            )
+
+            # Update the old-style properties for backward compatibility
+            if include_history and self.queue_start_index > 0:
+                # Store history separately
+                self.history_songs = [
+                    r.name for r in combined_results[: self.queue_start_index]
+                ]
+                self.history_urls = [
+                    r.url for r in combined_results[: self.queue_start_index]
+                ]
+
+                # Log first few history songs
+                if self.history_songs:
+                    logger.debug(
+                        f"First few history songs: {', '.join(self.history_songs[:3])}"
+                    )
+
+                # Store searched songs
+                self.song_name_searched = [
+                    r.name for r in combined_results[self.queue_start_index :]
+                ]
+                self.song_url_searched = [
+                    r.url for r in combined_results[self.queue_start_index :]
+                ]
+
+                # Log first few searched songs
+                if self.song_name_searched:
+                    logger.debug(
+                        f"First few searched songs: {', '.join(self.song_name_searched[:3])}"
+                    )
+
+                # Also store thumbnails if available
+                self.song_thumbnail_url = [
+                    r.thumbnail_url
+                    for r in combined_results[self.queue_start_index :]
+                    if r.thumbnail_url
+                ]
+                logger.info(
+                    f"Added {len(self.history_songs)} history songs and {len(self.song_name_searched)} searched songs"
+                )
+            else:
+                # Just store the search results (no history)
+                self.song_name_searched = [r.name for r in combined_results]
+                self.song_url_searched = [r.url for r in combined_results]
+                self.song_thumbnail_url = [
+                    r.thumbnail_url for r in combined_results if r.thumbnail_url
+                ]
+                logger.info(
+                    f"Added {len(self.song_name_searched)} searched songs (no history)"
+                )
+        except Exception as e:
+            logger.error(f"Error during song search: {str(e)}")
+            raise
+
+    def get_all_queued_songs(self) -> Tuple[List[str], List[str], int]:
         """
-        Searches for the user-provided song on YouTube using YTMusic API.
-        Returns song metadata from the search.
+        Get all songs for the queue (history + searched) and the starting index.
+
+        Returns:
+            Tuple containing lists of all song names, URLs, and the index to start playback from
         """
-        with YTMusic() as ytmusic:
-            return ytmusic.search(self.song_user_searched, filter="songs", limit=1)[0]
-
-    def search_from_youtube(self):
-        """
-        Searches for the user-provided song on YouTube using YTMusic API
-        and extracts information such as title and webpage URL.
-        """
-        temp_url = self._get_temporary_url()
-        # exit()
-
-        if temp_url is None:
-            song_metadata_from_yt = self._search_youtube_for_song()
-
-            video_id = song_metadata_from_yt["videoId"]
-
-            self.song_name_searched = song_metadata_from_yt["title"]
-            self.song_url_searched = f"https://www.youtube.com/watch?v={video_id}"
-
-            self._update_temporary_storage()
-
-        else:
-            # print(temp_url)
-            self.song_name_searched = self.song_user_searched
-            self.song_url_searched = temp_url
+        all_songs = self.history_songs + self.song_name_searched
+        all_urls = self.history_urls + self.song_url_searched
+        logger.info(
+            f"Returning complete queue with {len(all_songs)} songs, starting at {self.queue_start_index}"
+        )
+        return all_songs, all_urls, self.queue_start_index
