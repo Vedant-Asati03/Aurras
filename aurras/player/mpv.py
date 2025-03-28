@@ -245,6 +245,16 @@ class MPVPlayer(mpv.MPV):
         """Handle quit key press."""
         self._stop_requested = True
         logger.info("Quit requested by user")
+
+        # First stop lyrics if active
+        if self.lyrics_fetcher:
+            try:
+                self.lyrics_fetcher.stop_lyrics_monitor()
+                self.lyrics_fetcher = None
+            except Exception as e:
+                logger.warning(f"Error stopping lyrics monitor during quit: {e}")
+
+        # Then quit the player
         self.quit()
 
     # --- Main Player Methods ---
@@ -590,8 +600,20 @@ class MPVPlayer(mpv.MPV):
         try:
             self.console.print("[dim]Fetching lyrics...[/]")
             self.lyrics_fetcher = LyricsFetcher(current_song)
-            self.lyrics_fetcher.display_lyrics()
             self.lyrics_fetcher.start_lyrics_monitor()
+            self.lyrics_fetcher.display_lyrics()
+
+            # Set up a property observer for time-pos to update synced lyrics
+            @self.property_observer("time-pos")
+            def _update_lyrics_position(_name: str, value: Optional[float]) -> None:
+                if (
+                    value is not None
+                    and not self._stop_requested
+                    and hasattr(self, "lyrics_fetcher")
+                    and self.lyrics_fetcher
+                ):
+                    # Update the lyrics position to keep them in sync
+                    self.lyrics_fetcher.update_position(value)
         except Exception as e:
             logger.warning(f"Could not display lyrics: {e}")
             self.console.print(f"[yellow]Could not display lyrics:[/] {str(e)}")
@@ -608,7 +630,6 @@ class MPVPlayer(mpv.MPV):
         """
         if seconds is None or seconds < 0:
             return "0:00"
-
         mins = int(seconds // 60)
         secs = int(seconds % 60)
         return f"{mins}:{secs:02d}"
