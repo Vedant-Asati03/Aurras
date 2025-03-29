@@ -1,283 +1,325 @@
 """
 Lyrics Module
 
-This module provides functionality for fetching, displaying, and translating song lyrics.
+This module provides functionality for fetching, displaying, and syncing song lyrics.
 """
 
 import threading
 import sqlite3
+import re
+import time
+import os
+import json
+import requests
+from typing import List, Tuple, Optional, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.box import ROUNDED
+from rich.text import Text
+from ..utils.path_manager import PathManager
+
+_path_manager = PathManager()
+console = Console()
+
 
 try:
-    import keyboard
-
-    KEYBOARD_AVAILABLE = True
-except ImportError:
-    KEYBOARD_AVAILABLE = False
-    print("Warning: keyboard module not installed. Some features will be limited.")
-
-try:
-    from googletrans import Translator
-
-    TRANSLATOR_AVAILABLE = True
-except ImportError:
-    TRANSLATOR_AVAILABLE = False
-    print("Warning: googletrans not installed. Translation will not be available.")
-
-try:
-    from lyrics_extractor import SongLyrics
+    from lrclib import LrcLibAPI
 
     LYRICS_AVAILABLE = True
 except ImportError:
     LYRICS_AVAILABLE = False
-    print("Warning: lyrics_extractor not installed. Lyrics will not be available.")
-    print("To enable lyrics, install with: pip install lyrics-extractor")
+    console.print(
+        "[red]Warning: lrclib not installed. Lyrics will not be available.[/red]"
+    )
+    console.print(
+        "[yellow]To enable lyrics, install with: pip install lrclibapi[/yellow]"
+    )
 
-from ..utils.terminal import clear_screen
-from ..core.settings import LoadDefaultSettings
-from ..utils.path_manager import PathManager
 
-_path_manager = PathManager()
+class SetupAPI:
+    """
+    SetupAPI class to manage the API instance.
+    """
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(SetupAPI, cls).__new__(cls)
+            cls._instance.api = LrcLibAPI(user_agent="aurras/0.0.1")
+        return cls._instance
 
 
 class LyricsCache:
-    """Class for managing the lyrics cache."""
+    """
+    LyricsCache class to manage saving and retrieving lyrics from the database.
+    """
 
-    def __init__(self):
-        """Initialize the lyrics cache database."""
-        self.cache_db = _path_manager.lyrics_cache_db
-        self._initialize_db()
-        self.console = Console()
+    def __init__(self, db_path: Optional[str] = None):
+        """Initialize the lyrics cache with the specified database path."""
+        self.db_path = _path_manager.lyrics_cache_db
 
-    def _initialize_db(self):
-        """Create the lyrics cache table if it doesn't exist."""
-        with sqlite3.connect(self.cache_db) as conn:
+        self._init_db()
+
+    def _init_db(self) -> None:
+        """Initialize the database if it doesn't exist."""
+        with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS lyrics_cache (
+                CREATE TABLE IF NOT EXISTS lyrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    song_name TEXT UNIQUE,
-                    lyrics TEXT,
-                    fetched_at INTEGER
+                    track_name TEXT,
+                    artist_name TEXT,
+                    album_name TEXT,
+                    duration INTEGER,
+                    synced_lyrics TEXT,
+                    plain_lyrics TEXT,
+                    fetch_time INTEGER,
+                    UNIQUE(track_name, artist_name, album_name, duration)
                 )
             """)
             conn.commit()
 
-    def get_lyrics(self, song_name):
+    def load_lyrics_from_db(
+        self, track_name: str, artist_name: str, album_name: str, duration: int
+    ) -> Optional[Dict[str, Any]]:
         """
-        Get lyrics for a song from the cache.
-
-        Args:
-            song_name: Name of the song
+        Retrieve lyrics from the cache.
 
         Returns:
-            The lyrics if found, None otherwise
+            Dictionary with 'synced_lyrics' and 'plain_lyrics' keys or None if not found
         """
-        try:
-            with sqlite3.connect(self.cache_db) as conn:
-                cursor = conn.cursor()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT synced_lyrics, plain_lyrics FROM lyrics 
+                WHERE track_name = ? AND artist_name = ? AND album_name = ? AND duration = ?
+                """,
+                (track_name, artist_name, album_name, duration),
+            )
+            result = cursor.fetchone()
+
+            if result:
+                return {"synced_lyrics": result[0], "plain_lyrics": result[1]}
+            return None
+
+    def save_lyrics(
+        self,
+        track_name: str,
+        artist_name: str,
+        album_name: str,
+        duration: int,
+        synced_lyrics: str,
+        plain_lyrics: str,
+    ) -> None:
+        """Save lyrics to the cache."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO lyrics 
+                (track_name, artist_name, album_name, duration, synced_lyrics, plain_lyrics, fetch_time) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    track_name,
+                    artist_name,
+                    album_name,
+                    duration,
+                    synced_lyrics,
+                    plain_lyrics,
+                    int(time.time()),
+                ),
+            )
+            conn.commit()
+
+    def clear_cache(self, older_than_days: Optional[int] = None) -> int:
+        """
+        Clear the lyrics cache, optionally only entries older than the specified days.
+
+        Returns:
+            Number of entries deleted
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            if older_than_days:
+                cutoff_time = int(time.time()) - (older_than_days * 24 * 60 * 60)
                 cursor.execute(
-                    "SELECT lyrics FROM lyrics_cache WHERE song_name = ?", (song_name,)
+                    "DELETE FROM lyrics WHERE fetch_time < ?", (cutoff_time,)
                 )
-                result = cursor.fetchone()
-                if result:
-                    return result[0]
-        except Exception as e:
-            self.console.print(f"[yellow]Error reading lyrics from cache: {e}[/yellow]")
-        return None
+            else:
+                cursor.execute("DELETE FROM lyrics")
+            deleted_count = cursor.rowcount
+            conn.commit()
+            return deleted_count
 
-    def save_lyrics(self, song_name, lyrics):
+
+class LyricsFetcher:
+    """Fetcher class to handle fetching lyrics from the API."""
+
+    def __init__(
+        self, track_name: str, artist_name: str, album_name: str, duration: int
+    ):
+        self.api = SetupAPI().api
+        self.lyrics = None
+        self.lock = threading.Lock()
+        self.track_name = track_name
+        self.artist_name = artist_name
+        self.album_name = album_name
+        self.duration = duration
+        self.cache = LyricsCache()
+
+    def fetch_lyrics(self) -> Dict[str, str]:
         """
-        Save lyrics to the cache.
+        Fetch lyrics, first checking cache then the API.
 
-        Args:
-            song_name: Name of the song
-            lyrics: Lyrics to save
+        Returns:
+            Dictionary with 'synced_lyrics' and 'plain_lyrics' keys
         """
-        try:
-            import time
+        # First check the cache
+        cached_lyrics = self.cache.load_lyrics_from_db(
+            self.track_name, self.artist_name, self.album_name, self.duration
+        )
 
-            with sqlite3.connect(self.cache_db) as conn:
-                cursor = conn.cursor()
-                timestamp = int(time.time())
-                cursor.execute(
-                    "INSERT OR REPLACE INTO lyrics_cache (song_name, lyrics, fetched_at) VALUES (?, ?, ?)",
-                    (song_name, lyrics, timestamp),
+        if cached_lyrics:
+            return cached_lyrics
+
+        # If not in cache, fetch from API
+        with self.lock:
+            try:
+                self.lyrics = self.api.get_lyrics(
+                    track_name=self.track_name,
+                    artist_name=self.artist_name,
+                    album_name=self.album_name,
+                    duration=self.duration,
                 )
-                conn.commit()
-        except Exception as e:
-            self.console.print(f"[yellow]Error saving lyrics to cache: {e}[/yellow]")
+
+                synced_lyrics = self.lyrics.synced_lyrics.split("\n") or []
+                plain_lyrics = self.lyrics.plain_lyrics.split("\n") or []
+
+                # Save to cache
+                self.cache.save_lyrics(
+                    self.track_name,
+                    self.artist_name,
+                    self.album_name,
+                    self.duration,
+                    synced_lyrics,
+                    plain_lyrics,
+                )
+
+                return {"synced_lyrics": synced_lyrics, "plain_lyrics": plain_lyrics}
+            except requests.RequestException as e:
+                console.print(f"[red]Error fetching lyrics: {e}[/red]")
+                return {"synced_lyrics": "", "plain_lyrics": ""}
 
 
 class LyricsManager:
-    """Base class for lyrics functionality."""
+    """
+    LyricsManager class to handle fetching and displaying lyrics.
+    """
 
-    def __init__(self):
-        """Initialize the LyricsManager class."""
+    def __init__(
+        self,
+        settings: Optional[Dict[str, str]] = None,
+    ):
         self.console = Console()
-        self.api_key = None
-        self.lyrics_cache = LyricsCache()
+        self.settings = settings or self._load_default_settings()
+        self.lyrics_fetcher = None
+        self.lyrics_data = {"synced_lyrics": "", "plain_lyrics": ""}
 
-        if LYRICS_AVAILABLE:
+    def _load_default_settings(self) -> Dict[str, str]:
+        """Load default settings or from config file if available."""
+        default_settings = {"show-lyrics": "yes"}
+
+        config_path = str(_path_manager.config_file)
+        if os.path.exists(config_path):
             try:
-                self.api_key = SongLyrics(
-                    "AIzaSyAcZ6KgA7pCIa_uf8-bYdWR85vx6-dWqDg", "aa2313d6c88d1bf22"
-                )
-            except Exception as e:
-                self.console.print(
-                    f"[yellow]Failed to initialize lyrics API: {e}[/yellow]"
-                )
+                with open(config_path, "r") as f:
+                    loaded_settings = json.load(f)
+                    default_settings.update(loaded_settings)
+            except (json.JSONDecodeError, IOError):
+                pass
 
-        self.settings = LoadDefaultSettings().load_default_settings()
-        self.lyrics_thread = None
-        self.stop_event = threading.Event()
+        return default_settings
 
-    def should_show_lyrics(self):
+    def obtain_lyrics_info(
+        self,
+        track_name: str,
+        artist_name: str,
+        album_name: str,
+        duration: int,
+    ) -> Dict[str, list]:
+        """Fetch lyrics using LyricsFetcher."""
+        if not self._should_show_lyrics():
+            # return {"synced_lyrics": "", "plain_lyrics": ""}
+            return None
+
+        if not LYRICS_AVAILABLE:
+            # return {"synced_lyrics": "", "plain_lyrics": ""}
+            return None
+
+        try:
+            self.lyrics_fetcher = LyricsFetcher(
+                track_name, artist_name, album_name, duration
+            )
+            return self.lyrics_fetcher.fetch_lyrics()
+        except Exception as e:
+            console.print(f"[red]Error in lyrics manager: {e}[/red]")
+            return {"synced_lyrics": "", "plain_lyrics": ""}
+
+    def _should_show_lyrics(self) -> bool:
         """Check if lyrics should be shown based on settings and available modules."""
         if not LYRICS_AVAILABLE:
             return False
 
         return self.settings.get("show-lyrics", "yes").lower() == "yes"
 
+    def display_lyrics(self, current_time: float) -> None:
+        """
+        Display the lyrics for the current time in the song.
 
-class LyricsFetcher(LyricsManager):
-    """Class for fetching and managing song lyrics."""
-
-    def __init__(self, song_name):
-        """Initialize with the song name."""
-        super().__init__()
-        self.song_name = song_name
-        self.lyrics = None
-        self.fetch_lyrics()
-
-    def fetch_lyrics(self):
-        """Fetch lyrics for the song from the cache or API."""
-        if not self.should_show_lyrics():
+        Args:
+            current_time: Current playback time in seconds
+        """
+        if not self._should_show_lyrics() or not self.lyrics_data["synced_lyrics"]:
             return
 
-        # Try to get lyrics from cache first
-        cached_lyrics = self.lyrics_cache.get_lyrics(self.song_name)
+        synced_lyrics = self.lyrics_data["synced_lyrics"].split("\n")
 
-        if cached_lyrics:
-            self.console.print("[cyan]Found lyrics in cache[/cyan]")
-            self.lyrics = cached_lyrics
-            return
+        # Find the current line based on timestamps (basic LRC format parsing)
+        current_line = ""
+        next_line = ""
+        for i, line in enumerate(synced_lyrics):
+            timestamp_match = re.match(r"\[(\d+):(\d+\.\d+)\](.*)", line)
+            if timestamp_match:
+                mins, secs, text = timestamp_match.groups()
+                line_time = int(mins) * 60 + float(secs)
 
-        # If not in cache and API key is available, fetch from API
-        if not self.api_key:
-            return
+                if line_time <= current_time:
+                    current_line = text.strip()
 
-        try:
-            with self.console.status(
-                f"[cyan]Fetching lyrics for {self.song_name}...[/cyan]"
-            ):
-                result = self.api_key.get_lyrics(self.song_name)
-                self.lyrics = result["lyrics"]
+                    # Look for next line
+                    if i < len(synced_lyrics) - 1:
+                        next_match = re.match(
+                            r"\[(\d+):(\d+\.\d+)\](.*)", synced_lyrics[i + 1]
+                        )
+                        if next_match:
+                            next_line = next_match.group(3).strip()
+                    break
 
-                # Save to cache for future use
-                self.lyrics_cache.save_lyrics(self.song_name, self.lyrics)
+        # Display the current lyrics
+        if current_line:
+            styled_text = Text()
+            styled_text.append(current_line, style="bold green")
+            if next_line:
+                styled_text.append("\n" + next_line, style="dim white")
 
-        except Exception as e:
-            self.console.print(f"[yellow]Could not fetch lyrics: {str(e)}[/yellow]")
-            self.lyrics = None
-
-    def display_lyrics(self):
-        """Display the fetched lyrics in a formatted panel."""
-        if not self.lyrics or not self.should_show_lyrics():
-            return
-
-        # Create a nice panel with the lyrics
-        panel = Panel(
-            self.lyrics,
-            title=f"🎵 Lyrics: {self.song_name} 🎵",
-            border_style="cyan",
-            box=ROUNDED,
-            padding=(1, 2),
-            width=min(100, self.console.width - 4),
-        )
-
-        self.console.print("\n")
-        self.console.print(panel)
-
-        if TRANSLATOR_AVAILABLE and KEYBOARD_AVAILABLE:
             self.console.print(
-                "[dim]Press 't' during playback to translate lyrics[/dim]"
+                Panel(
+                    styled_text,
+                    title="[bold]Lyrics[/bold]",
+                    box=ROUNDED,
+                    border_style="green",
+                )
             )
-
-    def start_lyrics_monitor(self):
-        """Start a background thread to monitor for the 't' key to translate lyrics."""
-        if (
-            not self.lyrics
-            or not self.should_show_lyrics()
-            or not KEYBOARD_AVAILABLE
-            or not TRANSLATOR_AVAILABLE
-        ):
-            return
-
-        self.stop_event.clear()
-        self.lyrics_thread = threading.Thread(
-            target=self._monitor_translation_key, daemon=True
-        )
-        self.lyrics_thread.start()
-
-    def stop_lyrics_monitor(self):
-        """Stop the lyrics monitor thread."""
-        if self.lyrics_thread and self.lyrics_thread.is_alive():
-            self.stop_event.set()
-            self.lyrics_thread.join(timeout=1)
-
-    def _monitor_translation_key(self):
-        """Monitor for the 't' key to translate lyrics."""
-        if not TRANSLATOR_AVAILABLE or not KEYBOARD_AVAILABLE:
-            return
-
-        try:
-            translator = Translator(
-                service_urls=["translate.google.com", "translate.google.co.kr"]
-            )
-        except Exception as e:
-            self.console.print(f"[yellow]Failed to initialize translator: {e}[/yellow]")
-            return
-
-        translated = False
-        original_lyrics = self.lyrics
-
-        while not self.stop_event.is_set():
-            try:
-                if keyboard.is_pressed("t"):
-                    clear_screen()
-
-                    if not translated:
-                        # Translate the lyrics
-                        with self.console.status("[cyan]Translating lyrics...[/cyan]"):
-                            try:
-                                translated_text = translator.translate(
-                                    self.lyrics, dest="en"
-                                ).text
-                                self.lyrics = translated_text
-                                translated = True
-                            except Exception as e:
-                                self.console.print(
-                                    f"[yellow]Translation failed: {e}[/yellow]"
-                                )
-                                continue
-                    else:
-                        # Revert to original lyrics
-                        self.lyrics = original_lyrics
-                        translated = False
-
-                    # Display the updated lyrics
-                    self.display_lyrics()
-
-                    # Prevent multiple presses
-                    self.console.print(
-                        "[dim]Translation toggled. Press 'q' to return to playback.[/dim]"
-                    )
-                    self.stop_event.wait(1)  # Small delay to avoid rapid toggling
-            except Exception:
-                # Ignore keyboard detection errors
-                pass
-
-            self.stop_event.wait(0.1)  # Small delay to reduce CPU usage
