@@ -16,10 +16,10 @@ from . import python_mpv as mpv
 from .python_mpv import ShutdownError
 
 try:
-    from ..services.lyrics import LyricsFetcher, LYRICS_AVAILABLE
+    from ..services.lyrics import LyricsManager, LYRICS_AVAILABLE
 except ImportError:
-    LyricsFetcher = None
     LYRICS_AVAILABLE = False
+    LyricsManager = None  # Add proper fallback for LyricsManager
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -75,7 +75,12 @@ class MPVPlayer(mpv.MPV):
 
         # Initialize instance variables
         self.console = Console()
-        self.lyrics_fetcher = None
+        # Initialize lyrics manager only if available
+        self.lyrics_manager = (
+            LyricsManager() if LYRICS_AVAILABLE and LyricsManager else None
+        )
+        self._lyrics_cache = {}  # Initialize lyrics cache
+        self._reset_metadata_ready_flag = False  # Initialize reset flag
         self._is_playing = False
         self._stop_requested = False
         self._display_thread: Optional[threading.Thread] = None
@@ -169,6 +174,10 @@ class MPVPlayer(mpv.MPV):
             self._current_playlist_pos = value
             logger.debug(f"Playlist position changed from {old_pos} to {value}")
 
+            # Reset metadata_ready flag when changing songs
+            # This will force the display to wait for new metadata before fetching lyrics
+            self._reset_metadata_ready_flag = True
+
             # Log when we transition between history and searched songs
             if value == self._queue_start_index:
                 logger.info("Now playing first searched song")
@@ -246,15 +255,7 @@ class MPVPlayer(mpv.MPV):
         self._stop_requested = True
         logger.info("Quit requested by user")
 
-        # First stop lyrics if active
-        if self.lyrics_fetcher:
-            try:
-                self.lyrics_fetcher.stop_lyrics_monitor()
-                self.lyrics_fetcher = None
-            except Exception as e:
-                logger.warning(f"Error stopping lyrics monitor during quit: {e}")
-
-        # Then quit the player
+        # Clean up and quit
         self.quit()
 
     # --- Main Player Methods ---
@@ -307,12 +308,6 @@ class MPVPlayer(mpv.MPV):
             # Start UI display
             self._start_display(first_song_name)
 
-            # Show lyrics if enabled
-            if show_lyrics and LYRICS_AVAILABLE and LyricsFetcher:
-                current_song_index = start_index
-                if 0 <= current_song_index < len(song_names):
-                    self._display_lyrics(song_names[current_song_index])
-
             # Wait for playback to complete
             try:
                 if self.playlist_count:
@@ -338,12 +333,6 @@ class MPVPlayer(mpv.MPV):
         """Clean up resources when playback is finished."""
         self._stop_display()
 
-        if self.lyrics_fetcher:
-            try:
-                self.lyrics_fetcher.stop_lyrics_monitor()
-            except Exception as e:
-                logger.warning(f"Error stopping lyrics monitor: {e}")
-
     def _initialize_player(self, queue: List[str], start_index: int = 0) -> None:
         """
         Initialize player with queue and start at specified index.
@@ -355,8 +344,32 @@ class MPVPlayer(mpv.MPV):
         # First initialize the queue with all songs
         self._initialize_queue(queue)
 
+        # Wait a moment for the queue to be fully loaded
+        time.sleep(0.1)
+
         # Then start playback from the specified index
-        self.playlist_play_index(start_index)
+        if start_index > 0:
+            logger.info(f"Setting playlist position to {start_index}")
+            try:
+                # Set the internal position first
+                self._current_playlist_pos = start_index
+                # Then tell MPV to play this position
+                self.playlist_play_index(start_index)
+
+                # Verify the position was set correctly
+                time.sleep(0.1)  # Give MPV a moment to update
+                actual_pos = self.playlist_pos
+                if actual_pos is not None and actual_pos != start_index:
+                    logger.warning(
+                        f"Position mismatch: wanted {start_index}, got {actual_pos}. Retrying..."
+                    )
+                    self.playlist_play_index(start_index)
+            except Exception as e:
+                logger.error(f"Error setting initial playlist position: {e}")
+        else:
+            # Start from the beginning
+            self.playlist_play_index(0)
+
         logger.debug(f"Starting playback at index {start_index}")
 
     def _initialize_queue(self, queue: List[str]) -> None:
@@ -412,6 +425,24 @@ class MPVPlayer(mpv.MPV):
                 "[bold cyan]↑↓[/]:Volume[/]"
             )
 
+            # Track the last displayed song to avoid unnecessary lyrics fetching
+            last_displayed_song = None
+            last_playlist_pos = -1
+            cached_lyrics = []  # Start with empty lyrics
+            lyrics_fetched = False
+            metadata_ready = False
+            metadata_checked = False
+            lyrics_retry_count = 0
+            max_lyrics_retries = 5
+            refresh_count = 0
+            show_lyrics_panel = False  # Flag to control lyrics panel visibility
+
+            # Reset metadata flag
+            self._reset_metadata_ready_flag = False
+
+            # Wait a short moment before initial display to allow metadata to load
+            time.sleep(0.5)
+
             # Create a live display that updates automatically
             with Live(
                 refresh_per_second=4,  # Lower refresh rate for efficiency
@@ -424,6 +455,75 @@ class MPVPlayer(mpv.MPV):
                         elapsed = self._elapsed_time or 0
                         duration = self.duration or 0
 
+                        # Check if playlist position changed
+                        playlist_position_changed = (
+                            last_playlist_pos != self._current_playlist_pos
+                        )
+                        if playlist_position_changed:
+                            logger.debug(
+                                f"Display detected playlist position change: {last_playlist_pos} -> {self._current_playlist_pos}"
+                            )
+                            last_playlist_pos = self._current_playlist_pos
+
+                            # Reset counters when changing songs
+                            refresh_count = 0
+                            lyrics_retry_count = 0
+                            lyrics_fetched = False
+                            metadata_checked = False
+
+                        # Handle metadata reset flag
+                        if self._reset_metadata_ready_flag:
+                            metadata_ready = False
+                            metadata_checked = False
+                            self._reset_metadata_ready_flag = False
+                            logger.debug("Reset metadata ready flag due to song change")
+
+                        # Track number of refresh cycles to allow metadata to load
+                        refresh_count += 1
+
+                        # Get metadata for display
+                        try:
+                            artist = self._metadata.get("artist", "Unknown")
+                            album = self._metadata.get("album", "Unknown")
+
+                            # Check if we have complete metadata
+                            if refresh_count > 5 and not metadata_checked:
+                                metadata_checked = True
+                                if (
+                                    duration > 0
+                                    and artist != "Unknown"
+                                    and album != "Unknown"
+                                ):
+                                    metadata_ready = True
+                                    logger.debug(
+                                        "Metadata is ready for lyrics fetching"
+                                    )
+                                else:
+                                    logger.debug(
+                                        "Metadata not yet complete for lyrics fetching"
+                                    )
+
+                            # Check metadata periodically to see if it's been updated
+                            if refresh_count % 5 == 0 and not metadata_ready:
+                                if (
+                                    duration > 0
+                                    and artist != "Unknown"
+                                    and album != "Unknown"
+                                ):
+                                    metadata_ready = True
+                                    logger.debug(
+                                        "Metadata is now ready for lyrics fetching"
+                                    )
+                                # If no metadata after 15 refreshes, try fetching with what we have
+                                elif refresh_count > 15:
+                                    logger.debug(
+                                        "Attempting lyrics fetch with incomplete metadata"
+                                    )
+                                    metadata_ready = True
+                        except Exception:
+                            artist = "Unknown"
+                            album = "Unknown"
+
                         # Calculate progress percentage
                         try:
                             progress_percent = (
@@ -434,14 +534,6 @@ class MPVPlayer(mpv.MPV):
                             break
                         except ZeroDivisionError:
                             progress_percent = 0
-
-                        # Get metadata for display
-                        try:
-                            artist = self._metadata.get("artist", "Unknown")
-                            album = self._metadata.get("album", "Unknown")
-                        except Exception:
-                            artist = "Unknown"
-                            album = "Unknown"
 
                         # Get current song name and source (history or searched)
                         current_song = self._get_current_song_name()
@@ -463,7 +555,6 @@ class MPVPlayer(mpv.MPV):
                             controls_text,
                         )
 
-                        # Create panel with all content
                         panel = Panel(
                             content,
                             title="♫ Aurras Music Player ♫",
@@ -472,10 +563,236 @@ class MPVPlayer(mpv.MPV):
                             padding=(0, 1),
                         )
 
-                        # Update the live display
-                        live.update(panel)
+                        # Handle lyrics update
+                        try:
+                            # Skip lyrics handling if lyrics manager is not available
+                            if not self.lyrics_manager or not LYRICS_AVAILABLE:
+                                # Don't set show_lyrics_panel if lyrics aren't available
+                                lyrics_fetched = True
+                            else:
+                                # Determine if we need to fetch/update lyrics
+                                lyrics_need_update = False
 
-                        # Sleep to reduce CPU usage
+                                # Song changed - need to fetch new lyrics
+                                if current_song != last_displayed_song:
+                                    lyrics_need_update = True
+                                    lyrics_fetched = False
+                                    lyrics_retry_count = 0
+                                    cached_lyrics = []  # Reset to empty
+                                    show_lyrics_panel = (
+                                        False  # Hide lyrics panel on song change
+                                    )
+                                    last_displayed_song = current_song
+                                    logger.debug(f"Song changed to: {current_song}")
+
+                                # Retry if we have metadata now but didn't before
+                                if (
+                                    not lyrics_fetched
+                                    and metadata_ready
+                                    and lyrics_retry_count < max_lyrics_retries
+                                ):
+                                    lyrics_need_update = True
+
+                                # Normalize string for more reliable cache lookup
+                                def normalize_str(s):
+                                    if not s or s == "Unknown":
+                                        return ""
+                                    return s.lower().strip()
+
+                                # Create more reliable cache keys
+                                simple_key = f"{normalize_str(current_song)}_{normalize_str(artist)}_{normalize_str(album)}"
+
+                                # Also try a song-only key as fallback
+                                song_only_key = normalize_str(current_song)
+
+                                # Check memory cache first before fetching
+                                if simple_key in self._lyrics_cache:
+                                    cached_lyrics = self._lyrics_cache[simple_key]
+                                    lyrics_fetched = True
+                                    lyrics_need_update = False
+                                    show_lyrics_panel = bool(
+                                        cached_lyrics
+                                    )  # Show panel if we have lyrics
+                                    logger.debug(
+                                        f"Using memory-cached lyrics for '{current_song}' (full key)"
+                                    )
+                                elif song_only_key in self._lyrics_cache:
+                                    cached_lyrics = self._lyrics_cache[song_only_key]
+                                    lyrics_fetched = True
+                                    lyrics_need_update = False
+                                    show_lyrics_panel = bool(
+                                        cached_lyrics
+                                    )  # Show panel if we have lyrics
+                                    logger.debug(
+                                        f"Using memory-cached lyrics for '{current_song}' (song-only key)"
+                                    )
+
+                                # Try to fetch lyrics if needed and we have good metadata
+                                if lyrics_need_update and metadata_ready:
+                                    try:
+                                        logger.debug(
+                                            f"Attempting to fetch lyrics for '{current_song}' (try {lyrics_retry_count + 1}/{max_lyrics_retries})"
+                                        )
+                                        new_lyrics = self._display_lyrics(
+                                            current_song, artist, album, duration
+                                        )
+
+                                        # Make sure we always have a list of strings
+                                        if isinstance(new_lyrics, str):
+                                            new_lyrics = new_lyrics.split("\n")
+
+                                        # Make sure the list has items
+                                        if not new_lyrics:
+                                            new_lyrics = [
+                                                f"[italic yellow]No lyrics found for:[/italic yellow] [bold]{current_song}[/bold]"
+                                            ]
+
+                                        # Log what we received for debugging
+                                        logger.debug(
+                                            f"Received lyrics for '{current_song}': {len(new_lyrics)} lines, first line: '{new_lyrics[0][:50]}...'"
+                                        )
+
+                                        # Check if we got real lyrics - less strict check for cached content
+                                        has_error_message = any(
+                                            (
+                                                "Error" in line
+                                                or "error" in line
+                                                or "Not available" in line
+                                                or "not available" in line
+                                            )
+                                            for line in new_lyrics[:3]
+                                        )
+
+                                        if new_lyrics and not has_error_message:
+                                            # We got meaningful lyrics
+                                            cached_lyrics = new_lyrics
+                                            lyrics_fetched = True
+                                            show_lyrics_panel = (
+                                                True  # Show panel with fetched lyrics
+                                            )
+                                            # Store in memory cache (both keys for better future matching)
+                                            self._lyrics_cache[simple_key] = new_lyrics
+                                            self._lyrics_cache[song_only_key] = (
+                                                new_lyrics
+                                            )
+                                            logger.info(
+                                                f"Successfully fetched lyrics for '{current_song}'"
+                                            )
+                                        elif any(
+                                            ("No lyrics found" in line)
+                                            for line in new_lyrics
+                                        ):
+                                            # Lyrics service confirmed no lyrics exist
+                                            cached_lyrics = new_lyrics
+                                            lyrics_fetched = True
+                                            show_lyrics_panel = (
+                                                True  # Show "no lyrics found" message
+                                            )
+                                            # Cache negative results too
+                                            self._lyrics_cache[simple_key] = new_lyrics
+                                            self._lyrics_cache[song_only_key] = (
+                                                new_lyrics
+                                            )
+                                            logger.info(
+                                                f"No lyrics available for '{current_song}'"
+                                            )
+                                        else:
+                                            # Got empty or minimal response, might need retry
+                                            lyrics_retry_count += 1
+                                            if lyrics_retry_count >= max_lyrics_retries:
+                                                cached_lyrics = [
+                                                    f"[italic yellow]Could not find lyrics after {max_lyrics_retries} attempts[/italic yellow]"
+                                                ]
+                                                lyrics_fetched = True
+                                                show_lyrics_panel = True  # Show error message after max retries
+                                                # Cache negative results after max retries
+                                                self._lyrics_cache[simple_key] = (
+                                                    cached_lyrics
+                                                )
+                                                self._lyrics_cache[song_only_key] = (
+                                                    cached_lyrics
+                                                )
+                                                logger.warning(
+                                                    f"Failed to find lyrics for '{current_song}' after {max_lyrics_retries} attempts"
+                                                )
+                                    except Exception as e:
+                                        lyrics_retry_count += 1
+                                        logger.error(
+                                            f"Error fetching lyrics for '{current_song}' (attempt {lyrics_retry_count}): {e}"
+                                        )
+                                        if lyrics_retry_count >= max_lyrics_retries:
+                                            cached_lyrics = [
+                                                f"[italic red]Error fetching lyrics:[/italic red] {str(e)}"
+                                            ]
+                                            lyrics_fetched = True
+                                            show_lyrics_panel = True  # Show error message after max retries
+                                            # Cache error messages too to avoid repeated failures
+                                            self._lyrics_cache[simple_key] = (
+                                                cached_lyrics
+                                            )
+
+                            # Don't update with waiting message - we'll just not show the panel
+                        except Exception as e:
+                            logger.error(f"Error in lyrics handling: {e}")
+                            if (
+                                lyrics_fetched
+                            ):  # Only show error if we were displaying lyrics already
+                                cached_lyrics = [
+                                    "[italic red]Error processing lyrics[/italic red]"
+                                ]
+                                show_lyrics_panel = True
+
+                        # Create the main player panel
+                        panel = Panel(
+                            content,
+                            title="♫ Aurras Music Player ♫",
+                            border_style="cyan",
+                            box=ROUNDED,
+                            padding=(0, 1),
+                        )
+
+                        # Create display group - conditionally include lyrics panel
+                        if show_lyrics_panel and cached_lyrics:
+                            # Process lyrics content only if we're showing the panel
+                            try:
+                                # Make sure cached_lyrics is a list
+                                if not isinstance(cached_lyrics, list):
+                                    cached_lyrics = (
+                                        str(cached_lyrics).split("\n")
+                                        if cached_lyrics
+                                        else []
+                                    )
+
+                                # Join the list into a string
+                                lyrics_content = "\n".join(cached_lyrics)
+
+                                # Ensure content is not empty
+                                if not lyrics_content.strip():
+                                    lyrics_content = "[italic]No lyrics available for this song[/italic]"
+                            except Exception as e:
+                                logger.error(f"Error formatting lyrics: {e}")
+                                lyrics_content = (
+                                    "[italic red]Error formatting lyrics[/italic red]"
+                                )
+
+                            # Create lyrics panel
+                            lyrics_panel = Panel(
+                                lyrics_content,
+                                title="Lyrics",
+                                border_style="magenta",
+                                box=ROUNDED,
+                                padding=(0, 1),
+                            )
+
+                            # Include both panels in the display
+                            display_group = Group(panel, lyrics_panel)
+                        else:
+                            # Only include the main player panel
+                            display_group = panel
+
+                        # Update the display
+                        live.update(display_group)
+
                         time.sleep(0.25)
 
                     except ShutdownError:
@@ -590,33 +907,122 @@ class MPVPlayer(mpv.MPV):
         except Exception:
             return "[dim]Status: Unknown[/]"
 
-    def _display_lyrics(self, current_song: str) -> None:
+    def _display_lyrics(
+        self, song_name: str, artist_name: str, album_name: str, duration: float
+    ) -> List[str]:
         """
-        Show lyrics for the current song.
+        Fetch lyrics for the current song.
 
         Args:
-            current_song: Name of the song to fetch lyrics for
-        """
-        try:
-            self.console.print("[dim]Fetching lyrics...[/]")
-            self.lyrics_fetcher = LyricsFetcher(current_song)
-            self.lyrics_fetcher.start_lyrics_monitor()
-            self.lyrics_fetcher.display_lyrics()
+            song_name: Name of the song to fetch lyrics for
+            artist_name: Artist name
+            album_name: Album name
+            duration: Song duration in seconds
 
-            # Set up a property observer for time-pos to update synced lyrics
-            @self.property_observer("time-pos")
-            def _update_lyrics_position(_name: str, value: Optional[float]) -> None:
-                if (
-                    value is not None
-                    and not self._stop_requested
-                    and hasattr(self, "lyrics_fetcher")
-                    and self.lyrics_fetcher
-                ):
-                    # Update the lyrics position to keep them in sync
-                    self.lyrics_fetcher.update_position(value)
+        Returns:
+            List of lyrics lines or empty list if no lyrics found
+        """
+        # Return early if lyrics manager is not available
+        if not self.lyrics_manager or not LYRICS_AVAILABLE:
+            return ["[italic yellow]Lyrics feature not available[/italic yellow]"]
+
+        # Check if we have valid inputs
+        if not song_name or song_name == "Unknown":
+            return ["[italic yellow]Waiting for song information...[/italic yellow]"]
+
+        # Validate metadata is not default values
+        valid_metadata = True
+        if artist_name == "Unknown" or not artist_name.strip():
+            logger.debug("Artist name not available for lyrics fetch")
+            valid_metadata = False
+
+        if album_name == "Unknown" or not album_name.strip():
+            logger.debug("Album name not available for lyrics fetch")
+            valid_metadata = False
+
+        if duration <= 0:
+            logger.debug("Duration not available for lyrics fetch")
+            valid_metadata = False
+
+        if not valid_metadata:
+            return [
+                "[italic yellow]Waiting for complete song metadata...[/italic yellow]"
+            ]
+
+        # We should use integers for duration when obtaining lyrics
+        duration_int = int(duration) if duration else 0
+
+        logger.debug(
+            f"Fetching lyrics for: '{song_name}' by '{artist_name}' from album '{album_name}' (duration: {duration_int}s)"
+        )
+
+        try:
+            # The LyricsManager.obtain_lyrics_info method will check the database cache first
+            lyrics_info = self.lyrics_manager.obtain_lyrics_info(
+                song_name, artist_name, album_name, duration_int
+            )
+
+            if not lyrics_info:
+                logger.info(f"No lyrics info returned for: {song_name}")
+                return [
+                    f"[italic yellow]No lyrics found for:[/italic yellow] [bold]{song_name}[/bold]"
+                ]
+
+            # Add detailed logging of what we received
+            logger.debug(f"Lyrics info keys received: {', '.join(lyrics_info.keys())}")
+
+            if "synced_lyrics" in lyrics_info and lyrics_info["synced_lyrics"]:
+                # Handle different formats that might be returned
+                synced_lyrics = lyrics_info["synced_lyrics"]
+
+                # Convert to list if we got a string
+                if isinstance(synced_lyrics, str):
+                    # Split string into lines
+                    lyrics_list = synced_lyrics.split("\n")
+                    logger.debug(
+                        f"Converted synced lyrics string to list of {len(lyrics_list)} lines"
+                    )
+                elif isinstance(synced_lyrics, list):
+                    # Already a list
+                    lyrics_list = synced_lyrics
+                    logger.debug(
+                        f"Received synced lyrics as list with {len(lyrics_list)} lines"
+                    )
+                else:
+                    # Convert anything else to string and split
+                    lyrics_list = str(synced_lyrics).split("\n")
+                    logger.debug(
+                        f"Converted synced lyrics of type {type(synced_lyrics)} to list"
+                    )
+
+                # Make sure we have at least one line
+                if not lyrics_list:
+                    lyrics_list = [
+                        f"[italic yellow]Empty lyrics for:[/italic yellow] [bold]{song_name}[/bold]"
+                    ]
+                    logger.debug("Lyrics list was empty, using placeholder")
+
+                logger.info(f"Found lyrics for: {song_name} ({len(lyrics_list)} lines)")
+                return lyrics_list
+            else:
+                # Check for non-synced lyrics as fallback
+                if "plain_lyrics" in lyrics_info and lyrics_info["plain_lyrics"]:
+                    lyrics_text = lyrics_info["plain_lyrics"]
+                    if isinstance(lyrics_text, str):
+                        lyrics_list = lyrics_text.split("\n")
+                    else:
+                        lyrics_list = str(lyrics_text).split("\n")
+
+                    logger.info(f"Found non-synced lyrics for: {song_name}")
+                    return lyrics_list
+                else:
+                    logger.info(f"No lyrics found for: {song_name}")
+                    return [
+                        f"[italic yellow]No lyrics found for:[/italic yellow] [bold]{song_name}[/bold]"
+                    ]
         except Exception as e:
-            logger.warning(f"Could not display lyrics: {e}")
-            self.console.print(f"[yellow]Could not display lyrics:[/] {str(e)}")
+            logger.error(f"Error fetching lyrics: {e}")
+            return [f"[italic red]Error fetching lyrics:[/italic red] {str(e)}"]
 
     def _format_time(self, seconds: float) -> str:
         """
