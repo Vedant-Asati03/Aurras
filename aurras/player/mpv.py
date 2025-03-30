@@ -4,6 +4,7 @@ import time
 import locale
 import logging
 import threading
+import re  # Add this at the top with other imports
 from typing import Dict, Any, List, Optional
 
 from rich.console import Console, Group
@@ -407,6 +408,86 @@ class MPVPlayer(mpv.MPV):
             except Exception as e:
                 logger.warning(f"Error stopping display thread: {e}")
 
+    def _create_focused_lyrics_view(
+        self, lyrics_lines: List[str], current_time: float, context_lines: int = 3
+    ) -> str:
+        """
+        Create a focused view of lyrics with the current line highlighted and only a few surrounding lines.
+
+        Args:
+            lyrics_lines: List of lyrics lines with timestamps
+            current_time: Current playback position in seconds
+            context_lines: Number of lines to show above and below current line
+
+        Returns:
+            Formatted lyrics text with highlighting
+        """
+        if not lyrics_lines:
+            return "[italic]No lyrics available[/italic]"
+
+        # Parse timestamps and build a list of (timestamp, text) tuples
+        parsed_lyrics = []
+        timestamp_pattern = r"\[(\d+):(\d+\.\d+)\](.*?)(?=\[\d+:\d+\.\d+\]|$)"
+
+        # First, collect all timestamp-text pairs from all lines
+        for line in lyrics_lines:
+            matches = re.finditer(timestamp_pattern, line)
+            for match in matches:
+                minutes = int(match.group(1))
+                seconds = float(match.group(2))
+                timestamp = minutes * 60 + seconds
+                text = match.group(3).strip()
+                if text:  # Only add if there's actual text
+                    parsed_lyrics.append((timestamp, text))
+
+        # Sort by timestamp in case they're not in order
+        parsed_lyrics.sort(key=lambda x: x[0])
+
+        if not parsed_lyrics:
+            return "[italic]Could not parse lyrics timestamps[/italic]"
+
+        # Find the current line based on timestamp
+        current_index = 0
+        for i, (timestamp, _) in enumerate(parsed_lyrics):
+            if timestamp > current_time:
+                break
+            current_index = i
+
+        # Calculate the range of lines to display
+        start_index = max(0, current_index - context_lines)
+        end_index = min(len(parsed_lyrics), current_index + context_lines + 1)
+
+        # Build the focused lyrics display with highlighting
+        result_lines = []
+
+        # Add a header showing current position if we're not at the beginning
+        if start_index > 0:
+            result_lines.append("[dim]...[/dim]")
+
+        # Add the lines with appropriate highlighting
+        for i in range(start_index, end_index):
+            timestamp, text = parsed_lyrics[i]
+
+            # Format timestamp for display
+            mins = int(timestamp // 60)
+            secs = int(timestamp % 60)
+            timestamp_display = f"[{mins}:{secs:02d}]"
+
+            if i == current_index:
+                # Current line - highlight with bold green
+                result_lines.append(
+                    f"[bold green]{timestamp_display} {text}[/bold green]"
+                )
+            else:
+                # Other lines - dim both timestamp and text for better contrast
+                result_lines.append(f"[dim]{timestamp_display} {text}[/dim]")
+
+        # Add a footer if we're not at the end
+        if end_index < len(parsed_lyrics):
+            result_lines.append("[dim]...[/dim]")
+
+        return "\n".join(result_lines)
+
     def _run_display(self, song_name: str) -> None:
         """
         Run the live display showing song information and playback status.
@@ -435,7 +516,7 @@ class MPVPlayer(mpv.MPV):
             lyrics_retry_count = 0
             max_lyrics_retries = 5
             refresh_count = 0
-            show_lyrics_panel = False  # Flag to control lyrics panel visibility
+            show_lyrics = False  # Flag to control lyrics visibility
 
             # Reset metadata flag
             self._reset_metadata_ready_flag = False
@@ -547,28 +628,15 @@ class MPVPlayer(mpv.MPV):
                         # Create progress bar
                         progress = self._create_progress_bar(elapsed, duration)
 
-                        # Create content group for the panel
-                        content = Group(
-                            info_text,
-                            progress,
-                            self._get_status_text(),
-                            controls_text,
-                        )
+                        # Get status text
+                        status_text = self._get_status_text()
 
-                        panel = Panel(
-                            content,
-                            title="♫ Aurras Music Player ♫",
-                            border_style="cyan",
-                            box=ROUNDED,
-                            padding=(0, 1),
-                        )
-
-                        # Handle lyrics update
+                        # Process lyrics - Similar to existing code but prepare for merging into main panel
+                        lyrics_content = ""
                         try:
                             # Skip lyrics handling if lyrics manager is not available
                             if not self.lyrics_manager or not LYRICS_AVAILABLE:
-                                # Don't set show_lyrics_panel if lyrics aren't available
-                                lyrics_fetched = True
+                                show_lyrics = False
                             else:
                                 # Determine if we need to fetch/update lyrics
                                 lyrics_need_update = False
@@ -579,9 +647,7 @@ class MPVPlayer(mpv.MPV):
                                     lyrics_fetched = False
                                     lyrics_retry_count = 0
                                     cached_lyrics = []  # Reset to empty
-                                    show_lyrics_panel = (
-                                        False  # Hide lyrics panel on song change
-                                    )
+                                    show_lyrics = False  # Hide lyrics on song change
                                     last_displayed_song = current_song
                                     logger.debug(f"Song changed to: {current_song}")
 
@@ -610,7 +676,7 @@ class MPVPlayer(mpv.MPV):
                                     cached_lyrics = self._lyrics_cache[simple_key]
                                     lyrics_fetched = True
                                     lyrics_need_update = False
-                                    show_lyrics_panel = bool(
+                                    show_lyrics = bool(
                                         cached_lyrics
                                     )  # Show panel if we have lyrics
                                     logger.debug(
@@ -620,7 +686,7 @@ class MPVPlayer(mpv.MPV):
                                     cached_lyrics = self._lyrics_cache[song_only_key]
                                     lyrics_fetched = True
                                     lyrics_need_update = False
-                                    show_lyrics_panel = bool(
+                                    show_lyrics = bool(
                                         cached_lyrics
                                     )  # Show panel if we have lyrics
                                     logger.debug(
@@ -667,7 +733,7 @@ class MPVPlayer(mpv.MPV):
                                             # We got meaningful lyrics
                                             cached_lyrics = new_lyrics
                                             lyrics_fetched = True
-                                            show_lyrics_panel = (
+                                            show_lyrics = (
                                                 True  # Show panel with fetched lyrics
                                             )
                                             # Store in memory cache (both keys for better future matching)
@@ -685,7 +751,7 @@ class MPVPlayer(mpv.MPV):
                                             # Lyrics service confirmed no lyrics exist
                                             cached_lyrics = new_lyrics
                                             lyrics_fetched = True
-                                            show_lyrics_panel = (
+                                            show_lyrics = (
                                                 True  # Show "no lyrics found" message
                                             )
                                             # Cache negative results too
@@ -704,7 +770,7 @@ class MPVPlayer(mpv.MPV):
                                                     f"[italic yellow]Could not find lyrics after {max_lyrics_retries} attempts[/italic yellow]"
                                                 ]
                                                 lyrics_fetched = True
-                                                show_lyrics_panel = True  # Show error message after max retries
+                                                show_lyrics = True  # Show error message after max retries
                                                 # Cache negative results after max retries
                                                 self._lyrics_cache[simple_key] = (
                                                     cached_lyrics
@@ -725,13 +791,54 @@ class MPVPlayer(mpv.MPV):
                                                 f"[italic red]Error fetching lyrics:[/italic red] {str(e)}"
                                             ]
                                             lyrics_fetched = True
-                                            show_lyrics_panel = True  # Show error message after max retries
+                                            show_lyrics = True  # Show error message after max retries
                                             # Cache error messages too to avoid repeated failures
                                             self._lyrics_cache[simple_key] = (
                                                 cached_lyrics
                                             )
 
-                            # Don't update with waiting message - we'll just not show the panel
+                                # Process the cached lyrics for display if available
+                                if show_lyrics and cached_lyrics:
+                                    # Process lyrics content
+                                    try:
+                                        # Make sure cached_lyrics is a list
+                                        if not isinstance(cached_lyrics, list):
+                                            cached_lyrics = (
+                                                str(cached_lyrics).split("\n")
+                                                if cached_lyrics
+                                                else []
+                                            )
+
+                                        # Check if these are synced lyrics (contain timestamps)
+                                        has_timestamps = any(
+                                            re.search(r"\[\d+:\d+\.\d+\]", line)
+                                            for line in cached_lyrics[:5]
+                                        )
+
+                                        if has_timestamps:
+                                            # Create focused lyrics view with current line highlighted
+                                            lyrics_content = (
+                                                self._create_focused_lyrics_view(
+                                                    cached_lyrics, elapsed
+                                                )
+                                            )
+                                        else:
+                                            # For regular lyrics, just join them
+                                            # Limit to a few lines to avoid crowding
+                                            lyrics_content = "\n".join(
+                                                cached_lyrics[:6]
+                                            )
+                                            if len(cached_lyrics) > 6:
+                                                lyrics_content += "\n[dim]...[/dim]"
+
+                                        # Ensure content is not empty
+                                        if not lyrics_content.strip():
+                                            lyrics_content = (
+                                                "[italic]No lyrics available[/italic]"
+                                            )
+                                    except Exception as e:
+                                        logger.error(f"Error formatting lyrics: {e}")
+                                        lyrics_content = "[italic red]Error formatting lyrics[/italic red]"
                         except Exception as e:
                             logger.error(f"Error in lyrics handling: {e}")
                             if (
@@ -740,58 +847,41 @@ class MPVPlayer(mpv.MPV):
                                 cached_lyrics = [
                                     "[italic red]Error processing lyrics[/italic red]"
                                 ]
-                                show_lyrics_panel = True
+                                show_lyrics = True
 
-                        # Create the main player panel
+                        # Create content group for the panel
+                        if show_lyrics and lyrics_content:
+                            # Add a divider before lyrics
+                            lyrics_section = f"\n\n[bold magenta]─── Lyrics ───[/bold magenta]\n{lyrics_content}"
+
+                            # Combine all content including lyrics
+                            content = Group(
+                                info_text,
+                                progress,
+                                status_text,
+                                lyrics_section,
+                            )
+                        else:
+                            # Regular content without lyrics
+                            content = Group(
+                                info_text,
+                                progress,
+                                status_text,
+                            )
+
+                        # Create a single panel with all content
                         panel = Panel(
                             content,
                             title="♫ Aurras Music Player ♫",
                             border_style="cyan",
                             box=ROUNDED,
                             padding=(0, 1),
+                            subtitle=controls_text,
+                            subtitle_align="right",
                         )
 
-                        # Create display group - conditionally include lyrics panel
-                        if show_lyrics_panel and cached_lyrics:
-                            # Process lyrics content only if we're showing the panel
-                            try:
-                                # Make sure cached_lyrics is a list
-                                if not isinstance(cached_lyrics, list):
-                                    cached_lyrics = (
-                                        str(cached_lyrics).split("\n")
-                                        if cached_lyrics
-                                        else []
-                                    )
-
-                                # Join the list into a string
-                                lyrics_content = "\n".join(cached_lyrics)
-
-                                # Ensure content is not empty
-                                if not lyrics_content.strip():
-                                    lyrics_content = "[italic]No lyrics available for this song[/italic]"
-                            except Exception as e:
-                                logger.error(f"Error formatting lyrics: {e}")
-                                lyrics_content = (
-                                    "[italic red]Error formatting lyrics[/italic red]"
-                                )
-
-                            # Create lyrics panel
-                            lyrics_panel = Panel(
-                                lyrics_content,
-                                title="Lyrics",
-                                border_style="magenta",
-                                box=ROUNDED,
-                                padding=(0, 1),
-                            )
-
-                            # Include both panels in the display
-                            display_group = Group(panel, lyrics_panel)
-                        else:
-                            # Only include the main player panel
-                            display_group = panel
-
-                        # Update the display
-                        live.update(display_group)
+                        # Update the display with just the one panel
+                        live.update(panel)
 
                         time.sleep(0.25)
 
@@ -843,7 +933,6 @@ class MPVPlayer(mpv.MPV):
         """
         # Start with the song name
         info_text = f"[bold green]Now Playing:[/] [bold yellow]{song_name}[/]{source}"
-
         # Add artist if available
         if artist != "Unknown" and artist.strip():
             info_text += f"\n[bold magenta]Artist:[/] [yellow]{artist}[/]"
@@ -970,11 +1059,9 @@ class MPVPlayer(mpv.MPV):
 
             # Add detailed logging of what we received
             logger.debug(f"Lyrics info keys received: {', '.join(lyrics_info.keys())}")
-
             if "synced_lyrics" in lyrics_info and lyrics_info["synced_lyrics"]:
                 # Handle different formats that might be returned
                 synced_lyrics = lyrics_info["synced_lyrics"]
-
                 # Convert to list if we got a string
                 if isinstance(synced_lyrics, str):
                     # Split string into lines
@@ -1012,7 +1099,6 @@ class MPVPlayer(mpv.MPV):
                         lyrics_list = lyrics_text.split("\n")
                     else:
                         lyrics_list = str(lyrics_text).split("\n")
-
                     logger.info(f"Found non-synced lyrics for: {song_name}")
                     return lyrics_list
                 else:
