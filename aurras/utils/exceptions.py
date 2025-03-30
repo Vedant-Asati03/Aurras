@@ -51,3 +51,33 @@ class ConfigurationError(AurrasError):
     """Exception raised when there's a configuration issue."""
 
     pass
+
+
+class PlayerError(AurrasError):
+    """Base exception for player-related errors."""
+
+    pass
+
+
+class LyricsError(PlayerError):
+    """Exception raised when there's an issue with lyrics retrieval or processing."""
+
+    pass
+
+
+class MetadataError(PlayerError):
+    """Exception raised when there's an issue with retrieving or processing metadata."""
+
+    pass
+
+
+class DisplayError(PlayerError):
+    """Exception raised when there's an issue with the player display."""
+
+    pass
+
+
+class MPVCommandError(PlayerError):
+    """Exception raised when an MPV command fails."""
+
+    pass
