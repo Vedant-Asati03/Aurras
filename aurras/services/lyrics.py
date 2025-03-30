@@ -110,8 +110,8 @@ class LyricsCache:
         artist_name: str,
         album_name: str,
         duration: int,
-        synced_lyrics: str,
-        plain_lyrics: str,
+        synced_lyrics: list,
+        plain_lyrics: list,
     ) -> None:
         """Save lyrics to the cache."""
         with sqlite3.connect(self.db_path) as conn:
@@ -127,8 +127,8 @@ class LyricsCache:
                     artist_name,
                     album_name,
                     duration,
-                    synced_lyrics,
-                    plain_lyrics,
+                    "".join(synced_lyrics),
+                    "".join(plain_lyrics),
                     int(time.time()),
                 ),
             )
@@ -170,7 +170,7 @@ class LyricsFetcher:
         self.duration = duration
         self.cache = LyricsCache()
 
-    def fetch_lyrics(self) -> Dict[str, str]:
+    def fetch_lyrics(self) -> Dict[str, list]:
         """
         Fetch lyrics, first checking cache then the API.
 
