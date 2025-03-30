@@ -31,7 +31,7 @@ class RecentlyPlayedManager:
     """
 
     _instance = None  # Singleton instance
-    MAX_HISTORY = 100  # Maximum number of songs to keep in history
+    MAX_HISTORY = 10000  # Maximum number of songs to keep in history
 
     def __new__(cls):
         """Ensure singleton pattern - only one instance of history manager exists."""
