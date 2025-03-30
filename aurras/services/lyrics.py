@@ -1,7 +1,7 @@
 """
 Lyrics Module
 
-This module provides functionality for fetching, displaying, and syncing song lyrics.
+This module provides functionality for fetching synced and plain lyrics for a song.
 """
 
 import threading
