@@ -25,6 +25,7 @@ class SongResult(NamedTuple):
     url: str
     thumbnail_url: str = ""
     artist: str = ""  # Add artist field for better lyrics search
+    album: str = ""  # Add album field
     is_from_history: bool = False  # Flag to mark history songs
 
 
@@ -104,6 +105,12 @@ class YouTubeSearchProvider:
                     if song_data.get("artists")
                     else "Unknown Artist"
                 )
+
+                # Extract album information if available
+                album = "Unknown Album"
+                if "album" in song_data and song_data["album"]:
+                    album = song_data["album"].get("name", "Unknown Album")
+
                 url = f"https://www.youtube.com/watch?v={video_id}"
 
                 # Get thumbnail if available
@@ -111,7 +118,7 @@ class YouTubeSearchProvider:
                 if "thumbnails" in song_data and song_data["thumbnails"]:
                     thumbnail_url = song_data["thumbnails"][0]["url"]
 
-                return SongResult(title, url, thumbnail_url, artist)
+                return SongResult(title, url, thumbnail_url, artist, album)
 
         except Exception as e:
             logger.error(f"YTMusic API error for '{query}': {e}")
@@ -209,6 +216,12 @@ class DatabaseCacheProvider:
                                     song_name,
                                     temp_results[0].url,
                                     temp_results[0].thumbnail_url,
+                                    temp_results[0].artist
+                                    if hasattr(temp_results[0], "artist")
+                                    else "",
+                                    temp_results[0].album
+                                    if hasattr(temp_results[0], "album")
+                                    else "",
                                     is_from_history=True,
                                 )
                             )
