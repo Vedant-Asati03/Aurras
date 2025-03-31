@@ -7,15 +7,15 @@ This module provides functionality for fetching synced and plain lyrics for a so
 import threading
 import sqlite3
 import re
-import time
 import os
 import json
 import requests
-from typing import List, Tuple, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.box import ROUNDED
 from rich.text import Text
+
 from ..utils.path_manager import PathManager
 
 _path_manager = PathManager()
@@ -23,31 +23,17 @@ console = Console()
 
 
 try:
-    from lrclib import LrcLibAPI
+    import syncedlyrics
 
     LYRICS_AVAILABLE = True
 except ImportError:
     LYRICS_AVAILABLE = False
     console.print(
-        "[red]Warning: lrclib not installed. Lyrics will not be available.[/red]"
+        "[red]Warning: syncedLyrics not installed. Lyrics will not be available.[/red]"
     )
     console.print(
-        "[yellow]To enable lyrics, install with: pip install lrclibapi[/yellow]"
+        "[yellow]To enable lyrics, install with: pip install syncedlyrics[/yellow]"
     )
-
-
-class SetupAPI:
-    """
-    SetupAPI class to manage the API instance.
-    """
-
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(SetupAPI, cls).__new__(cls)
-            cls._instance.api = LrcLibAPI(user_agent="aurras/0.0.1")
-        return cls._instance
 
 
 class LyricsCache:
@@ -115,7 +101,7 @@ class LyricsCache:
 
         try:
             # Use the unified database schema through the updater
-            from ...core.cache.updater import UpdateSearchHistoryDatabase
+            from ..core.cache.updater import UpdateSearchHistoryDatabase
 
             updater = UpdateSearchHistoryDatabase()
 
@@ -158,7 +144,6 @@ class LyricsFetcher:
     def __init__(
         self, track_name: str, artist_name: str, album_name: str, duration: int
     ):
-        self.api = SetupAPI().api
         self.lyrics = None
         self.lock = threading.Lock()
         self.track_name = track_name
@@ -182,18 +167,24 @@ class LyricsFetcher:
         if cached_lyrics:
             return cached_lyrics
 
-        # If not in cache, fetch from API
         with self.lock:
             try:
-                self.lyrics = self.api.get_lyrics(
-                    track_name=self.track_name,
-                    artist_name=self.artist_name,
-                    album_name=self.album_name,
-                    duration=self.duration,
+                self.lyrics = syncedlyrics.search(
+                    f"{self.track_name} - {self.artist_name}"
                 )
 
-                synced_lyrics = self.lyrics.synced_lyrics.split("\n") or []
-                plain_lyrics = self.lyrics.plain_lyrics.split("\n") or []
+                synced_lyrics = (
+                    syncedlyrics.search(
+                        f"{self.track_name} - {self.artist_name}", synced_only=True
+                    ).split("\n")
+                    or []
+                )
+                plain_lyrics = (
+                    syncedlyrics.search(
+                        f"{self.track_name} - {self.artist_name}", plain_only=True
+                    ).split("\n")
+                    or []
+                )
 
                 # Save to cache
                 self.cache.save_lyrics(
