@@ -17,7 +17,7 @@ console = Console()
 
 def cleanup_lyrics_cache(days_old=30):
     """
-    Delete lyrics from the cache that are older than the specified number of days.
+    Delete lyrics from the unified cache database that are older than the specified number of days.
 
     Args:
         days_old: Number of days after which cache entries should be deleted
@@ -26,10 +26,11 @@ def cleanup_lyrics_cache(days_old=30):
         int: Number of entries deleted
     """
     try:
-        if not Path(_path_manager.lyrics_cache_db).exists():
+        cache_db_path = _path_manager.cache_db
+        if not Path(cache_db_path).exists():
             return 0
 
-        with sqlite3.connect(_path_manager.lyrics_cache_db) as conn:
+        with sqlite3.connect(cache_db_path) as conn:
             cursor = conn.cursor()
 
             # Calculate the timestamp for entries older than days_old
@@ -37,19 +38,54 @@ def cleanup_lyrics_cache(days_old=30):
 
             # Get count before deletion
             cursor.execute(
-                "SELECT COUNT(*) FROM lyrics_cache WHERE fetched_at < ?", (cutoff_time,)
+                "SELECT COUNT(*) FROM lyrics WHERE fetch_time < ?", (cutoff_time,)
             )
             count = cursor.fetchone()[0]
 
             # Delete old entries
-            cursor.execute(
-                "DELETE FROM lyrics_cache WHERE fetched_at < ?", (cutoff_time,)
-            )
+            cursor.execute("DELETE FROM lyrics WHERE fetch_time < ?", (cutoff_time,))
             conn.commit()
 
             return count
     except Exception as e:
         console.print(f"[yellow]Error cleaning lyrics cache: {e}[/yellow]")
+        return 0
+
+
+def cleanup_search_cache(days_old=30):
+    """
+    Delete old search cache entries from the unified cache database.
+
+    Args:
+        days_old: Number of days after which cache entries should be deleted
+
+    Returns:
+        int: Number of entries deleted
+    """
+    try:
+        cache_db_path = _path_manager.cache_db
+        if not Path(cache_db_path).exists():
+            return 0
+
+        with sqlite3.connect(cache_db_path) as conn:
+            cursor = conn.cursor()
+
+            # Calculate the timestamp for entries older than days_old
+            cutoff_time = int(time.time()) - (days_old * 24 * 60 * 60)
+
+            # Get count before deletion
+            cursor.execute(
+                "SELECT COUNT(*) FROM cache WHERE fetch_time < ?", (cutoff_time,)
+            )
+            count = cursor.fetchone()[0]
+
+            # Delete old entries
+            cursor.execute("DELETE FROM cache WHERE fetch_time < ?", (cutoff_time,))
+            conn.commit()
+
+            return count
+    except Exception as e:
+        console.print(f"[yellow]Error cleaning search cache: {e}[/yellow]")
         return 0
 
 
@@ -65,9 +101,13 @@ def cleanup_all_caches(days_old=30):
     """
     results = {}
 
-    # Cleanup lyrics cache
+    # Cleanup lyrics cache in the unified database
     lyrics_deleted = cleanup_lyrics_cache(days_old)
     results["lyrics"] = lyrics_deleted
+
+    # Cleanup search cache in the unified database
+    search_deleted = cleanup_search_cache(days_old)
+    results["searches"] = search_deleted
 
     # Add other cache cleanups here as needed
 
