@@ -24,8 +24,8 @@ class SongResult(NamedTuple):
     name: str
     url: str
     thumbnail_url: str = ""
-    artist: str = ""  # Add artist field for better lyrics search
-    album: str = ""  # Add album field
+    artist: str = ""  # Artist field for better lyrics search
+    album: str = ""  # Album field
     is_from_history: bool = False  # Flag to mark history songs
 
 
@@ -136,21 +136,39 @@ class DatabaseCacheProvider:
     def get_songs(self, queries: List[str]) -> Dict[str, SongResult]:
         """Get songs from the database cache."""
         result = {}
-        song_dict = self.search_db.initialize_song_dict()
+
+        # Get the full song dict with all metadata
+        song_dict = self.search_db.initialize_full_song_dict()
 
         for query in queries:
             if query in song_dict:
-                song_name, song_url = song_dict[query]
-                result[query] = SongResult(song_name, song_url)
+                # Extract all available metadata using consistent field names
+                song_info = song_dict[query]
+                result[query] = SongResult(
+                    name=song_info["track_name"],
+                    url=song_info["url"],
+                    thumbnail_url=song_info.get("thumbnail_url", ""),
+                    artist=song_info.get("artist_name", ""),
+                    album=song_info.get("album_name", ""),
+                )
 
         return result
 
     def save_songs(self, query_to_song: Dict[str, SongResult]) -> None:
-        """Save songs to the database cache."""
+        """Save songs with complete metadata to the database cache."""
         try:
             for query, song in query_to_song.items():
-                self.updater.save_to_cache(query, song.name, song.url)
-                logger.debug(f"Cached: {query} -> {song.name}")
+                # Use the enhanced save method with consistent field names
+                self.updater.save_to_cache(
+                    query,
+                    song.name,  # track_name
+                    song.url,  # url
+                    artist_name=song.artist,
+                    album_name=song.album,
+                    thumbnail_url=song.thumbnail_url,
+                    duration=0,  # We don't have duration from YouTube search
+                )
+                logger.debug(f"Cached: {query} -> {song.name} by {song.artist}")
         except Exception as e:
             logger.warning(f"Failed to update search cache: {str(e)}")
 
