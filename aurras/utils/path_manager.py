@@ -134,21 +134,7 @@ class PathManager:
 
     @property
     def cache_db(self):
-        """
-        Path to the unified cache database.
-
-        This database stores:
-          1. Song metadata (track_name, artist_name, album_name, url, etc.)
-          2. Lyrics data (linked to songs via foreign key relationship)
-
-        The database uses consistent field naming:
-          - track_name: Name of the song
-          - artist_name: Artist who performed the song
-          - album_name: Album the song belongs to
-          - url: URL to play the song (typically YouTube)
-          - duration: Song length in seconds
-          - fetch_time: When the data was cached
-        """
+        """Path to the unified cache database."""
         return self._database_dir / "cache.db"
 
     @property
@@ -160,3 +146,13 @@ class PathManager:
     def spotify_auth_db(self):
         """Path to the Spotify authentication cache."""
         return self._database_dir / "spotify_auth.db"
+
+    @property
+    def downloads_db(self):
+        """Path to the downloaded songs database."""
+        return self._database_dir / "downloads.db"
+
+    @property
+    def downloads_dir(self):
+        """Path to the directory where downloaded songs are stored."""
+        return self._downloaded_songs_dir
