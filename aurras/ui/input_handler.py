@@ -2,13 +2,11 @@ from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from rich.console import Console
-from rich.panel import Panel
 
 from ..ui.command_handler import InputCases
 from ..ui.search_bar import DynamicSearchBar
 from ..ui.suggestions.history import SuggestSongsFromHistory
 from ..ui.shortcut_handler import HandleShortcutInputs
-from ..player.online import ListenSongOnline
 from ..player.queue import QueueManager
 from ..ui.command_palette import CommandPalette
 
@@ -122,41 +120,42 @@ class HandleUserInput:
                 cmd["action"]()
                 return
 
-        if "," in self.user_input:
-            songs = [s.strip() for s in self.user_input.split(",") if s.strip()]
-            if songs:
-                console.print(
-                    Panel(
-                        "\n".join(
-                            [
-                                f"[cyan]{i}.[/cyan] {song}"
-                                for i, song in enumerate(songs, 1)
-                            ]
-                        ),
-                        title="Song Playlist",
-                        border_style="green",
-                    )
-                )
+        # if "," in self.user_input:
+        #     songs = [s.strip() for s in self.user_input.split(",") if s.strip()]
+        #     if songs:
+        #         console.print(
+        #             Panel(
+        #                 "\n".join(
+        #                     [
+        #                         f"[cyan]{i}.[/cyan] {song}"
+        #                         for i, song in enumerate(songs, 1)
+        #                     ]
+        #                 ),
+        #                 title="Song Playlist",
+        #                 border_style="green",
+        #             )
+        #         )
 
-                try:
-                    # Play each song directly in sequence
-                    for i, song in enumerate(songs):
-                        console.rule(
-                            f"[bold green]Now playing: {song} [{i + 1}/{len(songs)}]"
-                        )
-                        player = ListenSongOnline(song)
-                        player.listen_song_online()
-                except KeyboardInterrupt:
-                    console.print("\n[yellow]Playback interrupted[/yellow]")
-                except Exception as e:
-                    console.print(
-                        f"\n[bold red]Error during playback:[/bold red] {str(e)}"
-                    )
+        #         try:
+        #             # Play each song directly in sequence
+        #             for i, song in enumerate(songs):
+        #                 console.rule(
+        #                     f"[bold green]Now playing: {song} [{i + 1}/{len(songs)}]"
+        #                 )
+        #                 player = ListenSongOnline(song)
+        #                 player.listen_song_online()
+        #                 # Test().player()
+        #         except KeyboardInterrupt:
+        #             console.print("\n[yellow]Playback interrupted[/yellow]")
+        #         except Exception as e:
+        #             console.print(
+        #                 f"\n[bold red]Error during playback:[/bold red] {str(e)}"
+        #             )
 
-                return
+        #         return
 
         # Check for special keyboard shortcuts
-        elif self.user_input == "b" or self.user_input == "back":
+        if self.user_input == "b" or self.user_input == "back":
             console.print("[cyan]Finding previous song...[/cyan]")
             self.case.play_previous()
             return
