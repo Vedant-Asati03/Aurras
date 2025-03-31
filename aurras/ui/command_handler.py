@@ -1,3 +1,5 @@
+"""Command Handler for Aurras Music Player"""
+
 from rich.text import Text
 from rich.console import Console
 from rich.table import Table
@@ -8,7 +10,7 @@ import questionary
 from ..core.downloader import SongDownloader
 from ..playlist.delete import DeletePlaylist
 from ..playlist.download import DownloadPlaylist
-from ..player.online import ListenSongOnline, ListenPlaylistOnline, play_song_sequence
+from ..player.online import ListenSongOnline
 from ..player.offline import ListenSongOffline, ListenPlaylistOffline
 from ..services.spotify.importer import ImportSpotifyPlaylist
 from ..player.queue import QueueManager
@@ -20,19 +22,18 @@ from ..core.settings import (
 from ..utils.cache_cleanup import cleanup_all_caches
 from ..playlist.manager import Select
 from ..services.spotify.setup import SpotifySetup
-from ..utils.path_manager import PathManager  # Add this import
+from ..utils.path_manager import PathManager
 
 import sqlite3
 import time
 
-# Create a single console for consistent styling
 console = Console()
-_path_manager = PathManager()  # Add this instantiation
+_path_manager = PathManager()
 
 
 class InputCases:
     def __init__(self) -> None:
-        self.console = console
+        # self.console = Console()
         self.queue_manager = QueueManager()
 
     def display_help(self):
@@ -140,9 +141,9 @@ class InputCases:
         except Exception as e:
             console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
-    def download_song(self, songs_to_download=None):
+    def download_song(self, songs_to_download: list = None):
         """Download one or more songs."""
-        print(songs_to_download)
+        print(type(songs_to_download))
         if not songs_to_download:
             songs_input = self.console.input(
                 Text(
@@ -186,7 +187,7 @@ class InputCases:
             shuffle (bool, optional): Whether to shuffle the playlist
         """
         try:
-            listen_playlist_online = ListenPlaylistOnline()
+            # For offline playback, we still use ListenPlaylistOffline
             listen_playlist_offline = ListenPlaylistOffline()
 
             if online_offline is None:
@@ -230,8 +231,11 @@ class InputCases:
                 # Play the playlist
                 match online_offline:
                     case "n":
-                        listen_playlist_online.listen_playlist_online(
-                            playlist_name, shuffle=shuffle
+                        # Use the new approach with ListenSongOnline
+                        ListenSongOnline([]).listen_song_online(
+                            show_lyrics=True,
+                            playlist_name=playlist_name,
+                            shuffle=shuffle,
                         )
                     case "f":
                         listen_playlist_offline.listen_playlist_offline(
@@ -437,13 +441,9 @@ The next step will connect to Spotify. If you get stuck or see errors, you can:
         except Exception as e:
             console.print(f"[bold red]Error:[/bold red] {str(e)}")
 
-    def song_searched(self, song, show_lyrics=True):
+    def song_searched(self, songs: list, show_lyrics=True):
         """Handle a song search - either single song or comma-separated list."""
-        if "," in song:
-            songs = [s.strip() for s in song.split(",")]
-            play_song_sequence(songs)
-        else:
-            ListenSongOnline(song).listen_song_online(show_lyrics)
+        ListenSongOnline(songs).listen_song_online(show_lyrics)
 
     def show_queue(self):
         """Show the current song queue."""
@@ -521,31 +521,42 @@ The next step will connect to Spotify. If you get stuck or see errors, you can:
         table.add_column("Size", style="magenta")
         table.add_column("Oldest Entry", style="blue")
 
-        # Get lyrics cache info
+        # Get cache info from unified database
         try:
-            if _path_manager.lyrics_cache_db.exists():
-                with sqlite3.connect(_path_manager.lyrics_cache_db) as conn:
+            if _path_manager.cache_db.exists():
+                with sqlite3.connect(_path_manager.cache_db) as conn:
                     cursor = conn.cursor()
 
-                    # Count entries
-                    cursor.execute("SELECT COUNT(*) FROM lyrics_cache")
-                    count = cursor.fetchone()[0]
+                    # Count search entries
+                    cursor.execute("SELECT COUNT(*) FROM cache")
+                    search_count = cursor.fetchone()[0]
+
+                    # Count lyrics entries
+                    cursor.execute("SELECT COUNT(*) FROM lyrics")
+                    lyrics_count = cursor.fetchone()[0]
 
                     # Get oldest entry
-                    cursor.execute("SELECT MIN(fetched_at) FROM lyrics_cache")
-                    oldest = cursor.fetchone()[0]
-                    if oldest:
+                    cursor.execute("SELECT MIN(fetch_time) FROM cache")
+                    oldest_search = cursor.fetchone()[0]
+                    cursor.execute("SELECT MIN(fetch_time) FROM lyrics")
+                    oldest_lyrics = cursor.fetchone()[0]
+
+                    oldest = min(
+                        oldest_search or float("inf"), oldest_lyrics or float("inf")
+                    )
+                    if oldest and oldest != float("inf"):
                         oldest_date = time.strftime("%Y-%m-%d", time.localtime(oldest))
                     else:
                         oldest_date = "N/A"
 
                     # Get file size
-                    size = _path_manager.lyrics_cache_db.stat().st_size
+                    size = _path_manager.cache_db.stat().st_size
                     size_str = f"{size / 1024:.1f} KB"
 
-                    table.add_row("Lyrics", str(count), size_str, oldest_date)
+                    table.add_row("Searches", str(search_count), size_str, oldest_date)
+                    table.add_row("Lyrics", str(lyrics_count), size_str, oldest_date)
             else:
-                table.add_row("Lyrics", "0", "0 KB", "N/A")
+                table.add_row("Cache", "0", "0 KB", "N/A")
 
             # Add more cache types here as needed
 
