@@ -146,14 +146,9 @@ class BackupManager:
 
             # Backup cache if enabled
             if backup_items.get("cache", "no").lower() == "yes":
-                for cache_file in [
-                    _path_manager.cache_db,
-                    _path_manager.lyrics_cache_db,
-                ]:
-                    if cache_file.exists():
-                        rel_path = cache_file.name
-                        zipf.write(cache_file, rel_path)
-                        metadata["items"]["cache"] = True
+                if _path_manager.cache_db.exists():
+                    zipf.write(_path_manager.cache_db, "cache.db")
+                    metadata["items"]["cache"] = True
 
             # Write metadata to the zip file
             zipf.writestr("metadata.json", json.dumps(metadata, indent=2))
@@ -263,13 +258,12 @@ class BackupManager:
 
             # Restore cache if it was backed up
             if metadata.get("items", {}).get("cache"):
-                for cache_file in ["cache.db", "lyrics_cache.db"]:
-                    if (temp_dir / cache_file).exists():
-                        time.sleep(0.5)  # Give time for connections to close
-                        shutil.copy(
-                            temp_dir / cache_file,
-                            _path_manager.construct_path(cache_file),
-                        )
+                if (temp_dir / "cache.db").exists():
+                    time.sleep(0.5)  # Give time for connections to close
+                    shutil.copy(
+                        temp_dir / "cache.db",
+                        _path_manager.cache_db,
+                    )
                 console.print("[green]✓ Cache restored[/green]")
 
             # Restore downloaded playlists
