@@ -19,7 +19,6 @@ from ..services.youtube.search import SearchSong
 
 from .mpv import MPVPlayer
 from ..playlist.manager import Select
-from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
 
 console = Console()
@@ -59,7 +58,6 @@ class ListenSongOnline(OnlineSongPlayer):
             [song_input] if isinstance(song_input, str) else song_input
         )
         self.search = SearchSong(self.search_queries)
-        self.queue_manager = QueueManager()
         self.history_manager = RecentlyPlayedManager()
         self.path_manager = PathManager()
         self._is_part_of_queue = False
