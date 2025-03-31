@@ -1,84 +1,109 @@
-"""Lyrics handler for the MPV player."""
+"""
+Lyrics Handler Module
+
+This module provides functionality for fetching, caching, and displaying lyrics.
+"""
 
 import logging
+import time
 import re
-from typing import Dict, List, Optional, Tuple, Any, Union
+import sqlite3
+from typing import List, Dict, Any, Optional, Tuple
 
-try:
-    from ..services.lyrics import LyricsManager, LYRICS_AVAILABLE
-except ImportError:
-    LYRICS_AVAILABLE = False
-    LyricsManager = None
-
+from ..utils.path_manager import PathManager
 from ..utils.exceptions import LyricsError
+from ..services.lyrics import LyricsManager
 
-# Set up logging
+_path_manager = PathManager()
 logger = logging.getLogger(__name__)
 
 
 class LyricsHandler:
     """
-    A dedicated handler for fetching, caching, and processing lyrics.
+    Handler for lyrics fetching, caching and display.
 
-    This class separates lyrics-handling logic from the player implementation,
-    providing a cleaner separation of concerns.
-
-    Attributes:
-        lyrics_manager: The LyricsManager instance for retrieving lyrics
-        lyrics_cache: A cache for storing retrieved lyrics
+    This class provides a simplified interface for working with lyrics,
+    using the unified database structure.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         """Initialize the lyrics handler."""
-        self.lyrics_manager = (
-            LyricsManager() if LYRICS_AVAILABLE and LyricsManager else None
-        )
-        self.lyrics_cache: Dict[str, List[str]] = {}
-        self.parsed_synced_lyrics: Dict[
-            str, List[Tuple[float, str]]
-        ] = {}  # Cache for parsed synchronized lyrics
-        self.lyrics_available = LYRICS_AVAILABLE and self.lyrics_manager is not None
+        self._lyrics_manager = LyricsManager()
+        self._memory_cache: Dict[str, List[str]] = {}
+        self._db_path = _path_manager.cache_db
 
-    @staticmethod
-    def _normalize_str(s: Optional[str]) -> str:
+    def has_lyrics_support(self) -> bool:
+        """Check if lyrics support is available."""
+        try:
+            # Use the underlying manager to check availability
+            return self._lyrics_manager._should_show_lyrics()
+        except Exception as e:
+            logger.error(f"Error checking lyrics support: {e}")
+            return False
+
+    def fetch_lyrics(
+        self, song: str, artist: str, album: str, duration: int
+    ) -> List[str]:
         """
-        Normalize a string for more reliable cache lookups.
-
-        Args:
-            s: The string to normalize
-
-        Returns:
-            Normalized string (lowercase, trimmed, or empty string if None/Unknown)
-        """
-        if not s or s == "Unknown":
-            return ""
-        return s.lower().strip()
-
-    def _generate_cache_keys(
-        self, song: str, artist: str, album: str
-    ) -> Tuple[str, str]:
-        """
-        Generate cache keys for lyrics lookup.
+        Fetch lyrics for a song from the lyrics service.
 
         Args:
             song: Song name
             artist: Artist name
             album: Album name
+            duration: Song duration in seconds
 
         Returns:
-            Tuple of (full_key, song_only_key)
+            List of lyrics lines
         """
-        # Create a full key with all metadata
-        full_key = f"{self._normalize_str(song)}_{self._normalize_str(artist)}_{self._normalize_str(album)}"
+        try:
+            # Skip if song title is missing or just "Unknown"
+            if not song or song == "Unknown" or not song.strip():
+                logger.warning("Cannot fetch lyrics: missing song title")
+                return []
 
-        # Create a fallback key with just the song name
-        song_only_key = self._normalize_str(song)
+            # Log what we're searching for
+            logger.info(
+                f"Fetching lyrics for: Song='{song}', Artist='{artist}', Album='{album}'"
+            )
 
-        return full_key, song_only_key
+            # Try to get from memory cache first
+            cached_lyrics = self.get_from_cache(song, artist, album)
+            if cached_lyrics:
+                return cached_lyrics
+
+            # Fetch from the lyrics service
+            lyrics_data = self._lyrics_manager.obtain_lyrics_info(
+                song, artist, album, duration
+            )
+
+            if lyrics_data:
+                # Extract synced lyrics if available, otherwise use plain lyrics
+                if lyrics_data.get("synced_lyrics"):
+                    # Synced lyrics can be a string or list of lines
+                    lyrics_lines = self._ensure_list(lyrics_data["synced_lyrics"])
+                    if lyrics_lines:
+                        logger.info(f"Found synced lyrics for '{song}'")
+                        return lyrics_lines
+
+                # Fall back to plain lyrics
+                if lyrics_data.get("plain_lyrics"):
+                    lyrics_lines = self._ensure_list(lyrics_data["plain_lyrics"])
+                    if lyrics_lines:
+                        logger.info(f"Found plain lyrics for '{song}'")
+                        return lyrics_lines
+
+            # No lyrics found
+            logger.info(f"No lyrics found for '{song}'")
+            return []
+
+        except Exception as e:
+            logger.error(f"Error fetching lyrics: {e}")
+            raise LyricsError(f"Failed to fetch lyrics: {e}")
 
     def get_from_cache(self, song: str, artist: str, album: str) -> Optional[List[str]]:
         """
-        Retrieve lyrics from cache if available.
+        Try to get lyrics from cache (memory or database).
 
         Args:
             song: Song name
@@ -88,211 +113,135 @@ class LyricsHandler:
         Returns:
             Cached lyrics if found, None otherwise
         """
-        full_key, song_only_key = self._generate_cache_keys(song, artist, album)
+        # First try memory cache (faster)
+        cache_key = self._generate_cache_key(song, artist, album)
+        if cache_key in self._memory_cache:
+            logger.debug(f"Found lyrics in memory cache for '{song}'")
+            return self._memory_cache[cache_key]
 
-        # Try full key first (most specific match)
-        if full_key in self.lyrics_cache:
-            logger.debug(f"Using memory-cached lyrics for '{song}' (full key match)")
-            return self.lyrics_cache[full_key]
+        # Then try database cache
+        try:
+            lyrics = self._get_from_db(song, artist, album)
+            if lyrics:
+                # Store in memory cache for faster retrieval next time
+                self._memory_cache[cache_key] = lyrics
+                return lyrics
+        except Exception as e:
+            logger.warning(f"Error getting lyrics from database: {e}")
 
-        # Fall back to song-only key
-        if song_only_key in self.lyrics_cache:
-            logger.debug(
-                f"Using memory-cached lyrics for '{song}' (song-only key match)"
-            )
-            return self.lyrics_cache[song_only_key]
-
-        # Not found in cache
         return None
 
     def store_in_cache(
         self, lyrics: List[str], song: str, artist: str, album: str
     ) -> None:
         """
-        Store lyrics in cache with appropriate keys.
+        Store lyrics in both memory cache and database.
 
         Args:
-            lyrics: The lyrics to cache
+            lyrics: List of lyrics lines
             song: Song name
             artist: Artist name
             album: Album name
         """
-        full_key, song_only_key = self._generate_cache_keys(song, artist, album)
+        if not lyrics:
+            return
 
-        # Store with both keys for better future matching
-        self.lyrics_cache[full_key] = lyrics
-        self.lyrics_cache[song_only_key] = lyrics
+        # Store in memory cache
+        cache_key = self._generate_cache_key(song, artist, album)
+        self._memory_cache[cache_key] = lyrics
 
-        logger.debug(f"Cached lyrics for '{song}' with {len(lyrics)} lines")
-
-        # Clear any previously parsed synchronized lyrics for this song
-        if full_key in self.parsed_synced_lyrics:
-            del self.parsed_synced_lyrics[full_key]
-        if song_only_key in self.parsed_synced_lyrics:
-            del self.parsed_synced_lyrics[song_only_key]
-
-    def fetch_lyrics(
-        self, song_name: str, artist_name: str, album_name: str, duration: float
-    ) -> List[str]:
-        """
-        Fetch lyrics for a song, handling various error cases gracefully.
-
-        Args:
-            song_name: Name of the song
-            artist_name: Artist name
-            album_name: Album name
-            duration: Song duration in seconds
-
-        Returns:
-            List of lyrics lines or appropriate error message
-        """
-        # Return early if lyrics manager is not available
-        if not self.lyrics_available:
-            return ["[italic yellow]Lyrics feature not available[/italic yellow]"]
-
-        # Check if we have valid inputs
-        if not song_name or song_name == "Unknown":
-            return ["[italic yellow]Waiting for song information...[/italic yellow]"]
-
-        # Validate metadata is not default values
-        valid_metadata = True
-        if artist_name == "Unknown" or not artist_name.strip():
-            logger.debug("Artist name not available for lyrics fetch")
-            valid_metadata = False
-
-        if album_name == "Unknown" or not album_name.strip():
-            logger.debug("Album name not available for lyrics fetch")
-            valid_metadata = False
-
-        if duration <= 0:
-            logger.debug("Duration not available for lyrics fetch")
-            valid_metadata = False
-
-        if not valid_metadata:
-            return [
-                "[italic yellow]Waiting for complete song metadata...[/italic yellow]"
-            ]
-
-        # We should use integers for duration when obtaining lyrics
-        duration_int = int(duration) if duration else 0
-
-        logger.debug(
-            f"Fetching lyrics for: '{song_name}' by '{artist_name}' from album '{album_name}' (duration: {duration_int}s)"
-        )
-
+        # Store in database cache
         try:
-            # The LyricsManager.obtain_lyrics_info method will check the database cache first
-            lyrics_info = self.lyrics_manager.obtain_lyrics_info(
-                song_name, artist_name, album_name, duration_int
+            synced_text = "\n".join(lyrics) if self._is_synced_lyrics(lyrics) else ""
+            plain_text = (
+                "\n".join(lyrics)
+                if not synced_text
+                else self._extract_plain_lyrics(lyrics)
             )
 
-            if not lyrics_info:
-                logger.info(f"No lyrics info returned for: {song_name}")
-                return [
-                    f"[italic yellow]No lyrics found for:[/italic yellow] [bold]{song_name}[/bold]"
-                ]
-
-            # Add detailed logging of what we received
-            logger.debug(f"Lyrics info keys received: {', '.join(lyrics_info.keys())}")
-
-            # Try to get synchronized lyrics first
-            if "synced_lyrics" in lyrics_info and lyrics_info["synced_lyrics"]:
-                return self._process_synced_lyrics(
-                    lyrics_info["synced_lyrics"], song_name
+            # Get song_id from cache table
+            with sqlite3.connect(self._db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT id FROM cache
+                    WHERE track_name = ? AND artist_name = ? 
+                    ORDER BY fetch_time DESC LIMIT 1
+                    """,
+                    (song, artist),
                 )
+                result = cursor.fetchone()
 
-            # Fall back to plain lyrics if no synchronized lyrics
-            if "plain_lyrics" in lyrics_info and lyrics_info["plain_lyrics"]:
-                return self._process_plain_lyrics(
-                    lyrics_info["plain_lyrics"], song_name
-                )
+                if result:
+                    cache_id = result[0]
+                    # Insert into lyrics table
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO lyrics
+                        (cache_id, synced_lyrics, plain_lyrics, fetch_time)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (cache_id, synced_text, plain_text, int(time.time())),
+                    )
+                    logger.debug(f"Stored lyrics in database for '{song}'")
+                else:
+                    # Create new cache entry if song doesn't exist
+                    cursor.execute(
+                        """
+                        INSERT INTO cache
+                        (song_user_searched, track_name, artist_name, album_name, fetch_time)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (f"{artist} - {song}", song, artist, album, int(time.time())),
+                    )
+                    cache_id = cursor.lastrowid
 
-            # No lyrics found
-            logger.info(f"No lyrics found for: {song_name}")
-            return [
-                f"[italic yellow]No lyrics found for:[/italic yellow] [bold]{song_name}[/bold]"
-            ]
-
+                    # Insert lyrics
+                    cursor.execute(
+                        """
+                        INSERT INTO lyrics
+                        (cache_id, synced_lyrics, plain_lyrics, fetch_time)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (cache_id, synced_text, plain_text, int(time.time())),
+                    )
+                    logger.debug(
+                        f"Created new cache entry and stored lyrics for '{song}'"
+                    )
         except Exception as e:
-            logger.error(f"Error fetching lyrics: {e}")
-            raise LyricsError(f"Error fetching lyrics: {e}")
+            logger.error(f"Error storing lyrics in database: {e}")
 
-    def _process_synced_lyrics(
-        self, synced_lyrics: Union[str, List[str]], song_name: str
-    ) -> List[str]:
+    def create_focused_lyrics_view(
+        self,
+        lyrics_lines: List[str],
+        current_time: float,
+        song: str = "",
+        artist: str = "",
+        album: str = "",
+        context_lines: int = 3,
+    ) -> str:
         """
-        Process synchronized lyrics, handling different input formats.
+        Create a focused view of lyrics with the current line highlighted.
 
         Args:
-            synced_lyrics: Synchronized lyrics as string or list
-            song_name: Name of the song (for error messages)
+            lyrics_lines: List of lyrics lines
+            current_time: Current playback position in seconds
+            song: Song name (for logging)
+            artist: Artist name (for logging)
+            album: Album name (for logging)
+            context_lines: Number of context lines to show
 
         Returns:
-            List of lyrics lines
+            Formatted lyrics text with highlighting
         """
-        # Convert to list if we got a string
-        if isinstance(synced_lyrics, str):
-            # Split string into lines
-            lyrics_list = synced_lyrics.split("\n")
-            logger.debug(
-                f"Converted synced lyrics string to list of {len(lyrics_list)} lines"
-            )
-        elif isinstance(synced_lyrics, list):
-            # Already a list
-            lyrics_list = synced_lyrics
-            logger.debug(
-                f"Received synced lyrics as list with {len(lyrics_list)} lines"
-            )
-        else:
-            # Convert anything else to string and split
-            lyrics_list = str(synced_lyrics).split("\n")
-            logger.debug(
-                f"Converted synced lyrics of type {type(synced_lyrics)} to list"
-            )
+        if not lyrics_lines:
+            return "[italic]No lyrics available[/italic]"
 
-        # Make sure we have at least one line
-        if not lyrics_list:
-            lyrics_list = [
-                f"[italic yellow]Empty lyrics for:[/italic yellow] [bold]{song_name}[/bold]"
-            ]
-            logger.debug("Lyrics list was empty, using placeholder")
+        # Check if these are synced lyrics by looking for timestamp patterns
+        if not self._is_synced_lyrics(lyrics_lines):
+            # For unsynced lyrics, just show them as is
+            return "\n".join(f"[dim]{line}[/dim]" for line in lyrics_lines[:10])
 
-        logger.info(
-            f"Found synchronized lyrics for: {song_name} ({len(lyrics_list)} lines)"
-        )
-        return lyrics_list
-
-    def _process_plain_lyrics(
-        self, plain_lyrics: Union[str, List[str]], song_name: str
-    ) -> List[str]:
-        """
-        Process plain (non-synchronized) lyrics.
-
-        Args:
-            plain_lyrics: Plain lyrics as string or list
-            song_name: Name of the song (for logging)
-
-        Returns:
-            List of lyrics lines
-        """
-        if isinstance(plain_lyrics, str):
-            lyrics_list = plain_lyrics.split("\n")
-        else:
-            lyrics_list = str(plain_lyrics).split("\n")
-
-        logger.info(f"Found non-synced lyrics for: {song_name}")
-        return lyrics_list
-
-    def parse_synced_lyrics(self, lyrics_lines: List[str]) -> List[Tuple[float, str]]:
-        """
-        Parse synchronized lyrics timestamps and text into a structured format.
-
-        Args:
-            lyrics_lines: List of lyrics lines with timestamps
-
-        Returns:
-            List of (timestamp, text) tuples sorted by timestamp
-        """
         # Parse timestamps and build a list of (timestamp, text) tuples
         parsed_lyrics = []
         timestamp_pattern = r"\[(\d+):(\d+\.\d+)\](.*?)(?=\[\d+:\d+\.\d+\]|$)"
@@ -311,79 +260,6 @@ class LyricsHandler:
         # Sort by timestamp in case they're not in order
         parsed_lyrics.sort(key=lambda x: x[0])
 
-        return parsed_lyrics
-
-    def get_or_parse_synced_lyrics(
-        self, lyrics_lines: List[str], song: str, artist: str, album: str
-    ) -> List[Tuple[float, str]]:
-        """
-        Get parsed synchronized lyrics from cache or parse them if not available.
-
-        Args:
-            lyrics_lines: List of lyrics lines with timestamps
-            song: Song name
-            artist: Artist name
-            album: Album name
-
-        Returns:
-            List of (timestamp, text) tuples sorted by timestamp
-        """
-        full_key, song_only_key = self._generate_cache_keys(song, artist, album)
-
-        # Check if we've already parsed these lyrics
-        if full_key in self.parsed_synced_lyrics:
-            return self.parsed_synced_lyrics[full_key]
-
-        # Parse the lyrics and cache the result
-        parsed = self.parse_synced_lyrics(lyrics_lines)
-        self.parsed_synced_lyrics[full_key] = parsed
-        self.parsed_synced_lyrics[song_only_key] = parsed  # Also cache with simpler key
-
-        return parsed
-
-    def create_focused_lyrics_view(
-        self,
-        lyrics_lines: List[str],
-        current_time: float,
-        song: str,
-        artist: str,
-        album: str,
-        context_lines: int = 3,
-    ) -> str:
-        """
-        Create a focused view of lyrics with the current line highlighted.
-
-        Args:
-            lyrics_lines: List of lyrics lines with timestamps
-            current_time: Current playback position in seconds
-            song: Song name for caching parsed lyrics
-            artist: Artist name for caching parsed lyrics
-            album: Album name for caching parsed lyrics
-            context_lines: Number of lines to show above and below current line
-
-        Returns:
-            Formatted lyrics text with highlighting
-        """
-        if not lyrics_lines:
-            return "[italic]No lyrics available[/italic]"
-
-        # Check if these are synced lyrics (contain timestamps)
-        has_timestamps = any(
-            re.search(r"\[\d+:\d+\.\d+\]", line) for line in lyrics_lines[:5]
-        )
-
-        if not has_timestamps:
-            # For regular lyrics, just join them with limited lines
-            result = "\n".join(lyrics_lines[:6])
-            if len(lyrics_lines) > 6:
-                result += "\n[dim]...[/dim]"
-            return result
-
-        # Get parsed synchronized lyrics (from cache if available)
-        parsed_lyrics = self.get_or_parse_synced_lyrics(
-            lyrics_lines, song, artist, album
-        )
-
         if not parsed_lyrics:
             return "[italic]Could not parse lyrics timestamps[/italic]"
 
@@ -401,7 +277,7 @@ class LyricsHandler:
         # Build the focused lyrics display with highlighting
         result_lines = []
 
-        # Add a header if we're not at the beginning
+        # Add a header showing current position if we're not at the beginning
         if start_index > 0:
             result_lines.append("[dim]...[/dim]")
 
@@ -422,6 +298,172 @@ class LyricsHandler:
 
         return "\n".join(result_lines)
 
-    def has_lyrics_support(self) -> bool:
-        """Check if lyrics support is available."""
-        return self.lyrics_available
+    # --- Helper Methods ---
+
+    def _get_from_db(self, song: str, artist: str, album: str) -> Optional[List[str]]:
+        """
+        Try to get lyrics from database cache.
+
+        Args:
+            song: Song name
+            artist: Artist name
+            album: Album name
+
+        Returns:
+            Cached lyrics if found, None otherwise
+        """
+        try:
+            # Skip lookup if missing essential data
+            if not song or song == "Unknown" or not song.strip():
+                return None
+
+            logger.debug(
+                f"DB lookup: Song='{song}', Artist='{artist}', Album='{album}'"
+            )
+
+            with sqlite3.connect(self._db_path) as conn:
+                cursor = conn.cursor()
+
+                # Try exact match first
+                cursor.execute(
+                    """
+                    SELECT l.synced_lyrics, l.plain_lyrics 
+                    FROM cache c 
+                    JOIN lyrics l ON c.id = l.cache_id
+                    WHERE c.track_name = ? AND c.artist_name = ?
+                    LIMIT 1
+                    """,
+                    (song, artist),
+                )
+                result = cursor.fetchone()
+
+                if result and (result[0] or result[1]):
+                    return (
+                        result[0].splitlines() if result[0] else result[1].splitlines()
+                    )
+
+                # Try fuzzy match if exact match fails and we have a reasonable song name
+                if len(song) > 3:  # Only try fuzzy match for substantial titles
+                    cursor.execute(
+                        """
+                        SELECT l.synced_lyrics, l.plain_lyrics 
+                        FROM cache c 
+                        JOIN lyrics l ON c.id = l.cache_id
+                        WHERE c.track_name LIKE ?
+                        LIMIT 1
+                        """,
+                        (f"%{song}%",),
+                    )
+                    result = cursor.fetchone()
+
+                    if result and (result[0] or result[1]):
+                        synced_lyrics, plain_lyrics = result
+
+                        # Prefer synced lyrics if available
+                        if synced_lyrics:
+                            logger.debug(
+                                f"Found synced lyrics in DB with fuzzy match for '{song}'"
+                            )
+                            return synced_lyrics.splitlines()
+                        elif plain_lyrics:
+                            logger.debug(
+                                f"Found plain lyrics in DB with fuzzy match for '{song}'"
+                            )
+                            return plain_lyrics.splitlines()
+
+                logger.debug(f"No lyrics found in DB for '{song}'")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error retrieving lyrics from DB: {e}")
+            return None
+
+    def _generate_cache_key(self, song: str, artist: str, album: str) -> str:
+        """
+        Generate a cache key for lyrics.
+
+        Args:
+            song: Song name
+            artist: Artist name
+            album: Album name
+
+        Returns:
+            Cache key string
+        """
+        # Normalize and combine fields for a unique key
+        return "_".join(
+            [
+                self._normalize_str(song),
+                self._normalize_str(artist),
+                self._normalize_str(album),
+            ]
+        )
+
+    @staticmethod
+    def _normalize_str(s: Optional[str]) -> str:
+        """
+        Normalize a string for more reliable cache lookups.
+
+        Args:
+            s: String to normalize
+
+        Returns:
+            Normalized string
+        """
+        if not s or s == "Unknown":
+            return ""
+        return s.lower().strip()
+
+    @staticmethod
+    def _ensure_list(lyrics: Any) -> List[str]:
+        """
+        Ensure lyrics are in list format.
+
+        Args:
+            lyrics: Lyrics in string or list format
+
+        Returns:
+            List of lyrics lines
+        """
+        if isinstance(lyrics, str):
+            return lyrics.splitlines()
+        elif isinstance(lyrics, list):
+            return lyrics
+        return []
+
+    @staticmethod
+    def _is_synced_lyrics(lyrics: List[str]) -> bool:
+        """
+        Check if lyrics are synced (contain timestamps).
+
+        Args:
+            lyrics: Lyrics lines to check
+
+        Returns:
+            True if lyrics appear to be synced
+        """
+        # Check a few lines for timestamp patterns
+        timestamp_pattern = r"\[\d+:\d+\.\d+\]"
+        for line in lyrics[:10]:  # Check first 10 lines
+            if re.search(timestamp_pattern, line):
+                return True
+        return False
+
+    @staticmethod
+    def _extract_plain_lyrics(lyrics: List[str]) -> str:
+        """
+        Extract plain text from synced lyrics.
+
+        Args:
+            lyrics: Synced lyrics lines
+
+        Returns:
+            Plain lyrics text
+        """
+        plain_lines = []
+        for line in lyrics:
+            # Remove timestamp patterns
+            plain_line = re.sub(r"\[\d+:\d+\.\d+\]", "", line).strip()
+            if plain_line:
+                plain_lines.append(plain_line)
+        return "\n".join(plain_lines)
