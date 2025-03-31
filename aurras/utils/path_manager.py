@@ -37,11 +37,10 @@ class PathManager:
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._mpv_dir.mkdir(parents=True, exist_ok=True)
 
-        # Define important file paths
+        # Define important file paths with improved documentation
         self.config_file = self._config_dir / "config.yaml"
         self.default_config = self._config_dir / "default_config.yaml"
         self.history_db = self._database_dir / "play_history.db"
-        self.lyrics_cache_db = self._database_dir / "lyrics_cache.db"
         self.saved_playlists = self._database_dir / "saved_playlists.db"
         self.mpv_conf = self._mpv_dir / "mpv.conf"
         self.input_conf = self._mpv_dir / "input.conf"
@@ -135,12 +134,26 @@ class PathManager:
 
     @property
     def cache_db(self):
-        """Path to the cache database."""
+        """
+        Path to the unified cache database.
+
+        This database stores:
+          1. Song metadata (track_name, artist_name, album_name, url, etc.)
+          2. Lyrics data (linked to songs via foreign key relationship)
+
+        The database uses consistent field naming:
+          - track_name: Name of the song
+          - artist_name: Artist who performed the song
+          - album_name: Album the song belongs to
+          - url: URL to play the song (typically YouTube)
+          - duration: Song length in seconds
+          - fetch_time: When the data was cached
+        """
         return self._database_dir / "cache.db"
 
     @property
     def recommendation_db(self):
-        """Path to the recommendation database."""
+        """Path to the recommendation database, storing song recommendations."""
         return self._database_dir / "recommendation.db"
 
     @property
