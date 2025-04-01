@@ -1,112 +1,518 @@
 """
-Song Downloader Module
+Song downloader module
 
-This module provides a class for downloading songs without videos using SpotDL and moving them to a specified directory.
+This module provides a class for downloading songs using spotdl's CLI through subprocess
+while extracting rich metadata using the library to store in the database.
 
 Example:
     ```python
     downloader = SongDownloader(song_list_to_download=["song_name_1", "song_name_2"])
-    downloader.download_song()
+    downloader.download_songs()
     ```
 """
 
-import sys
 import os
+import re
+import time
+import logging
+import sqlite3
 import subprocess
-import glob
+import json
+import contextlib
 from pathlib import Path
+from typing import Dict, List, Optional, Any, Iterator, Tuple
+from rich.console import Console
 
-# Fix import to use relative path instead of absolute
 from ..utils.path_manager import PathManager
 
-# Create a PathManager instance
+METADATA_FILE = "metadata.spotdl"
+DEFAULT_BATCH_SIZE = 25
+MAX_RETRIES = 3
+RETRY_DELAY = 5
+
 _path_manager = PathManager()
+output_dir = str(_path_manager.downloaded_songs_dir)
+console = Console()
+logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def change_dir(new_dir: str) -> Iterator[None]:
+    """Context manager for changing directory and returning to original."""
+    old_dir = os.getcwd()
+    try:
+        os.chdir(new_dir)
+        yield
+    finally:
+        os.chdir(old_dir)
+
+
+class DatabaseConnection:
+    """Singleton database connection manager."""
+
+    _instance = None
+    _connection = None
+
+    def __new__(cls, db_path: Optional[Path] = None):
+        if cls._instance is None:
+            cls._instance = super(DatabaseConnection, cls).__new__(cls)
+            if db_path:
+                cls._instance.db_path = db_path
+        return cls._instance
+
+    def get_connection(self) -> sqlite3.Connection:
+        """Get or create a database connection."""
+        if self._connection is None:
+            self._connection = sqlite3.connect(self.db_path)
+            self._connection.row_factory = sqlite3.Row
+        return self._connection
+
+    def close(self) -> None:
+        """Close the database connection."""
+        if self._connection:
+            self._connection.close()
+            self._connection = None
+
+
+class DownloadsDatabase:
+    """Manager for the downloaded songs database."""
+
+    def __init__(self, path_manager: Optional[PathManager] = None):
+        """Initialize the downloads database."""
+        self._path_manager = path_manager or _path_manager
+        self.db_path = self._path_manager.downloads_db
+        self.db_conn = DatabaseConnection(self.db_path)
+        self._initialize_database()
+
+    def _initialize_database(self):
+        """Create the downloads database with proper schema and indexes."""
+        with self.db_conn.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Create downloads table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS downloaded_songs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    track_name TEXT NOT NULL,
+                    artist_name TEXT,
+                    album_name TEXT,
+                    duration INTEGER,
+                    download_date INTEGER,
+                    file_path TEXT,
+                    cover_url TEXT,
+                    UNIQUE(track_name, artist_name, album_name)
+                )
+            """)
+
+            # Create lyrics table - Fixed the missing song_id foreign key
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS song_lyrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    song_id INTEGER NOT NULL,
+                    fetch_time INTEGER,
+                    FOREIGN KEY(song_id) REFERENCES downloaded_songs(id)
+                )
+            """)
+
+            # Create indexes for faster searching
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_track_name ON downloaded_songs(track_name)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_artist_name ON downloaded_songs(artist_name)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_album_name ON downloaded_songs(album_name)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_download_date ON downloaded_songs(download_date)"
+            )
+
+            conn.commit()
+
+    def save_downloaded_song(self, song_data: Dict[str, Any]) -> int:
+        """
+        Save a downloaded song to the database.
+
+        Args:
+            song_data: Dictionary containing song metadata
+
+        Returns:
+            The ID of the inserted/updated record
+        """
+        try:
+            with self.db_conn.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Insert song data with correct placeholders
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO downloaded_songs
+                    (track_name, artist_name, album_name, duration, download_date, 
+                     file_path, cover_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        song_data.get("name", ""),
+                        song_data.get("artists", ""),
+                        song_data.get("album_name", ""),
+                        song_data.get("duration", 0),
+                        int(time.time()),
+                        song_data.get("file_path", ""),
+                        song_data.get("cover_url", ""),
+                    ),
+                )
+
+                # Get the ID of the inserted/updated record
+                if cursor.lastrowid:
+                    song_id = cursor.lastrowid
+                else:
+                    # If it was an update, get the ID by querying
+                    cursor.execute(
+                        """
+                        SELECT id FROM downloaded_songs
+                        WHERE track_name = ? AND artist_name = ? AND album_name = ?
+                    """,
+                        (
+                            song_data.get("name", ""),
+                            song_data.get("artists", ""),
+                            song_data.get("album_name", ""),
+                        ),
+                    )
+                    result = cursor.fetchone()
+                    song_id = result[0] if result else 0
+
+                # Save lyrics if available
+                if song_data.get("synced_lyrics") or song_data.get("plain_lyrics"):
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO song_lyrics
+                        (song_id, synced_lyrics, plain_lyrics, fetch_time)
+                        VALUES (?, ?, ?, ?)
+                    """,
+                        (
+                            song_id,
+                            song_data.get("synced_lyrics", ""),
+                            song_data.get("plain_lyrics", ""),
+                            int(time.time()),
+                        ),
+                    )
+
+                conn.commit()
+                logger.info(f"Saved song to database: {song_data.get('name', '')}")
+                return song_id
+        except sqlite3.Error as e:
+            logger.error(f"Database error when saving song: {e}", exc_info=True)
+            return 0
+
+    def batch_save_songs(self, songs_data: List[Dict[str, Any]]) -> List[int]:
+        """
+        Save multiple songs to the database in a batch.
+
+        Args:
+            songs_data: List of dictionaries containing song metadata
+
+        Returns:
+            List of inserted/updated record IDs
+        """
+        ids = []
+        for song_data in songs_data:
+            song_id = self.save_downloaded_song(song_data)
+            if song_id:
+                ids.append(song_id)
+        return ids
+
+    def get_downloaded_songs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get a list of downloaded songs.
+
+        Args:
+            limit: Maximum number of songs to return
+
+        Returns:
+            List of dictionaries containing song data
+        """
+        try:
+            with self.db_conn.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    SELECT d.*, l.synced_lyrics, l.plain_lyrics
+                    FROM downloaded_songs d
+                    LEFT JOIN song_lyrics l ON d.id = l.song_id
+                    ORDER BY d.download_date DESC
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
+
+                return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"Database error when fetching songs: {e}", exc_info=True)
+            return []
+
+
+class ExtractMetadata:
+    def __init__(self, database: Optional[DownloadsDatabase] = None):
+        """
+        Initialize the metadata extractor.
+
+        Args:
+            database: Optional database instance for dependency injection
+        """
+        self.database = database or DownloadsDatabase()
+        self._file_path_cache: Dict[Tuple[str, str], Optional[Path]] = {}
+
+    def extract_metadata_from_spotdl_saved(self, batch_size: int = DEFAULT_BATCH_SIZE):
+        """
+        Extract metadata from the saved metadata.spotdl file and update the database.
+
+        Args:
+            batch_size: Number of songs to process in a batch
+        """
+        try:
+            with open(METADATA_FILE, "r") as file:
+                try:
+                    songs_data = json.loads(file.read())
+
+                    if not songs_data:
+                        console.print(
+                            "[yellow]No songs found in metadata file[/yellow]"
+                        )
+                        return
+
+                    # Process songs in batches
+                    songs_to_update = []
+                    for song_data in songs_data:
+                        song_name = song_data.get("name", "")
+                        artists = song_data.get("artists", [])
+                        artist_str = (
+                            ", ".join(artists) if isinstance(artists, list) else artists
+                        )
+
+                        # Find the file path
+                        file_path = self._find_downloaded_file(artist_str, song_name)
+                        if file_path:
+                            song_data = self._add_filepath_to_extracted_metadata(
+                                data=song_data, file_path=str(file_path)
+                            )
+                            if song_data:  # Skip empty metadata
+                                songs_to_update.append(song_data)
+
+                                # Process in batches
+                                if len(songs_to_update) >= batch_size:
+                                    self._update_database_batch(songs_to_update)
+                                    songs_to_update = []
+
+                    # Process any remaining songs
+                    if songs_to_update:
+                        self._update_database_batch(songs_to_update)
+
+                except json.JSONDecodeError:
+                    console.print(
+                        "[red]Error: metadata.spotdl file contains invalid JSON[/red]"
+                    )
+                    logger.error("Invalid JSON in metadata.spotdl file")
+
+        except FileNotFoundError:
+            console.print(f"[red]Error: {METADATA_FILE} file not found[/red]")
+            logger.error(f"{METADATA_FILE} file not found")
+        except Exception as e:
+            console.print(f"[red]Error extracting metadata: {str(e)}[/red]")
+            logger.error(f"Failed to extract metadata: {e}", exc_info=True)
+
+    def _add_filepath_to_extracted_metadata(
+        self, data: Dict[str, Any], file_path: str
+    ) -> Dict[str, Any]:
+        """Adds file path to the extracted metadata.
+
+        Args:
+            data: metadata to update
+            file_path: path to the downloaded file
+
+        Returns:
+            Updated metadata with file path
+        """
+        if not data:
+            console.print(
+                "[red]No metadata found for the song. [orange]Database not updated![/orange][/red]"
+            )
+            return {}
+
+        data.update({"file_path": file_path})
+        return data
+
+    def _update_database(self, data: Dict[str, Any]) -> None:
+        """Calls save_download_song method to update the database with metadata.
+
+        Args:
+            data: metadata to update
+        """
+        if data:
+            self.database.save_downloaded_song(data)
+        else:
+            console.print(
+                "[red]No metadata found for the song. [orange]Database not updated![/orange][/red]"
+            )
+
+    def _update_database_batch(self, data_batch: List[Dict[str, Any]]) -> None:
+        """Updates database with a batch of metadata records.
+
+        Args:
+            data_batch: List of metadata records to update
+        """
+        if data_batch:
+            song_ids = self.database.batch_save_songs(data_batch)
+            logger.info(f"Batch processed {len(song_ids)} songs")
+        else:
+            console.print("[yellow]No metadata to update in batch[/yellow]")
+
+    def _find_downloaded_file(self, artist: str, title: str) -> Optional[Path]:
+        """
+        Find the downloaded file based on artist and title.
+
+        Args:
+            artist: Artist name
+            title: Song title
+
+        Returns:
+            Path to the downloaded file, or None if not found
+        """
+        # Check cache first
+        cache_key = (artist.lower(), title.lower())
+        if cache_key in self._file_path_cache:
+            return self._file_path_cache[cache_key]
+
+        # Use the predictable filename format that matches the one specified in spotdl command
+        safe_artist = re.sub(r'[\\/*?:"<>|]', "", artist)
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
+
+        filename = f"{safe_artist} - {safe_title}.mp3"
+        expected_path = Path(output_dir) / filename
+
+        if expected_path.exists():
+            self._file_path_cache[cache_key] = expected_path
+            return expected_path
+
+        # Fall back to the old method if the expected file doesn't exist
+        # This is helpful for files downloaded before this change
+        # ...existing code for fallback approach...
+
+        # Clean artist and title for filesystem compatibility
+        safe_artist = re.sub(r'[\\/*?:"<>|]', "", artist)
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
+
+        # Try common patterns
+        patterns = [
+            f"{safe_artist} - {safe_title}.mp3",
+            f"{safe_artist.strip()} - {safe_title.strip()}.mp3",
+            f"{title}.mp3",
+        ]
+
+        # Check for each pattern
+        dir_path = Path(output_dir)
+        for pattern in patterns:
+            potential_path = dir_path / pattern
+            if potential_path.exists():
+                self._file_path_cache[cache_key] = potential_path
+                return potential_path
+
+        # If no exact match, search for files containing both artist and title
+        for file_path in dir_path.glob("*.mp3"):
+            file_name = file_path.name.lower()
+            if safe_artist.lower() in file_name and safe_title.lower() in file_name:
+                self._file_path_cache[cache_key] = file_path
+                return file_path
+
+        # Cache the negative result too
+        self._file_path_cache[cache_key] = None
+        return None
 
 
 class SongDownloader:
-    """
-    SongDownloader class for downloading songs without videos using SpotDL and moving them to a specified directory.
+    """Class for downloading songs using spotdl's CLI but extracting metadata using the library."""
 
-    Attributes:
-        current_directory (Path): The current working directory.
-        song_list_to_download (list): List of song names to download.
-    """
-
-    def __init__(self, song_list_to_download: list, output_directory=None):
+    def __init__(
+        self,
+        song_list_to_download: List[str],
+        path_manager: Optional[PathManager] = None,
+    ):
         """
-        Initializes the SongDownloader class.
+        Initialize the SongDownloader.
 
         Args:
-            song_list_to_download (list): List of song names to download.
-            output_directory (Path, optional): Specific output directory to save songs.
-                                             If None, uses default download directory.
+            song_list_to_download: List of song names to download
+            path_manager: Optional path manager for dependency injection
         """
-        self.current_directory = Path.cwd()
+        self._path_manager = path_manager or _path_manager
         self.song_list_to_download = song_list_to_download
-        self.output_directory = output_directory or _path_manager.downloaded_songs_dir
+        self.metadata_extractor = ExtractMetadata()
 
-        # Ensure download directory exists
-        self.output_directory.mkdir(parents=True, exist_ok=True)
-
-    def download_song(self):
+    def download_songs(self):
         """
-        Download songs without videos using spotdl.
-
-        This method downloads songs without videos using the spotdl command-line tool.
+        Download songs using subprocess for the actual download, but use SpotDL library for metadata.
         """
-        print("Downloading songs...")
-
-        # Format output directory path as a string
-        output_dir = str(self.output_directory)
-        print(f"Songs will be saved to: {output_dir}")
-
-        # Change to a temporary directory for download
-        original_dir = os.getcwd()
-        os.chdir(output_dir)
+        if not self.song_list_to_download:
+            console.print("[yellow]No songs provided for download[/yellow]")
+            return
 
         try:
-            try:
-                cmd = f"spotdl download {', '.join(self.song_list_to_download)}"
-                print(f"Running: {cmd}")
+            console.print(f"Songs will be saved to: [cyan]{output_dir}[/cyan]")
+            self._download_with_subprocess()
 
-                subprocess.run(cmd, shell=True, check=True)
-
-                recent_files = glob.glob(f"{output_dir}/*")
-                print(f"Files in download directory: {len(recent_files)}")
-                if recent_files:
-                    for f in recent_files[-3:]:  # Show the last 3 files
-                        print(f"  - {os.path.basename(f)}")
-
-            except subprocess.CalledProcessError as e:
-                print(f"Error downloading songs: {e}")
-                print("Make sure you have spotdl installed correctly.")
-
-                try:
-                    print("Attempting to install/update spotdl...")
-                    subprocess.check_call(
-                        [
-                            sys.executable,
-                            "-m",
-                            "pip",
-                            "install",
-                            "--upgrade",
-                            "spotdl",
-                        ]
-                    )
-
-                    subprocess.run(cmd, shell=True, check=True)
-                except Exception as install_error:
-                    print(f"Failed to fix spotdl installation: {install_error}")
-                    # break
-
-            all_files = os.listdir(output_dir)
-            print(f"Total files in download directory: {len(all_files)}")
+        except KeyboardInterrupt:
+            console.print("[red]Downloading Cancelled![/red]")
+            return
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Subprocess error: {e}", exc_info=True)
+            console.print(f"[bold red]Error running spotdl: {str(e)}[/bold red]")
+        except Exception as e:
+            logger.error(f"Failed to download songs: {e}", exc_info=True)
+            console.print(f"[bold red]Error during download: {str(e)}[/bold red]")
 
         finally:
-            os.chdir(original_dir)
+            # Extract metadata regardless of download success/failure
+            with change_dir(output_dir):
+                self.metadata_extractor.extract_metadata_from_spotdl_saved()
 
-            cache_file = self.output_directory / ".spotdl-cache"
-            if cache_file.exists():
-                cache_file.unlink()
+    def _download_with_subprocess(self):
+        """
+        Download songs using spotdl via subprocess with retry mechanism.
+        Uses a consistent output format to make filenames predictable.
+        """
+        # Format: {artist} - {title}.{output-ext}
+        output_format = "{artists} - {title}"
 
-        print("Download process completed.")
+        cmd = (
+            f"spotdl download {' '.join(f'"{item}"' for item in self.song_list_to_download)} "
+            f'--output "{output_format}" '
+            f"--ytm-data --preload --save-file {METADATA_FILE}"
+        )
+
+        attempts = 0
+        while attempts < MAX_RETRIES:
+            try:
+                with change_dir(output_dir):
+                    logger.info(
+                        f"Downloading songs (attempt {attempts + 1}/{MAX_RETRIES})"
+                    )
+                    subprocess.run(
+                        cmd,
+                        check=True,
+                        shell=True,
+                    )
+                return  # Success, exit the retry loop
+            except subprocess.CalledProcessError as e:
+                attempts += 1
+                logger.warning(f"Download attempt {attempts} failed: {e}")
+                if attempts < MAX_RETRIES:
+                    console.print(
+                        f"[yellow]Retrying download in {RETRY_DELAY} seconds...[/yellow]"
+                    )
+                    time.sleep(RETRY_DELAY)
+                else:
+                    console.print(
+                        "[red]Max retry attempts reached. Download failed.[/red]"
+                    )
+                    raise
