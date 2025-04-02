@@ -77,10 +77,9 @@ class DatabaseConnection:
 class DownloadsDatabase:
     """Manager for the downloaded songs database."""
 
-    def __init__(self, path_manager: Optional[PathManager] = None):
+    def __init__(self):
         """Initialize the downloads database."""
-        self._path_manager = path_manager or _path_manager
-        self.db_path = self._path_manager.downloads_db
+        self.db_path = _path_manager.downloads_db
         self.db_conn = DatabaseConnection(self.db_path)
         self._initialize_database()
 
@@ -222,35 +221,98 @@ class DownloadsDatabase:
                 ids.append(song_id)
         return ids
 
-    def get_downloaded_songs(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_downloaded_songs(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "download_date",
+        descending: bool = True,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Dict[str, Any]]:
         """
-        Get a list of downloaded songs.
+        Get a list of downloaded songs formatted as a dictionary with song names as keys.
 
         Args:
             limit: Maximum number of songs to return
+            offset: Number of songs to skip (for pagination)
+            order_by: Column to order results by
+            descending: Whether to sort in descending order
+            filters: Dictionary of column:value pairs to filter results
 
         Returns:
-            List of dictionaries containing song data
+            Dictionary where keys are song names and values are song metadata dictionaries
         """
         try:
             with self.db_conn.get_connection() as conn:
                 cursor = conn.cursor()
 
-                cursor.execute(
-                    """
-                    SELECT d.*, l.synced_lyrics, l.plain_lyrics
-                    FROM downloaded_songs d
-                    LEFT JOIN song_lyrics l ON d.id = l.song_id
-                    ORDER BY d.download_date DESC
-                    LIMIT ?
-                """,
-                    (limit,),
-                )
+                query = """
+                    SELECT id, track_name, artist_name, album_name, duration, 
+                           download_date, file_path, cover_url 
+                    FROM downloaded_songs
+                """
 
-                return [dict(row) for row in cursor.fetchall()]
+                params = []
+
+                # Add WHERE clauses for any filters
+                if filters:
+                    where_clauses = []
+                    for column, value in filters.items():
+                        if column in ["track_name", "artist_name", "album_name"]:
+                            where_clauses.append(f"{column} LIKE ?")
+                            params.append(f"%{value}%")
+                        else:
+                            where_clauses.append(f"{column} = ?")
+                            params.append(value)
+
+                    if where_clauses:
+                        query += " WHERE " + " AND ".join(where_clauses)
+
+                # Add ORDER BY clause
+                direction = "DESC" if descending else "ASC"
+                query += f" ORDER BY {order_by} {direction}"
+
+                # Add LIMIT and OFFSET
+                query += " LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
+
+                cursor.execute(query, params)
+
+                # Convert the results to the requested format
+                result = {}
+                for row in cursor.fetchall():
+                    song_dict = dict(row)
+                    track_name = song_dict.get("track_name", "")
+
+                    # Create both lowercase key and original track name key
+                    key = track_name.lower()
+
+                    # Format the song data according to the requested format
+                    song_data = {
+                        "track_name": track_name,
+                        "url": "",  # Default empty string as it's not in database
+                        "artist_name": song_dict.get("artist_name", ""),
+                        "album_name": song_dict.get("album_name", ""),
+                        "thumbnail_url": song_dict.get(
+                            "cover_url", ""
+                        ),  # Use cover_url as thumbnail_url
+                        "duration": song_dict.get("duration", 0),
+                        "file_path": song_dict.get(
+                            "file_path", ""
+                        ),  # Keep this for internal use
+                    }
+
+                    # Add the entry to the result dictionary
+                    result[key] = song_data
+
+                    # Also add with original track name as key for consistency with example
+                    result[track_name] = song_data.copy()
+
+                return result
+
         except sqlite3.Error as e:
             logger.error(f"Database error when fetching songs: {e}", exc_info=True)
-            return []
+            return {}
 
 
 class ExtractMetadata:
@@ -291,6 +353,10 @@ class ExtractMetadata:
                             ", ".join(artists) if isinstance(artists, list) else artists
                         )
 
+                        song_data = self._replace_artists_in_extracted_metadata(
+                            data=song_data, artists=artist_str
+                        )
+
                         # Find the file path
                         file_path = self._find_downloaded_file(artist_str, song_name)
                         if file_path:
@@ -321,6 +387,27 @@ class ExtractMetadata:
         except Exception as e:
             console.print(f"[red]Error extracting metadata: {str(e)}[/red]")
             logger.error(f"Failed to extract metadata: {e}", exc_info=True)
+
+    def _replace_artists_in_extracted_metadata(
+        self, data: Dict[str, Any], artists: str
+    ) -> Dict[str, Any]:
+        """Replaces artists list with a string.
+
+        Args:
+            data: metadata to update
+            artists: artists converted to string
+
+        Returns:
+            Updated metadata with replaced artists
+        """
+        if not data:
+            console.print(
+                "[red]No metadata found for the song. [orange]Database not updated![/orange][/red]"
+            )
+            return {}
+
+        data.update({"artists": artists})
+        return data
 
     def _add_filepath_to_extracted_metadata(
         self, data: Dict[str, Any], file_path: str
