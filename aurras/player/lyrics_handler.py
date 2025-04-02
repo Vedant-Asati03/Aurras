@@ -4,9 +4,10 @@ Lyrics Handler Module
 This module provides functionality for fetching, caching, and displaying lyrics.
 """
 
-import logging
-import time
 import re
+import time
+import random
+import logging
 import sqlite3
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -234,8 +235,20 @@ class LyricsHandler:
         Returns:
             Formatted lyrics text with highlighting
         """
+        unavailable_lyrics_messages = [
+            "[bold red]No lyrics available[/bold red]",
+            "[bold orange]Wow! so empty[/bold orange]",
+            "[bold yellow]Seems like nothing came out[/bold yellow]",
+            "[bold green]Lyrics? What lyrics?[/bold green]",
+            "[bold blue]Lyrics? I don't see any lyrics[/bold blue]",
+            "[bold magenta]Lyrics? What are those?[/bold magenta]",
+            "[bold cyan]Lyrics? I don't think so[/bold cyan]",
+            "[bold white]Lyrics? Not today[/bold white]",
+            "[bold pink]Uh-oh! No lyrics here[/bold pink]",
+            "[bold purple]No luck today, huh?[/bold purple]",
+        ]
         if not lyrics_lines:
-            return "[italic]No lyrics available[/italic]"
+            return random.choice(unavailable_lyrics_messages)
 
         # Check if these are synced lyrics by looking for timestamp patterns
         if not self._is_synced_lyrics(lyrics_lines):
