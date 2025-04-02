@@ -8,10 +8,9 @@ and proper integration with the unified database structure.
 import time
 import locale
 import logging
-import threading
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor
-
+import os
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.live import Live
@@ -22,7 +21,7 @@ from . import python_mpv as mpv
 from .python_mpv import ShutdownError
 from .lyrics_handler import LyricsHandler
 
-from ..utils.exceptions import DisplayError, LyricsError
+from ..utils.exceptions import DisplayError
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +386,7 @@ class MPVPlayer(mpv.MPV):
         song_names: List[str],
         show_lyrics: bool = True,
         start_index: int = 0,
+        file_paths: Optional[List[str]] = None,
     ) -> int:
         """
         Main entry point for playing media with enhanced UI.
@@ -396,6 +396,7 @@ class MPVPlayer(mpv.MPV):
             song_names: List of song names corresponding to the URLs
             show_lyrics: Whether to show lyrics
             start_index: Index in the queue to start from (for history integration)
+            file_paths: Optional list of local file paths (prioritized over URLs)
 
         Returns:
             Result code (0 for success)
@@ -406,12 +407,16 @@ class MPVPlayer(mpv.MPV):
         self._show_lyrics = show_lyrics
         self._current_song_names = song_names.copy()
         self._queue_start_index = start_index
+        self._file_paths = file_paths or [""] * len(queue)
 
         try:
             # Log playback information
             logger.info(
                 f"Playing queue with {len(queue)} songs, starting at {start_index}"
             )
+            local_files_count = sum(1 for path in self._file_paths if path)
+            if local_files_count > 0:
+                logger.info(f"Using {local_files_count} local files for playback")
 
             # Set up queue and start playback
             self._initialize_player(queue, start_index)
@@ -451,14 +456,34 @@ class MPVPlayer(mpv.MPV):
             queue: List of URLs to play
             start_index: Index to start playback from
         """
-        for song in queue:
-            self.playlist_append(song)
+        # Add all items to the playlist, prioritizing local files over URLs
+        for i, url in enumerate(queue):
+            # Check if we have a local file path for this song
+            local_path = ""
+            if hasattr(self, "_file_paths") and i < len(self._file_paths):
+                local_path = self._file_paths[i]
 
+            if local_path and os.path.exists(local_path):
+                # Use local file (directly, without youtube-dl)
+                logger.info(f"Using local file for playback: {local_path}")
+                self.playlist_append(local_path)
+            elif url and url.strip():  # Ensure URL is not empty
+                # Use URL (will be processed through youtube-dl)
+                logger.info(f"Using URL for playback: {url}")
+                self.playlist_append(url)
+            else:
+                # If both are empty, log error
+                logger.error(f"No valid URL or file path for song at position {i}")
+                # Add a placeholder to maintain playlist ordering
+                self.playlist_append("null://")
+
+        # Set the starting position
         logger.info(f"Starting playback at index {start_index}")
         self._current_playlist_pos = start_index
-        self.playlist_play_index(start_index)
-
-    # --- Display Methods ---
+        if self.playlist_count > 0:
+            self.playlist_play_index(start_index)
+        else:
+            logger.error("No playable items in playlist")
 
     def _start_display(self, song_name: str) -> None:
         """Start the live display UI."""
@@ -551,7 +576,6 @@ class MPVPlayer(mpv.MPV):
                             subtitle=controls_text,
                             subtitle_align="right",
                         )
-
                         # Update the display
                         live.update(panel)
 
@@ -803,12 +827,23 @@ class MPVPlayer(mpv.MPV):
 
     def _get_song_source(self) -> str:
         """Get the source indicator for the current song (history or searched)."""
+        source_text = ""
+
+        # Check if song is from history
         if (
             self._current_playlist_pos < self._queue_start_index
             and self._queue_start_index > 0
         ):
-            return " [dim](From History)[/dim]"
-        return ""
+            source_text = " [dim](From History)[/dim]"
+
+        # Check if song is from local file
+        if hasattr(self, "_file_paths") and 0 <= self._current_playlist_pos < len(
+            self._file_paths
+        ):
+            if self._file_paths[self._current_playlist_pos]:
+                source_text += " [green dim](Local File)[/green dim]"
+
+        return source_text
 
     def _format_song_info(self, song: str, artist: str, album: str, source: str) -> str:
         """Format song information for display."""
@@ -916,3 +951,27 @@ class MPVPlayer(mpv.MPV):
         """
         self.volume = max(0, min(130, volume))
         logger.debug(f"Volume set to {self.volume}")
+
+
+class MP3Player:
+    """Simplified facade for the MPV player component."""
+
+    def __init__(self, volume: int = 100) -> None:
+        self.player = MPVPlayer(volume=volume)
+
+    def play(
+        self,
+        songs: List[str],
+        urls: List[str],
+        show_lyrics: bool = True,
+        start_index: int = 0,
+        file_paths: Optional[List[str]] = None,
+    ) -> int:
+        """Play a list of songs with the given URLs."""
+        return self.player.player(
+            queue=urls,
+            song_names=songs,
+            show_lyrics=show_lyrics,
+            start_index=start_index,
+            file_paths=file_paths,
+        )
