@@ -7,11 +7,13 @@ organization, error handling, and maintainability.
 
 from typing import List, Dict, Optional, Any, Protocol, NamedTuple, Tuple
 import logging
+from unittest import result
 from ytmusicapi import YTMusic
 
 from ...core.cache.updater import UpdateSearchHistoryDatabase
 from ...core.cache.search_db import SearchFromSongDataBase
 from ...player.history import RecentlyPlayedManager
+from ...core.downloader import DownloadsDatabase
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -27,6 +29,7 @@ class SongResult(NamedTuple):
     artist: str = ""  # Artist field for better lyrics search
     album: str = ""  # Album field
     is_from_history: bool = False  # Flag to mark history songs
+    file_path: str = ""  # Local file path for downloaded songs
 
 
 # Define interfaces for better separation
@@ -130,6 +133,7 @@ class DatabaseCacheProvider:
 
     def __init__(self) -> None:
         self.search_db = SearchFromSongDataBase()
+        self.downloads_db = DownloadsDatabase()
         self.updater = UpdateSearchHistoryDatabase()
         self.history_manager = RecentlyPlayedManager()
 
@@ -138,37 +142,84 @@ class DatabaseCacheProvider:
         result = {}
 
         # Get the full song dict with all metadata
-        song_dict = self.search_db.initialize_full_song_dict()
+        cache_dict = self.search_db.initialize_full_song_dict()
+        downloads_dict = self.downloads_db.get_downloaded_songs()
+
+        # Merge the dictionaries, prioritizing downloaded songs
+        # (downloads_dict will overwrite any duplicate keys in cache_dict)
+        cache_dict.update(downloads_dict)
+        song_dict = cache_dict
+
+        # Create case-insensitive lookup map
+        case_insensitive_map = {}
+        for key, value in song_dict.items():
+            case_insensitive_map[key.lower()] = (key, value)
 
         for query in queries:
+            # Try exact match first
             if query in song_dict:
-                # Extract all available metadata using consistent field names
                 song_info = song_dict[query]
-                result[query] = SongResult(
-                    name=song_info["track_name"],
-                    url=song_info["url"],
-                    thumbnail_url=song_info.get("thumbnail_url", ""),
-                    artist=song_info.get("artist_name", ""),
-                    album=song_info.get("album_name", ""),
-                )
+                result[query] = self._create_song_result(song_info)
+            # Try case-insensitive match
+            elif query.lower() in case_insensitive_map:
+                original_key, song_info = case_insensitive_map[query.lower()]
+                result[query] = self._create_song_result(song_info)
 
         return result
+
+    def _create_song_result(self, song_info: Dict[str, Any]) -> SongResult:
+        """Create a SongResult from song info dict with proper file path handling."""
+        # Check if this is a downloaded song (has file_path)
+        file_path = song_info.get("file_path", "")
+
+        return SongResult(
+            name=song_info["track_name"],
+            url=song_info.get("url", ""),  # Downloaded songs might not have URL
+            thumbnail_url=song_info.get("thumbnail_url", ""),
+            artist=song_info.get("artist_name", ""),
+            album=song_info.get("album_name", ""),
+            file_path=file_path,
+        )
 
     def save_songs(self, query_to_song: Dict[str, SongResult]) -> None:
         """Save songs with complete metadata to the database cache."""
         try:
+            # Get existing songs to avoid duplicates
+            existing_songs = self.search_db.initialize_full_song_dict()
+
             for query, song in query_to_song.items():
-                # Use the enhanced save method with consistent field names
-                self.updater.save_to_cache(
-                    query,
-                    song.name,  # track_name
-                    song.url,  # url
-                    artist_name=song.artist,
-                    album_name=song.album,
-                    thumbnail_url=song.thumbnail_url,
-                    duration=0,  # We don't have duration from YouTube search
-                )
-                logger.debug(f"Cached: {query} -> {song.name} by {song.artist}")
+                # Check if this song already exists in the cache
+                exists = False
+
+                # Check by URL (most reliable way to identify duplicates)
+                for _, cache_song in existing_songs.items():
+                    if (cache_song.get("url") == song.url and song.url) or (
+                        cache_song.get("track_name") == song.name
+                        and cache_song.get("artist_name") == song.artist
+                        and song.name
+                        and song.artist
+                    ):
+                        exists = True
+                        logger.debug(
+                            f"Song already in cache: {song.name} by {song.artist}"
+                        )
+                        break
+
+                # Only save if the song doesn't exist
+                if not exists:
+                    # Use the enhanced save method with consistent field names
+                    self.updater.save_to_cache(
+                        song_user_searched=query,
+                        track_name=song.name,
+                        url=song.url,
+                        artist_name=song.artist,
+                        album_name=song.album,
+                        thumbnail_url=song.thumbnail_url,
+                        duration=0,  # We don't have duration from YouTube search
+                    )
+                    logger.debug(
+                        f"Cached new song: {query} -> {song.name} by {song.artist}"
+                    )
         except Exception as e:
             logger.warning(f"Failed to update search cache: {str(e)}")
 
@@ -330,8 +381,16 @@ class SongSearch:
             # Process cached results
             for query in queries:
                 if query in cached_songs:
-                    self.results.append(cached_songs[query])
-                    logger.debug(f"Found in cache: {query}")
+                    song_result = cached_songs[query]
+                    self.results.append(song_result)
+
+                    # Log whether it's a local file or cached URL
+                    if song_result.file_path:
+                        logger.info(
+                            f"Found local file for: {query} at {song_result.file_path}"
+                        )
+                    else:
+                        logger.debug(f"Found in cache: {query}")
                 else:
                     queries_to_search.append(query)
 
@@ -669,16 +728,38 @@ class SearchSong(SongMetadata):
             logger.error(f"Error during song search: {str(e)}")
             raise
 
-    def get_all_queued_songs(self) -> Tuple[List[str], List[str], int]:
+    def get_all_queued_songs(self) -> Tuple[List[str], List[str], int, List[str]]:
         """
         Get all songs for the queue (history + searched) and the starting index.
 
         Returns:
-            Tuple containing lists of all song names, URLs, and the index to start playback from
+            Tuple containing lists of all song names, URLs, file paths, and the index to start playback from
         """
         all_songs = self.history_songs + self.song_name_searched
         all_urls = self.history_urls + self.song_url_searched
+
+        # Add file paths to return value
+        all_file_paths = []
+
+        # Collect file paths from history results
+        history_file_paths = [
+            r.file_path if hasattr(r, "file_path") else ""
+            for r in self._new_search.history_results
+        ]
+
+        # Collect file paths from search results
+        result_file_paths = [
+            r.file_path if hasattr(r, "file_path") else ""
+            for r in self._new_search.results
+        ]
+
+        all_file_paths = history_file_paths + result_file_paths
+
         logger.info(
             f"Returning complete queue with {len(all_songs)} songs, starting at {self.queue_start_index}"
         )
-        return all_songs, all_urls, self.queue_start_index
+        logger.info(
+            f"Found {sum(1 for p in all_file_paths if p)} songs with local files"
+        )
+
+        return all_songs, all_urls, self.queue_start_index, all_file_paths
