@@ -14,6 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from ..utils.path_manager import PathManager
 from ..utils.exceptions import LyricsError
 from ..services.lyrics import LyricsManager
+from ..utils.console_manager import get_console, get_available_themes, get_current_theme
 
 _path_manager = PathManager()
 logger = logging.getLogger(__name__)
@@ -32,6 +33,81 @@ class LyricsHandler:
         self._lyrics_manager = LyricsManager()
         self._memory_cache: Dict[str, List[str]] = {}
         self._db_path = _path_manager.cache_db
+        self._console = get_console()
+
+        # Define gradient styles for different themes
+        self._gradient_styles = {
+            "NEON": {
+                "current": "#FF00FF",  # Magenta
+                "gradient": [
+                    "#FF00FF",
+                    "#CC00FF",
+                    "#9900FF",
+                    "#6600FF",
+                    "#3300FF",
+                    "#0000FF",
+                    "#0000CC",
+                    "#000099",
+                ],
+                "dim": "#333399",
+            },
+            "VINTAGE": {
+                "current": "#CC9966",  # Sepia
+                "gradient": [
+                    "#CC9966",
+                    "#BB8855",
+                    "#AA7744",
+                    "#996633",
+                    "#885522",
+                    "#774411",
+                    "#663300",
+                    "#552200",
+                ],
+                "dim": "#331100",
+            },
+            "MINIMAL": {
+                "current": "#FFFFFF",  # White
+                "gradient": [
+                    "#FFFFFF",
+                    "#DDDDDD",
+                    "#BBBBBB",
+                    "#999999",
+                    "#777777",
+                    "#555555",
+                    "#333333",
+                    "#111111",
+                ],
+                "dim": "#111111",
+            },
+            "NIGHTCLUB": {
+                "current": "#FF00FF",  # Magenta
+                "gradient": [
+                    "#FF00FF",
+                    "#CC00FF",
+                    "#9900FF",
+                    "#6600FF",
+                    "#3300FF",
+                    "#0000FF",
+                    "#0000AA",
+                    "#000055",
+                ],
+                "dim": "#000033",
+            },
+            "DEFAULT": {
+                "current": "#00FF7F",  # Spring green
+                "gradient": [
+                    "#00FF7F",
+                    "#00DD6E",
+                    "#00BB5C",
+                    "#00994B",
+                    "#00773A",
+                    "#005528",
+                    "#003317",
+                    "#001105",
+                ],
+                "dim": "#001100",
+            },
+        }
 
     def has_lyrics_support(self) -> bool:
         """Check if lyrics support is available."""
@@ -219,10 +295,10 @@ class LyricsHandler:
         song: str = "",
         artist: str = "",
         album: str = "",
-        context_lines: int = 3,
+        context_lines: int = 6,  # Increased from 3 to 6 for smoother gradient
     ) -> str:
         """
-        Create a focused view of lyrics with the current line highlighted.
+        Create a focused view of lyrics with the current line highlighted with gradient effect.
 
         Args:
             lyrics_lines: List of lyrics lines
@@ -233,7 +309,7 @@ class LyricsHandler:
             context_lines: Number of context lines to show
 
         Returns:
-            Formatted lyrics text with highlighting
+            Formatted lyrics text with gradient highlighting
         """
         unavailable_lyrics_messages = [
             "[bold red]No lyrics available[/bold red]",
@@ -252,8 +328,8 @@ class LyricsHandler:
 
         # Check if these are synced lyrics by looking for timestamp patterns
         if not self._is_synced_lyrics(lyrics_lines):
-            # For unsynced lyrics, just show them as is
-            return "\n".join(f"[dim]{line}[/dim]" for line in lyrics_lines[:10])
+            # For unsynced lyrics, create a simple gradient display
+            return self._create_simple_gradient_view(lyrics_lines[:15])
 
         # Parse timestamps and build a list of (timestamp, text) tuples
         parsed_lyrics = []
@@ -283,33 +359,108 @@ class LyricsHandler:
                 break
             current_index = i
 
+        # Create gradient display
+        return self._create_gradient_lyrics_view(
+            parsed_lyrics, current_index, context_lines
+        )
+
+    def _create_gradient_lyrics_view(
+        self,
+        parsed_lyrics: List[Tuple[float, str]],
+        current_index: int,
+        context_lines: int,
+    ) -> str:
+        """
+        Create a gradient effect for lyrics with the current line at the peak.
+
+        Args:
+            parsed_lyrics: List of (timestamp, text) tuples
+            current_index: Index of current line
+            context_lines: Number of context lines to show
+
+        Returns:
+            Formatted lyrics with gradient effect
+        """
         # Calculate the range of lines to display
         start_index = max(0, current_index - context_lines)
         end_index = min(len(parsed_lyrics), current_index + context_lines + 1)
 
-        # Build the focused lyrics display with highlighting
+        # Get the appropriate gradient colors based on the current theme
+        theme_style = self._get_theme_gradient_style()
+
+        # Build the focused lyrics display with gradient highlighting
         result_lines = []
 
         # Add a header showing current position if we're not at the beginning
         if start_index > 0:
-            result_lines.append("[dim]...[/dim]")
+            result_lines.append(f"[{theme_style['dim']}]...[/{theme_style['dim']}]")
 
-        # Add the lines with appropriate highlighting, but without timestamps
+        # Add the lines with gradient highlighting
         for i in range(start_index, end_index):
             _, text = parsed_lyrics[i]
 
             if i == current_index:
-                # Current line - highlight with bold green
-                result_lines.append(f"[bold green]{text}[/bold green]")
+                # Current line - peak of gradient (bold and brightest color)
+                result_lines.append(
+                    f"[bold {theme_style['current']}]{text}[/bold {theme_style['current']}]"
+                )
             else:
-                # Other lines - dim text for better contrast
-                result_lines.append(f"[dim]{text}[/dim]")
+                # Calculate the distance from the current line
+                distance = abs(i - current_index)
+                if distance <= len(theme_style["gradient"]):
+                    # Apply gradient color based on distance
+                    color = (
+                        theme_style["gradient"][distance - 1]
+                        if distance > 0
+                        else theme_style["current"]
+                    )
+                    result_lines.append(f"[{color}]{text}[/{color}]")
+                else:
+                    # Too far from current line, use dim color
+                    result_lines.append(
+                        f"[{theme_style['dim']}]{text}[/{theme_style['dim']}]"
+                    )
 
         # Add a footer if we're not at the end
         if end_index < len(parsed_lyrics):
-            result_lines.append("[dim]...[/dim]")
+            result_lines.append(f"[{theme_style['dim']}]...[/{theme_style['dim']}]")
 
         return "\n".join(result_lines)
+
+    def _create_simple_gradient_view(self, lyrics_lines: List[str]) -> str:
+        """
+        Create a simple gradient effect for non-synced lyrics.
+
+        Args:
+            lyrics_lines: List of lyrics lines
+
+        Returns:
+            Formatted lyrics with gradient effect
+        """
+        theme_style = self._get_theme_gradient_style()
+        result_lines = []
+
+        for i, line in enumerate(lyrics_lines):
+            # Create a smooth gradient from top to bottom
+            gradient_index = min(i, len(theme_style["gradient"]) - 1)
+            color = theme_style["gradient"][gradient_index]
+
+            # Add the line with the appropriate color
+            if i == 0:
+                # First line is bold
+                result_lines.append(f"[bold {color}]{line}[/bold {color}]")
+            else:
+                result_lines.append(f"[{color}]{line}[/{color}]")
+
+        return "\n".join(result_lines)
+
+    def _get_theme_gradient_style(self) -> Dict[str, Any]:
+        """Get the gradient style based on the current theme."""
+        # Get the current active theme directly from console manager
+        theme_name = get_current_theme()
+
+        # Return the gradient style for the theme, or default if not found
+        return self._gradient_styles.get(theme_name, self._gradient_styles["DEFAULT"])
 
     # --- Helper Methods ---
 
