@@ -5,23 +5,34 @@ This module provides an enhanced MPV player with rich UI, lyrics integration,
 and proper integration with the unified database structure.
 """
 
+import os
 import time
 import locale
 import logging
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor
-import os
-from rich.console import Console, Group
-from rich.panel import Panel
-from rich.live import Live
-from rich.progress import TextColumn, BarColumn, Progress
 from rich.box import HEAVY
+from rich.live import Live
+from rich.panel import Panel
+from rich.console import Group
+from rich.progress import TextColumn, BarColumn, Progress
 
 from . import python_mpv as mpv
 from .python_mpv import ShutdownError
 from .lyrics_handler import LyricsHandler
-
 from ..utils.exceptions import DisplayError
+from ..player.history import RecentlyPlayedManager
+from ..utils.console_manager import (
+    get_console,
+    change_theme,
+    get_available_themes,
+    get_current_theme,
+)
+from ..utils.gradient_utils import (
+    apply_gradient_to_text,
+    create_subtle_gradient_text,
+    get_gradient_style,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +85,10 @@ class MPVPlayer(mpv.MPV):
         )
 
         # Set up core components
-        self.console = Console()
+        self.console = get_console()  # Use our console manager
         self.lyrics_handler = LyricsHandler()
         self._thread_pool = ThreadPoolExecutor(max_workers=2)
+        self.history_manager = RecentlyPlayedManager()  # Add history manager
 
         # UI state
         self._show_lyrics = False
@@ -84,6 +96,7 @@ class MPVPlayer(mpv.MPV):
         self._stop_requested = False
         self._elapsed_time: float = 0
         self._current_refresh_rate: float = 0.25
+        self._current_theme: str = None  # Track current theme
 
         # Playlist state
         self._current_playlist_pos: int = 0
@@ -116,6 +129,11 @@ class MPVPlayer(mpv.MPV):
         # Set up property observers and key bindings
         self._setup_property_observers()
         self._setup_key_bindings()
+
+        # History integration
+        self._play_count = 1
+        self._last_played = None
+        self._history_loaded = False
 
     # --- Property Observers ---
 
@@ -221,6 +239,7 @@ class MPVPlayer(mpv.MPV):
         # Reset metadata and lyrics for new song
         self._metadata_ready = False
         self._cached_lyrics = None
+        self._history_loaded = False  # Reset history data
 
         # Cancel any pending lyrics fetch
         if self._lyrics_future and not self._lyrics_future.done():
@@ -356,27 +375,38 @@ class MPVPlayer(mpv.MPV):
                 self._jump_number = ""
                 self._show_user_feedback("Jump Mode", "Cancelled")
 
-    # Helper method for jumping in playlist
-    def _execute_playlist_jump(self, amount: int) -> None:
-        """
-        Jump multiple positions in the playlist.
+        # Theme cycling - updated to ensure theme name is properly tracked
+        @self.on_key_press("t")
+        def _cycle_theme() -> None:
+            available_themes = get_available_themes()
+            # Get current theme from console_manager
+            current_theme = get_current_theme()
 
-        Args:
-            amount: Number of positions to jump (positive for forward, negative for backward)
-        """
-        if amount == 0:
-            return
+            # Find the current theme index
+            try:
+                current_index = available_themes.index(current_theme)
+                # Get the next theme (wrapping around)
+                next_index = (current_index + 1) % len(available_themes)
+                next_theme = available_themes[next_index]
 
-        current_pos = self._current_playlist_pos
-        playlist_count = len(self._current_song_names)
+                # Change to the next theme
+                change_theme(next_theme)
+                self._current_theme = next_theme
 
-        # Calculate new position with wrap-around
-        new_pos = (current_pos + amount) % playlist_count
+                # Force cache reset for any theme-dependent elements
+                self._cached_lyrics = None
 
-        logger.debug(
-            f"Jumping from position {current_pos} to {new_pos} (amount: {amount})"
-        )
-        self.playlist_play_index(new_pos)
+                self._show_user_feedback("Theme", f"Changed to {next_theme}")
+            except ValueError:
+                # If the current theme isn't found in the list, start with first theme
+                next_theme = available_themes[0]
+                change_theme(next_theme)
+                self._current_theme = next_theme
+
+                # Force cache reset
+                self._cached_lyrics = None
+
+                self._show_user_feedback("Theme", f"Changed to {next_theme}")
 
     # --- Main Player API ---
 
@@ -510,7 +540,8 @@ class MPVPlayer(mpv.MPV):
                 "[bold cyan]n[/]:Next · "
                 "[bold cyan]←→[/]:Seek · "
                 "[bold cyan]↑↓[/]:Volume · "
-                "[bold cyan]l[/]:Lyrics[/]"
+                "[bold cyan]l[/]:Lyrics · "
+                "[bold cyan]t[/]:Theme[/]"
             )
 
             # Initialize display state
@@ -518,7 +549,7 @@ class MPVPlayer(mpv.MPV):
             metadata_ready = False
             refresh_count = 0
 
-            # Create the live display
+            # Create the live display using our console from the manager
             with Live(
                 refresh_per_second=4, console=self.console, transient=True
             ) as live:
@@ -698,7 +729,7 @@ class MPVPlayer(mpv.MPV):
 
         # Check if we have cached lyrics from a previous fetch
         if self._cached_lyrics:
-            # Format and display the lyrics
+            # Format and display the lyrics with gradient effect
             lyrics_content = self.lyrics_handler.create_focused_lyrics_view(
                 self._cached_lyrics, elapsed, song, artist, album
             )
@@ -752,7 +783,11 @@ class MPVPlayer(mpv.MPV):
         Returns:
             Rich Group containing the formatted display content
         """
-        # Format song information
+        # Load history data if needed
+        if not self._history_loaded:
+            self._load_history_data(song)
+
+        # Format song information with history
         source = self._get_song_source()
         info_text = self._format_song_info(song, artist, album, source)
 
@@ -762,11 +797,18 @@ class MPVPlayer(mpv.MPV):
         # Get status text
         status_text = self._get_status_text()
 
+        # Add history information
+        history_text = self._get_history_text(song)
+
         # Get user feedback if available
         user_feedback = self._get_user_feedback_text()
 
         # Combine elements into a group
         elements = [info_text, progress, status_text]
+
+        # Add history text if available
+        if history_text:
+            elements.append(history_text)
 
         # Add user feedback if available
         if user_feedback:
@@ -777,6 +819,90 @@ class MPVPlayer(mpv.MPV):
             elements.append(lyrics_section)
 
         return Group(*elements)
+
+    def _load_history_data(self, song_name: str) -> None:
+        """
+        Load play history data for the current song.
+
+        Args:
+            song_name: Name of the current song
+        """
+        try:
+            # Get all recent songs
+            recent_songs = self.history_manager.get_recent_songs(1000)
+
+            # Find the current song in history
+            matching_songs = [s for s in recent_songs if s["song_name"] == song_name]
+
+            if matching_songs:
+                # If found in history, get play count and last played time
+                song_data = matching_songs[0]
+                self._play_count = song_data.get("play_count", 1)
+                self._last_played = song_data.get("played_at", 0)
+            else:
+                # If not found in history, reset values
+                self._play_count = 0
+                self._last_played = None
+
+            self._history_loaded = True
+            logger.debug(f"Loaded history for '{song_name}': count={self._play_count}")
+
+        except Exception as e:
+            logger.error(f"Error loading history data: {e}")
+            self._play_count = 0
+            self._last_played = None
+            self._history_loaded = (
+                True  # Still mark as loaded to prevent repeated attempts
+            )
+
+    def _get_history_text(self, song_name: str) -> Optional[str]:
+        """
+        Get formatted history information text for the current song.
+
+        Args:
+            song_name: Name of the current song
+
+        Returns:
+            Formatted history text or None if not available
+        """
+        if not self._history_loaded or self._play_count <= 1:
+            return None
+
+        # Format the play count with appropriate styling
+        if self._play_count > 10:
+            count_text = (
+                f"[bold gold1]You've played this {self._play_count} times![/bold gold1]"
+            )
+        elif self._play_count > 5:
+            count_text = f"[yellow]You've played this {self._play_count} times[/yellow]"
+        elif self._play_count > 1:
+            count_text = f"[dim]You've played this {self._play_count} times[/dim]"
+        else:
+            return None
+
+        # Format the last played info if available
+        last_played_text = ""
+        if self._last_played:
+            current_time = int(time.time())
+            time_diff = current_time - self._last_played
+
+            if time_diff < 3600:  # Less than an hour
+                minutes = time_diff // 60
+                last_played_text = f"[dim]Last played: {minutes} minute{'s' if minutes != 1 else ''} ago[/dim]"
+            elif time_diff < 86400:  # Less than a day
+                hours = time_diff // 3600
+                last_played_text = f"[dim]Last played: {hours} hour{'s' if hours != 1 else ''} ago[/dim]"
+            else:
+                days = time_diff // 86400
+                last_played_text = (
+                    f"[dim]Last played: {days} day{'s' if days != 1 else ''} ago[/dim]"
+                )
+
+        # Combine the information
+        if last_played_text:
+            return f"\n{count_text} · {last_played_text}"
+        else:
+            return f"\n{count_text}"
 
     def _show_user_feedback(
         self, action: str, description: str, timeout: float = 1.5
@@ -846,17 +972,22 @@ class MPVPlayer(mpv.MPV):
         return source_text
 
     def _format_song_info(self, song: str, artist: str, album: str, source: str) -> str:
-        """Format song information for display."""
-        # Start with song name
-        info_text = f"[bold green]Now Playing:[/] [bold yellow]{song}[/]{source}"
+        """Format song information for display with subtle gradients."""
+        # Get the gradient style for the current theme
+        style = get_gradient_style()
 
-        # Add artist if available
+        # Start with song name using title gradient
+        info_text = f"[bold green]Now Playing:[/] {apply_gradient_to_text(song, 'title', bold=True)}{source}"
+
+        # Add artist if available with artist gradient
         if artist != "Unknown" and artist.strip():
-            info_text += f"\n[bold magenta]Artist:[/] [yellow]{artist}[/]"
+            artist_text = apply_gradient_to_text(artist, "artist")
+            info_text += f"\n[bold magenta]Artist:[/] {artist_text}"
 
         # Add album if available
         if album != "Unknown" and album.strip():
-            info_text += f" [dim]·[/] [bold magenta]Album:[/] [yellow]{album}[/]"
+            album_text = create_subtle_gradient_text(album, "artist")
+            info_text += f" [dim]·[/] [bold magenta]Album:[/] {album_text}"
 
         # Add position information
         position_info = f"[dim]Song {self._current_playlist_pos + 1} of {len(self._current_song_names)}[/dim]"
@@ -864,11 +995,150 @@ class MPVPlayer(mpv.MPV):
 
         return info_text
 
+    def _get_history_text(self, song_name: str) -> Optional[str]:
+        """
+        Get formatted history information text with subtle gradients.
+
+        Args:
+            song_name: Name of the current song
+
+        Returns:
+            Formatted history text or None if not available
+        """
+        if not self._history_loaded or self._play_count <= 1:
+            return None
+
+        # Format the play count with appropriate styling and gradients
+        style = get_gradient_style()
+
+        if self._play_count > 10:
+            count_text = apply_gradient_to_text(
+                f"You've played this {self._play_count} times!", "history", bold=True
+            )
+        elif self._play_count > 5:
+            count_text = apply_gradient_to_text(
+                f"You've played this {self._play_count} times", "history"
+            )
+        elif self._play_count > 1:
+            count_text = f"[dim]You've played this {self._play_count} times[/dim]"
+        else:
+            return None
+
+        # Format the last played info if available
+        last_played_text = ""
+        if self._last_played:
+            current_time = int(time.time())
+            time_diff = current_time - self._last_played
+
+            if time_diff < 3600:  # Less than an hour
+                minutes = time_diff // 60
+                last_played_text = f"[dim]Last played: {minutes} minute{'s' if minutes != 1 else ''} ago[/dim]"
+            elif time_diff < 86400:  # Less than a day
+                hours = time_diff // 3600
+                last_played_text = f"[dim]Last played: {hours} hour{'s' if hours != 1 else ''} ago[/dim]"
+            else:
+                days = time_diff // 86400
+                last_played_text = (
+                    f"[dim]Last played: {days} day{'s' if days != 1 else ''} ago[/dim]"
+                )
+
+        # Combine the information
+        if last_played_text:
+            return f"\n{count_text} · {last_played_text}"
+        else:
+            return f"\n{count_text}"
+
+    def _show_user_feedback(
+        self, action: str, description: str, timeout: float = 1.5
+    ) -> None:
+        """
+        Show user feedback for an action in the UI.
+
+        Args:
+            action: Short name of the action
+            description: Longer description of what happened
+            timeout: How long to show the feedback (seconds)
+        """
+        self._user_action_feedback = {
+            "action": action,
+            "description": description,
+            "timestamp": time.time(),
+        }
+        self._user_feedback_timeout = timeout
+
+    def _get_user_feedback_text(self) -> Optional[str]:
+        """
+        Get formatted user feedback text with gradient effect.
+
+        Returns:
+            Formatted feedback text or None if no feedback to show
+        """
+        if not self._user_action_feedback:
+            return None
+
+        # Check if feedback has expired
+        elapsed = time.time() - self._user_action_feedback["timestamp"]
+        if elapsed > self._user_feedback_timeout:
+            self._user_action_feedback = None
+            return None
+
+        # Format the feedback with gradients
+        action = self._user_action_feedback["action"]
+        description = self._user_action_feedback["description"]
+
+        # Apply gradients based on the current theme
+        styled_action = apply_gradient_to_text(action, "feedback", bold=True)
+        styled_description = create_subtle_gradient_text(description, "feedback")
+
+        return f"\n► {styled_action}: {styled_description}"
+
+    def _get_status_text(self) -> str:
+        """
+        Get the current player status text with subtle gradient effects.
+
+        Returns:
+            Formatted status text
+        """
+        try:
+            status = "Paused" if self.pause else "Playing"
+            vol = self.volume
+            theme_info = (
+                f" · Theme: {self._current_theme}" if self._current_theme else ""
+            )
+
+            # Apply subtle gradient to the status text
+            status_text = create_subtle_gradient_text(
+                f"Status: {status} · Volume: {vol}%{theme_info}", "status"
+            )
+            return f"[dim]{status_text}[/dim]"
+        except ShutdownError:
+            self._stop_requested = True
+            return "[dim]Status: Stopped[/dim]"
+        except Exception:
+            return "[dim]Status: Unknown[/dim]"
+
     def _create_progress_bar(self, elapsed: float, duration: float) -> Progress:
-        """Create a progress bar for song playback."""
+        """
+        Create a progress bar for song playback with gradient effect.
+
+        Args:
+            elapsed: Current playback position in seconds
+            duration: Song duration in seconds
+
+        Returns:
+            Rich Progress object
+        """
+        # Get theme colors for progress
+        style = get_gradient_style()
+        progress_colors = style.get("progress", ["cyan", "green"])
+
+        # Use the first color for the bar and the second for completed sections
+        bar_color = progress_colors[0]
+        complete_color = progress_colors[-1]
+
         progress = Progress(
             TextColumn("[bold blue]{task.description}"),
-            BarColumn(bar_width=40, style="cyan", complete_style="green"),
+            BarColumn(bar_width=40, style=bar_color, complete_style=complete_color),
             TextColumn("[bold cyan]{task.fields[time]} / {task.fields[duration]}"),
         )
 
@@ -891,18 +1161,6 @@ class MPVPlayer(mpv.MPV):
         )
 
         return progress
-
-    def _get_status_text(self) -> str:
-        """Get the current player status text."""
-        try:
-            status = "Paused" if self.pause else "Playing"
-            vol = self.volume
-            return f"[dim]Status: {status} · Volume: {vol}%[/]"
-        except ShutdownError:
-            self._stop_requested = True
-            return "[dim]Status: Stopped[/]"
-        except Exception:
-            return "[dim]Status: Unknown[/]"
 
     def _format_time(self, seconds: float) -> str:
         """Format time in seconds to MM:SS format."""
