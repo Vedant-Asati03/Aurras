@@ -5,23 +5,22 @@ This module provides an enhanced MPV player with rich UI, lyrics integration,
 and proper integration with the unified database structure.
 """
 
-import os
 import time
 import locale
 import logging
-from typing import Dict, Any, List, Optional
-from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Any, List, Optional, Tuple
+from dataclasses import dataclass
+from enum import Enum, auto
+from concurrent.futures import ThreadPoolExecutor, Future
 from rich.box import HEAVY
 from rich.live import Live
 from rich.panel import Panel
 from rich.console import Group
 from rich.progress import TextColumn, BarColumn, Progress
 
-from . import python_mpv as mpv
-from .python_mpv import ShutdownError
-from .lyrics_handler import LyricsHandler
-from ..utils.exceptions import DisplayError
+from ..core.settings import KeyboardShortcuts, Settings
 from ..player.history import RecentlyPlayedManager
+from ..utils.exceptions import DisplayError
 from ..utils.console_manager import (
     get_console,
     change_theme,
@@ -33,8 +32,114 @@ from ..utils.gradient_utils import (
     create_subtle_gradient_text,
     get_gradient_style,
 )
+from . import python_mpv as mpv
+from .python_mpv import ShutdownError
+from .lyrics_handler import LyricsHandler
 
 logger = logging.getLogger(__name__)
+
+# Type aliases for better readability
+ThemeDict = Dict[str, Any]
+SongInfo = Tuple[str, str, str]  # song, artist, album
+PLAYERSETTINGS = Settings()
+KEYBOARDSHORTCUTS = KeyboardShortcuts()
+
+
+class PlaybackState(Enum):
+    """Enum for player playback states."""
+
+    PLAYING = auto()
+    PAUSED = auto()
+    STOPPED = auto()
+
+
+class FeedbackType(Enum):
+    """Enum for user feedback categories."""
+
+    PLAYBACK = auto()  # Play/pause/stop actions
+    NAVIGATION = auto()  # Next/previous/jump tracks
+    VOLUME = auto()  # Volume changes
+    SEEKING = auto()  # Forward/backward seeking
+    THEME = auto()  # Theme changes
+    LYRICS = auto()  # Lyrics toggle
+    SYSTEM = auto()  # System messages
+    ERROR = auto()  # Error messages
+
+
+class LyricsStatus(Enum):
+    """Enum for lyrics availability states."""
+
+    LOADING = auto()  # Lyrics are being fetched
+    AVAILABLE = auto()  # Lyrics are available and loaded
+    NOT_FOUND = auto()  # No lyrics found for the song
+    DISABLED = auto()  # Lyrics feature is disabled
+
+
+class HistoryCategory(Enum):
+    """Enum for categorizing songs based on play count."""
+
+    NEW = 1  # First play
+    OCCASIONAL = 2  # Played 2-5 times
+    REGULAR = 3  # Played 6-10 times
+    FAVORITE = 4  # Played more than 10 times
+
+
+@dataclass
+class Metadata:
+    """Data class for song metadata."""
+
+    title: str = "Unknown"
+    artist: str = "Unknown"
+    album: str = "Unknown"
+    duration: float = 0
+
+
+@dataclass
+class PlayerState:
+    """Data class for player state information."""
+
+    show_lyrics: bool = True
+    playback_state: PlaybackState = PlaybackState.STOPPED
+    stop_requested: bool = False
+    elapsed_time: float = 0
+    current_refresh_rate: float = 0.25
+    current_theme: Optional[str] = None
+    metadata_ready: bool = False
+    current_playlist_pos: int = 0
+    queue_start_index: int = 0
+    jump_mode: bool = False
+    jump_number: str = ""
+
+
+@dataclass
+class UserFeedback:
+    """Data class for user action feedback."""
+
+    action: str
+    description: str
+    feedback_type: FeedbackType
+    timestamp: float
+    timeout: float = 1.5
+
+
+@dataclass
+class HistoryData:
+    """Data class for song history information."""
+
+    play_count: int = 1
+    category: HistoryCategory = HistoryCategory.NEW
+    last_played: Optional[int] = None
+    loaded: bool = False
+
+
+@dataclass
+class LyricsState:
+    """Data class for lyrics state."""
+
+    status: LyricsStatus = LyricsStatus.LOADING
+    future: Optional[Future] = None
+    cached_lyrics: Optional[List[str]] = None
+    no_lyrics_message: Optional[str] = None
 
 
 class MPVPlayer(mpv.MPV):
@@ -58,7 +163,7 @@ class MPVPlayer(mpv.MPV):
         self,
         ytdl: bool = True,
         ytdl_format: str = "bestaudio",
-        volume: int = 100,
+        volume: int = PLAYERSETTINGS.default_volume,
         loglevel: str = "warn",
     ) -> None:
         """
@@ -85,57 +190,45 @@ class MPVPlayer(mpv.MPV):
         )
 
         # Set up core components
-        self.console = get_console()  # Use our console manager
+        self.console = get_console()
         self.lyrics_handler = LyricsHandler()
         self._thread_pool = ThreadPoolExecutor(max_workers=2)
-        self.history_manager = RecentlyPlayedManager()  # Add history manager
+        self.history_manager = RecentlyPlayedManager()
 
-        # UI state
-        self._show_lyrics = False
-        self._is_playing = False
-        self._stop_requested = False
-        self._elapsed_time: float = 0
-        self._current_refresh_rate: float = 0.25
-        self._current_theme: str = None  # Track current theme
+        # Initialize state using dataclasses
+        self._init_state_properties(volume)
+        self._configure_mpv(loglevel)
+        self._setup_property_observers()
+        self._setup_key_bindings()
+
+    def _init_state_properties(self, volume: int) -> None:
+        """Initialize all state properties with default values using dataclasses."""
+        # Initialize dataclasses for state management
+        self._state = PlayerState(
+            show_lyrics=True if PLAYERSETTINGS.display_lyrics == "yes" else False
+        )
+        self._metadata = Metadata()
+        self._history = HistoryData()
+        self._lyrics = LyricsState(
+            status=LyricsStatus.DISABLED
+            if PLAYERSETTINGS.display_lyrics != "yes"
+            else LyricsStatus.LOADING
+        )
+        self._user_feedback: Optional[UserFeedback] = None
 
         # Playlist state
-        self._current_playlist_pos: int = 0
         self._current_song_names: List[str] = []
-        self._queue_start_index: int = 0
-        self._metadata_ready = False
-        self._lyrics_future = None
-        self._cached_lyrics = None
-
-        # Action feedback
-        self._user_action_feedback: Optional[Dict[str, Any]] = None
-        self._user_feedback_timeout: float = 0
-
-        # Metadata
-        self._metadata: Dict[str, Any] = {
-            "title": "Unknown",
-            "artist": "Unknown",
-            "album": "Unknown",
-            "duration": 0,
-        }
 
         # Set initial volume
         self.volume = volume
 
-        # Configure MPV settings
+    def _configure_mpv(self, loglevel: str) -> None:
+        """Configure MPV settings for optimal playback."""
         self._set_property("msg-level", f"all={loglevel}")
         self._set_property("audio-buffer", 2.0)  # Increase buffer size
         self._set_property("cache", "yes")  # Enable cache
 
-        # Set up property observers and key bindings
-        self._setup_property_observers()
-        self._setup_key_bindings()
-
-        # History integration
-        self._play_count = 1
-        self._last_played = None
-        self._history_loaded = False
-
-    # --- Property Observers ---
+    # ? --- Property Observers ---
 
     def _setup_property_observers(self) -> None:
         """Set up observers for MPV player properties."""
@@ -147,7 +240,7 @@ class MPVPlayer(mpv.MPV):
         # Track playback position
         @self.property_observer("time-pos")
         def _track_time_pos(_name: str, value: Optional[float]) -> None:
-            self._elapsed_time = value if value is not None else 0
+            self._state.elapsed_time = value if value is not None else 0
 
     def _on_pause_change(self, _name: str, value: Optional[bool]) -> None:
         """
@@ -160,16 +253,23 @@ class MPVPlayer(mpv.MPV):
         if value is None:
             return
 
-        status = "Paused" if value else "Playing"
-        logger.debug(f"Playback state changed to {status}")
+        try:
+            status = "Paused" if value else "Playing"
+            logger.debug(f"Playback state changed to {status}")
 
-        # Adjust refresh rate based on playback state
-        self._current_refresh_rate = 1.0 if value else 0.25
+            # Update playback state enum
+            self._state.playback_state = (
+                PlaybackState.PAUSED if value else PlaybackState.PLAYING
+            )
+            self._state.current_refresh_rate = 1.0 if value else 0.25
 
-        # Show user feedback
-        self._show_user_feedback(
-            "Pause" if value else "Play", f"Playback {status.lower()}"
-        )
+            self._show_user_feedback(
+                "Pause" if value else "Play",
+                f"Playback {status.lower()}",
+                FeedbackType.PLAYBACK,
+            )
+        except Exception as e:
+            logger.error(f"Error in pause change handler: {e}")
 
     def _on_duration_change(self, _name: str, value: Optional[float]) -> None:
         """
@@ -180,7 +280,7 @@ class MPVPlayer(mpv.MPV):
             value: New duration in seconds
         """
         if value and value > 0:
-            self._metadata["duration"] = value
+            self._metadata.duration = value
             logger.debug(f"Duration updated to {value:.2f} seconds")
 
             # When duration changes, we probably have metadata
@@ -201,8 +301,8 @@ class MPVPlayer(mpv.MPV):
 
         # Update simple metadata fields
         for field in ["title", "artist", "album"]:
-            if field in value and value[field] != self._metadata.get(field):
-                self._metadata[field] = value[field]
+            if field in value and value[field] != getattr(self._metadata, field):
+                setattr(self._metadata, field, value[field])
                 changed = True
 
         # Special handling for streaming metadata
@@ -210,11 +310,11 @@ class MPVPlayer(mpv.MPV):
             icy_title = value["icy-title"]
             if " - " in icy_title:
                 artist, title = icy_title.split(" - ", 1)
-                self._metadata["artist"] = artist
-                self._metadata["title"] = title
+                self._metadata.artist = artist
+                self._metadata.title = title
                 changed = True
             else:
-                self._metadata["title"] = icy_title
+                self._metadata.title = icy_title
                 changed = True
 
         if changed:
@@ -232,93 +332,106 @@ class MPVPlayer(mpv.MPV):
         if value is None or not (0 <= value < len(self._current_song_names)):
             return
 
-        old_pos = self._current_playlist_pos
-        self._current_playlist_pos = value
+        old_pos = self._state.current_playlist_pos
+        self._state.current_playlist_pos = value
         logger.debug(f"Playlist position changed from {old_pos} to {value}")
 
         # Reset metadata and lyrics for new song
-        self._metadata_ready = False
-        self._cached_lyrics = None
-        self._history_loaded = False  # Reset history data
+        self._state.metadata_ready = False
+        self._lyrics.cached_lyrics = None
+        self._lyrics.no_lyrics_message = (
+            None  # Reset the no lyrics message for the new song
+        )
+        self._lyrics.status = LyricsStatus.LOADING
+        self._history.loaded = False  # Reset history data
 
         # Cancel any pending lyrics fetch
-        if self._lyrics_future and not self._lyrics_future.done():
-            self._lyrics_future.cancel()
+        if self._lyrics.future and not self._lyrics.future.done():
+            self._lyrics.future.cancel()
 
         # Show user feedback for track change
         song_name = self._current_song_names[value]
-        self._show_user_feedback("Track Change", f"Playing: {song_name}")
+        self._show_user_feedback(
+            "Track Change", f"Playing: {song_name}", FeedbackType.NAVIGATION
+        )
 
         # Log when transitioning between history and searched songs
-        if value == self._queue_start_index and self._queue_start_index > 0:
+        if value == self._state.queue_start_index and self._state.queue_start_index > 0:
             logger.info("Now playing first searched song (after history)")
-        elif value == 0 and self._queue_start_index > 0:
+        elif value == 0 and self._state.queue_start_index > 0:
             logger.info("Now playing from history songs")
 
-    # --- Key Bindings ---
+    # & --- Key Bindings ---
 
     def _setup_key_bindings(self) -> None:
         """Set up keyboard controls for the player."""
 
         # Quit handler
-        @self.on_key_press("q")
+        @self.on_key_press(KEYBOARDSHORTCUTS.quit_playback)
         def _quit() -> None:
-            self._show_user_feedback("Quit", "Exiting player")
-            self._stop_requested = True
+            self._show_user_feedback("Quit", "Exiting player", FeedbackType.SYSTEM)
+            self._state.stop_requested = True
+            self._state.playback_state = PlaybackState.STOPPED
             self.quit()
 
         # Volume control
-        @self.on_key_press("UP")
+        @self.on_key_press(KEYBOARDSHORTCUTS.volume_up)
         def _volume_up() -> None:
             new_volume = min(130, self.volume + 5)
             self.volume = new_volume
-            self._show_user_feedback("Volume", f"Increased to {new_volume}%")
+            self._show_user_feedback(
+                "Volume", f"Increased to {new_volume}%", FeedbackType.VOLUME
+            )
 
-        @self.on_key_press("DOWN")
+        @self.on_key_press(KEYBOARDSHORTCUTS.volume_down)
         def _volume_down() -> None:
             new_volume = max(0, self.volume - 5)
             self.volume = new_volume
-            self._show_user_feedback("Volume", f"Decreased to {new_volume}%")
-
-        # Playlist navigation
-        @self.on_key_press("b")
-        def _prev_track() -> None:
-            self._show_user_feedback("Previous", "Playing previous track")
-            self.playlist_prev()
-
-        @self.on_key_press("n")
-        def _next_track() -> None:
-            self._show_user_feedback("Next", "Playing next track")
-            self.playlist_next()
+            self._show_user_feedback(
+                "Volume", f"Decreased to {new_volume}%", FeedbackType.VOLUME
+            )
 
         # Toggle lyrics display
-        @self.on_key_press("l")
+        @self.on_key_press(KEYBOARDSHORTCUTS.toggle_lyrics)
         def _toggle_lyrics() -> None:
-            self._show_lyrics = not self._show_lyrics
-            action = "Showing" if self._show_lyrics else "Hiding"
-            self._show_user_feedback("Lyrics", f"{action} lyrics display")
+            self._state.show_lyrics = not self._state.show_lyrics
+            action = "Showing" if self._state.show_lyrics else "Hiding"
+
+            # Update lyrics status based on visibility
+            if not self._state.show_lyrics:
+                self._lyrics.status = LyricsStatus.DISABLED
+            elif self._lyrics.cached_lyrics:
+                self._lyrics.status = LyricsStatus.AVAILABLE
+            else:
+                self._lyrics.status = LyricsStatus.LOADING
+
+            self._show_user_feedback(
+                "Lyrics", f"{action} lyrics display", FeedbackType.LYRICS
+            )
 
         # Seeking
-        @self.on_key_press("RIGHT")
+        @self.on_key_press(KEYBOARDSHORTCUTS.seek_forward)
         def _seek_forward() -> None:
             self.seek(10)
-            self._show_user_feedback("Seek", "Forward 10s")
+            self._show_user_feedback("Seek", "Forward 10s", FeedbackType.SEEKING)
 
-        @self.on_key_press("LEFT")
+        @self.on_key_press(KEYBOARDSHORTCUTS.seek_backward)
         def _seek_backward() -> None:
             self.seek(-10)
-            self._show_user_feedback("Seek", "Backward 10s")
+            self._show_user_feedback("Seek", "Backward 10s", FeedbackType.SEEKING)
 
         # Jump mode for playlist navigation
-        self._jump_mode = False
-        self._jump_number = ""
+        self._state.jump_mode = False
+        self._state.jump_number = ""
 
         # Single handler for all number keys
         def _handle_number_key(key: str) -> None:
-            self._jump_mode = True
-            self._jump_number += key
+            self._state.jump_mode = True
+            self._state.jump_number += key
             self._show_user_feedback(
-                "Jump Mode", f"Jump {self._jump_number} tracks, press n/b"
+                "Jump Mode",
+                f"Jump {self._state.jump_number} tracks, press {KEYBOARDSHORTCUTS.previous_track}/{KEYBOARDSHORTCUTS.next_track}",
+                FeedbackType.NAVIGATION,
             )
 
         # Register the number key handlers with proper argument handling
@@ -335,80 +448,100 @@ class MPVPlayer(mpv.MPV):
             )
 
         # Modified next and previous handlers to work with jump mode
-        @self.on_key_press("n")
+        @self.on_key_press(KEYBOARDSHORTCUTS.next_track)
         def _next_track() -> None:
-            if self._jump_mode:
+            if self._state.jump_mode:
                 try:
-                    jump_amount = int(self._jump_number) if self._jump_number else 1
+                    jump_amount = (
+                        int(self._state.jump_number) if self._state.jump_number else 1
+                    )
                     self._execute_playlist_jump(jump_amount)
-                    self._show_user_feedback("Jump", f"Forward {jump_amount} tracks")
+                    self._show_user_feedback(
+                        "Jump", f"Forward {jump_amount} tracks", FeedbackType.NAVIGATION
+                    )
                 except ValueError:
-                    self._show_user_feedback("Error", "Invalid jump number")
+                    self._show_user_feedback(
+                        "Error", "Invalid jump number", FeedbackType.ERROR
+                    )
                 finally:
-                    self._jump_mode = False
-                    self._jump_number = ""
+                    self._state.jump_mode = False
+                    self._state.jump_number = ""
             else:
-                self._show_user_feedback("Next", "Playing next track")
+                self._show_user_feedback(
+                    "Next", "Playing next track", FeedbackType.NAVIGATION
+                )
                 self.playlist_next()
 
-        @self.on_key_press("b")
+        @self.on_key_press(KEYBOARDSHORTCUTS.previous_track)
         def _prev_track() -> None:
-            if self._jump_mode:
+            if self._state.jump_mode:
                 try:
-                    jump_amount = int(self._jump_number) if self._jump_number else 1
+                    jump_amount = (
+                        int(self._state.jump_number) if self._state.jump_number else 1
+                    )
                     self._execute_playlist_jump(-jump_amount)
-                    self._show_user_feedback("Jump", f"Backward {jump_amount} tracks")
+                    self._show_user_feedback(
+                        "Jump",
+                        f"Backward {jump_amount} tracks",
+                        FeedbackType.NAVIGATION,
+                    )
                 except ValueError:
-                    self._show_user_feedback("Error", "Invalid jump number")
+                    self._show_user_feedback(
+                        "Error", "Invalid jump number", FeedbackType.ERROR
+                    )
                 finally:
-                    self._jump_mode = False
-                    self._jump_number = ""
+                    self._state.jump_mode = False
+                    self._state.jump_number = ""
             else:
-                self._show_user_feedback("Previous", "Playing previous track")
+                self._show_user_feedback(
+                    "Previous", "Playing previous track", FeedbackType.NAVIGATION
+                )
                 self.playlist_prev()
 
         # Add escape key to cancel jump mode
-        @self.on_key_press("ESC")
+        @self.on_key_press(KEYBOARDSHORTCUTS.stop_jump_mode)
         def _cancel_jump_mode() -> None:
-            if self._jump_mode:
-                self._jump_mode = False
-                self._jump_number = ""
-                self._show_user_feedback("Jump Mode", "Cancelled")
+            if self._state.jump_mode:
+                self._state.jump_mode = False
+                self._state.jump_number = ""
+                self._show_user_feedback(
+                    "Jump Mode", "Cancelled", FeedbackType.NAVIGATION
+                )
 
         # Theme cycling - updated to ensure theme name is properly tracked
-        @self.on_key_press("t")
+        @self.on_key_press(KEYBOARDSHORTCUTS.switch_themes)
         def _cycle_theme() -> None:
             available_themes = get_available_themes()
-            # Get current theme from console_manager
             current_theme = get_current_theme()
 
-            # Find the current theme index
             try:
                 current_index = available_themes.index(current_theme)
                 # Get the next theme (wrapping around)
                 next_index = (current_index + 1) % len(available_themes)
                 next_theme = available_themes[next_index]
 
-                # Change to the next theme
                 change_theme(next_theme)
-                self._current_theme = next_theme
+                self._state.current_theme = next_theme
 
                 # Force cache reset for any theme-dependent elements
-                self._cached_lyrics = None
+                self._lyrics.cached_lyrics = None
 
-                self._show_user_feedback("Theme", f"Changed to {next_theme}")
+                self._show_user_feedback(
+                    "Theme", f"Changed to {next_theme}", FeedbackType.THEME
+                )
             except ValueError:
                 # If the current theme isn't found in the list, start with first theme
                 next_theme = available_themes[0]
                 change_theme(next_theme)
-                self._current_theme = next_theme
+                self._state.current_theme = next_theme
 
-                # Force cache reset
-                self._cached_lyrics = None
+                self._lyrics.cached_lyrics = None
 
-                self._show_user_feedback("Theme", f"Changed to {next_theme}")
+                self._show_user_feedback(
+                    "Theme", f"Changed to {next_theme}", FeedbackType.THEME
+                )
 
-    # --- Main Player API ---
+    # * --- Main Player API ---
 
     def player(
         self,
@@ -416,7 +549,6 @@ class MPVPlayer(mpv.MPV):
         song_names: List[str],
         show_lyrics: bool = True,
         start_index: int = 0,
-        file_paths: Optional[List[str]] = None,
     ) -> int:
         """
         Main entry point for playing media with enhanced UI.
@@ -432,23 +564,23 @@ class MPVPlayer(mpv.MPV):
             Result code (0 for success)
         """
         # Initialize playback state
-        self._stop_requested = False
-        self._is_playing = True
-        self._show_lyrics = show_lyrics
+        self._state.stop_requested = False
+        self._state.playback_state = PlaybackState.PLAYING
+        self._state.show_lyrics = show_lyrics
+        if show_lyrics:
+            self._lyrics.status = LyricsStatus.LOADING
+        else:
+            self._lyrics.status = LyricsStatus.DISABLED
+
         self._current_song_names = song_names.copy()
-        self._queue_start_index = start_index
-        self._file_paths = file_paths or [""] * len(queue)
+        self._state.queue_start_index = start_index
 
         try:
             # Log playback information
             logger.info(
                 f"Playing queue with {len(queue)} songs, starting at {start_index}"
             )
-            local_files_count = sum(1 for path in self._file_paths if path)
-            if local_files_count > 0:
-                logger.info(f"Using {local_files_count} local files for playback")
 
-            # Set up queue and start playback
             self._initialize_player(queue, start_index)
 
             # Start display
@@ -486,19 +618,8 @@ class MPVPlayer(mpv.MPV):
             queue: List of URLs to play
             start_index: Index to start playback from
         """
-        # Add all items to the playlist, prioritizing local files over URLs
         for i, url in enumerate(queue):
-            # Check if we have a local file path for this song
-            local_path = ""
-            if hasattr(self, "_file_paths") and i < len(self._file_paths):
-                local_path = self._file_paths[i]
-
-            if local_path and os.path.exists(local_path):
-                # Use local file (directly, without youtube-dl)
-                logger.info(f"Using local file for playback: {local_path}")
-                self.playlist_append(local_path)
-            elif url and url.strip():  # Ensure URL is not empty
-                # Use URL (will be processed through youtube-dl)
+            if url and url.strip():  # Ensure URL is not empty
                 logger.info(f"Using URL for playback: {url}")
                 self.playlist_append(url)
             else:
@@ -509,7 +630,7 @@ class MPVPlayer(mpv.MPV):
 
         # Set the starting position
         logger.info(f"Starting playback at index {start_index}")
-        self._current_playlist_pos = start_index
+        self._state.current_playlist_pos = start_index
         if self.playlist_count > 0:
             self.playlist_play_index(start_index)
         else:
@@ -522,7 +643,7 @@ class MPVPlayer(mpv.MPV):
 
     def _stop_display(self) -> None:
         """Stop the display cleanly."""
-        self._stop_requested = True
+        self._state.stop_requested = True
 
     def _run_display(self, song_name: str) -> None:
         """
@@ -534,7 +655,7 @@ class MPVPlayer(mpv.MPV):
         try:
             # Define control key information
             controls_text = (
-                "[white][bold cyan]Space[/]:Pause · "
+                "[white][bold cyan]󱁐[/]:Pause · "
                 "[bold cyan]q[/]:Quit · "
                 "[bold cyan]b[/]:Prev · "
                 "[bold cyan]n[/]:Next · "
@@ -553,14 +674,18 @@ class MPVPlayer(mpv.MPV):
             with Live(
                 refresh_per_second=4, console=self.console, transient=True
             ) as live:
-                while not self._stop_requested and self._is_playing:
+                # Use playback_state enum instead of is_playing attribute
+                while (
+                    not self._state.stop_requested
+                    and self._state.playback_state != PlaybackState.STOPPED
+                ):
                     try:
                         # Current position and song info
                         current_song = self._get_current_song_name()
-                        elapsed = self._elapsed_time or 0
-                        duration = self._metadata.get("duration", 0)
-                        artist = self._metadata.get("artist", "Unknown")
-                        album = self._metadata.get("album", "Unknown")
+                        elapsed = self._state.elapsed_time or 0
+                        duration = self._metadata.duration
+                        artist = self._metadata.artist
+                        album = self._metadata.album
 
                         # Check if song changed
                         song_changed = current_song != last_song
@@ -573,11 +698,11 @@ class MPVPlayer(mpv.MPV):
 
                         # Check metadata readiness
                         if not metadata_ready and refresh_count > 2:
-                            metadata_ready = self._metadata_ready
+                            metadata_ready = self._state.metadata_ready
 
                         # Process lyrics if enabled
                         lyrics_section = ""
-                        if self._show_lyrics:
+                        if self._state.show_lyrics:
                             lyrics_section = self._get_lyrics_display(
                                 current_song,
                                 artist,
@@ -611,11 +736,11 @@ class MPVPlayer(mpv.MPV):
                         live.update(panel)
 
                         # Apply appropriate refresh rate
-                        time.sleep(self._current_refresh_rate)
+                        time.sleep(self._state.current_refresh_rate)
 
                     except ShutdownError:
                         # Handle mpv shutdown gracefully
-                        self._stop_requested = True
+                        self._state.stop_requested = True
                         break
                     except Exception as e:
                         # Log errors but continue
@@ -628,22 +753,20 @@ class MPVPlayer(mpv.MPV):
 
     def _check_metadata_complete(self) -> None:
         """Check if we have complete metadata and start lyrics lookup if needed."""
-        # Check if we have meaningful metadata
-        title = self._metadata.get("title", "Unknown")
-        artist = self._metadata.get("artist", "Unknown")
-        duration = self._metadata.get("duration", 0)
+        title = self._metadata.title
+        duration = self._metadata.duration
+        artist = self._metadata.artist
 
         # Consider metadata ready if we have at least title and duration
-        metadata_complete = title != "Unknown" and duration > 0
+        metadata_complete = title != "Unknown" and artist != "Unknown" and duration > 0
 
-        # If metadata becomes complete and wasn't before, trigger lyrics lookup
-        if metadata_complete and not self._metadata_ready:
-            self._metadata_ready = True
+        if metadata_complete and not self._state.metadata_ready:
+            self._state.metadata_ready = True
             song = title
-            album = self._metadata.get("album", "Unknown")
 
-            # Trigger async lyrics lookup if lyrics are enabled
-            if self._show_lyrics and self.lyrics_handler.has_lyrics_support():
+            album = self._metadata.album
+
+            if self._state.show_lyrics and self.lyrics_handler.has_lyrics_support():
                 logger.debug(f"Starting async lyrics lookup for '{song}'")
                 self._prefetch_lyrics(song, artist, album, int(duration))
 
@@ -660,7 +783,8 @@ class MPVPlayer(mpv.MPV):
             duration: Song duration in seconds
         """
         # Skip if we already have cached lyrics
-        if self._cached_lyrics:
+        if self._lyrics.cached_lyrics:
+            self._lyrics.status = LyricsStatus.AVAILABLE
             return
 
         # Define the fetch function
@@ -670,6 +794,7 @@ class MPVPlayer(mpv.MPV):
                 cached = self.lyrics_handler.get_from_cache(song, artist, album)
                 if cached:
                     logger.debug(f"Found lyrics in cache for '{song}'")
+                    self._lyrics.status = LyricsStatus.AVAILABLE
                     return cached
 
                 # If not in cache, fetch from service
@@ -678,16 +803,19 @@ class MPVPlayer(mpv.MPV):
                     logger.info(f"Successfully fetched lyrics for '{song}'")
                     # Store in cache
                     self.lyrics_handler.store_in_cache(lyrics, song, artist, album)
+                    self._lyrics.status = LyricsStatus.AVAILABLE
                     return lyrics
                 else:
                     logger.info(f"No lyrics found for '{song}'")
+                    self._lyrics.status = LyricsStatus.NOT_FOUND
                     return []
             except Exception as e:
                 logger.error(f"Error fetching lyrics: {e}")
+                self._lyrics.status = LyricsStatus.NOT_FOUND
                 return []
 
         # Launch the async fetch
-        self._lyrics_future = self._thread_pool.submit(fetch_lyrics)
+        self._lyrics.future = self._thread_pool.submit(fetch_lyrics)
 
     def _get_lyrics_display(
         self,
@@ -701,64 +829,109 @@ class MPVPlayer(mpv.MPV):
         """
         Get lyrics display content for the current song and playback position.
 
-        Args:
-            song: Song name
-            artist: Artist name
-            album: Album name
-            elapsed: Current playback position in seconds
-            duration: Song duration in seconds
-            metadata_ready: Whether metadata is ready for lyrics fetch
-
-        Returns:
-            Formatted lyrics section as a string
+        This method handles different lyrics states:
+        1. Lyrics feature not available
+        2. Waiting for metadata
+        3. Showing cached lyrics
+        4. Showing freshly fetched lyrics
+        5. Showing no lyrics message
         """
-        # Header for lyrics section
-        header = "\n\n[bold magenta]─── Lyrics ───[/bold magenta]\n"
+        # Get theme-consistent header
+        header = self._get_lyrics_header()
 
-        # If lyrics feature is not available
-        if not self.lyrics_handler.has_lyrics_support():
-            return (
-                f"{header}[italic yellow]Lyrics feature not available[/italic yellow]"
-            )
+        # Check prerequisites
+        if (
+            self._lyrics.status == LyricsStatus.DISABLED
+            or not self.lyrics_handler.has_lyrics_support()
+        ):
+            return f"{header}{self._format_feedback_message('Lyrics feature not available')}"
 
-        # If metadata is not ready yet
         if not metadata_ready:
-            return (
-                f"{header}[italic yellow]Waiting for song metadata...[/italic yellow]"
-            )
+            return f"{header}{self._format_feedback_message('Waiting for song metadata...')}"
 
-        # Check if we have cached lyrics from a previous fetch
-        if self._cached_lyrics:
-            # Format and display the lyrics with gradient effect
-            lyrics_content = self.lyrics_handler.create_focused_lyrics_view(
-                self._cached_lyrics, elapsed, song, artist, album
-            )
-            return f"{header}{lyrics_content}"
+        # Display logic for different scenarios
+        if self._lyrics.status == LyricsStatus.AVAILABLE and self._lyrics.cached_lyrics:
+            return f"{header}{self._format_cached_lyrics(song, artist, album, elapsed)}"
 
-        # Check if we have results from the async fetch
-        if self._lyrics_future and self._lyrics_future.done():
-            try:
-                lyrics = self._lyrics_future.result()
-                if lyrics:
-                    self._cached_lyrics = lyrics
-                    lyrics_content = self.lyrics_handler.create_focused_lyrics_view(
-                        lyrics, elapsed, song, artist, album
-                    )
-                    return f"{header}{lyrics_content}"
-                else:
-                    return f"{header}[italic yellow]No lyrics available for this song[/italic yellow]"
-            except Exception as e:
-                logger.error(f"Error retrieving lyrics: {e}")
-                return f"{header}[italic red]Error: {str(e)}[/italic red]"
+        if self._lyrics.future and self._lyrics.future.done():
+            return f"{header}{self._handle_completed_lyrics_fetch(song, artist, album, elapsed)}"
 
-        # Async fetch is still in progress
-        if self._lyrics_future and not self._lyrics_future.done():
-            return f"{header}[italic]Fetching lyrics...[/italic]"
+        if (
+            self._lyrics.status == LyricsStatus.LOADING
+            and self._lyrics.future
+            and not self._lyrics.future.done()
+        ):
+            return f"{header}{self.lyrics_handler.get_waiting_message()}"
 
         # No fetch in progress and no cached lyrics
-        return (
-            f"{header}[italic yellow]No lyrics available for this song[/italic yellow]"
+        if (
+            self._lyrics.status == LyricsStatus.NOT_FOUND
+            and self._lyrics.no_lyrics_message is None
+        ):
+            self._lyrics.no_lyrics_message = self.lyrics_handler.get_no_lyrics_message()
+
+        return f"{header}{self._lyrics.no_lyrics_message or 'No lyrics available'}"
+
+    def _get_lyrics_header(self) -> str:
+        """Get a theme-consistent lyrics section header."""
+        theme_style = get_gradient_style()
+        header_color = theme_style.get(
+            "primary", theme_style.get("title", ["magenta"])[0]
         )
+        return f"\n\n[bold {header_color}]─── Lyrics ───[/bold {header_color}]\n"
+
+    def _format_feedback_message(self, message: str) -> str:
+        """Format a feedback message with theme-consistent styling."""
+        feedback_text = apply_gradient_to_text(message, "feedback")
+        return f"[italic]{feedback_text}[/italic]"
+
+    def _format_cached_lyrics(
+        self, song: str, artist: str, album: str, elapsed: float
+    ) -> str:
+        """Format cached lyrics for display."""
+        # Safety check
+        if not self._lyrics.cached_lyrics:
+            return self.lyrics_handler.get_no_lyrics_message()
+
+        # Determine lyrics type and display accordingly
+        is_synced = self.lyrics_handler._is_synced_lyrics(self._lyrics.cached_lyrics)
+        # is_enhanced = self.lyrics_handler._is_enhanced_lrc(self._lyrics.cached_lyrics)
+
+        if is_synced:
+            return self.lyrics_handler.create_focused_lyrics_view(
+                self._lyrics.cached_lyrics, elapsed, song, artist, album
+            )
+        else:
+            # For plain lyrics, use the gradient effect
+            plain_lyrics = self.lyrics_handler._get_plain_lyrics(
+                self._lyrics.cached_lyrics
+            )
+            return self.lyrics_handler._create_simple_gradient_view(plain_lyrics[:15])
+
+    def _handle_completed_lyrics_fetch(
+        self, song: str, artist: str, album: str, elapsed: float
+    ) -> str:
+        """Handle completed lyrics fetch operation."""
+        try:
+            lyrics = self._lyrics.future.result()
+
+            if lyrics:
+                self._lyrics.cached_lyrics = lyrics
+                self._lyrics.status = LyricsStatus.AVAILABLE
+                return self._format_cached_lyrics(song, artist, album, elapsed)
+            else:
+                # Get a stable "no lyrics" message
+                self._lyrics.status = LyricsStatus.NOT_FOUND
+                if self._lyrics.no_lyrics_message is None:
+                    self._lyrics.no_lyrics_message = (
+                        self.lyrics_handler.get_no_lyrics_message()
+                    )
+                return self._lyrics.no_lyrics_message
+
+        except Exception as e:
+            logger.error(f"Error retrieving lyrics: {e}")
+            self._lyrics.status = LyricsStatus.NOT_FOUND
+            return self.lyrics_handler.get_error_message(str(e))
 
     def _create_display_content(
         self,
@@ -784,7 +957,7 @@ class MPVPlayer(mpv.MPV):
             Rich Group containing the formatted display content
         """
         # Load history data if needed
-        if not self._history_loaded:
+        if not self._history.loaded:
             self._load_history_data(song)
 
         # Format song information with history
@@ -815,7 +988,7 @@ class MPVPlayer(mpv.MPV):
             elements.append(user_feedback)
 
         # Add lyrics if enabled
-        if self._show_lyrics and lyrics_section:
+        if self._state.show_lyrics and lyrics_section:
             elements.append(lyrics_section)
 
         return Group(*elements)
@@ -837,21 +1010,35 @@ class MPVPlayer(mpv.MPV):
             if matching_songs:
                 # If found in history, get play count and last played time
                 song_data = matching_songs[0]
-                self._play_count = song_data.get("play_count", 1)
-                self._last_played = song_data.get("played_at", 0)
+                self._history.play_count = song_data.get("play_count", 1)
+                self._history.last_played = song_data.get("played_at", 0)
+
+                # Set the history category based on play count
+                if self._history.play_count > 10:
+                    self._history.category = HistoryCategory.FAVORITE
+                elif self._history.play_count > 5:
+                    self._history.category = HistoryCategory.REGULAR
+                elif self._history.play_count > 1:
+                    self._history.category = HistoryCategory.OCCASIONAL
+                else:
+                    self._history.category = HistoryCategory.NEW
             else:
                 # If not found in history, reset values
-                self._play_count = 0
-                self._last_played = None
+                self._history.play_count = 0
+                self._history.last_played = None
+                self._history.category = HistoryCategory.NEW
 
-            self._history_loaded = True
-            logger.debug(f"Loaded history for '{song_name}': count={self._play_count}")
+            self._history.loaded = True
+            logger.debug(
+                f"Loaded history for '{song_name}': count={self._history.play_count}, category={self._history.category.name}"
+            )
 
         except Exception as e:
             logger.error(f"Error loading history data: {e}")
-            self._play_count = 0
-            self._last_played = None
-            self._history_loaded = (
+            self._history.play_count = 0
+            self._history.last_played = None
+            self._history.category = HistoryCategory.NEW
+            self._history.loaded = (
                 True  # Still mark as loaded to prevent repeated attempts
             )
 
@@ -865,26 +1052,28 @@ class MPVPlayer(mpv.MPV):
         Returns:
             Formatted history text or None if not available
         """
-        if not self._history_loaded or self._play_count <= 1:
+        if not self._history.loaded or self._history.play_count <= 1:
             return None
 
         # Format the play count with appropriate styling
-        if self._play_count > 10:
+        if self._history.play_count > 10:
+            count_text = f"[bold gold1]You've played this {self._history.play_count} times![/bold gold1]"
+        elif self._history.play_count > 5:
             count_text = (
-                f"[bold gold1]You've played this {self._play_count} times![/bold gold1]"
+                f"[yellow]You've played this {self._history.play_count} times[/yellow]"
             )
-        elif self._play_count > 5:
-            count_text = f"[yellow]You've played this {self._play_count} times[/yellow]"
-        elif self._play_count > 1:
-            count_text = f"[dim]You've played this {self._play_count} times[/dim]"
+        elif self._history.play_count > 1:
+            count_text = (
+                f"[dim]You've played this {self._history.play_count} times[/dim]"
+            )
         else:
             return None
 
         # Format the last played info if available
         last_played_text = ""
-        if self._last_played:
+        if self._history.last_played:
             current_time = int(time.time())
-            time_diff = current_time - self._last_played
+            time_diff = current_time - self._history.last_played
 
             if time_diff < 3600:  # Less than an hour
                 minutes = time_diff // 60
@@ -905,7 +1094,11 @@ class MPVPlayer(mpv.MPV):
             return f"\n{count_text}"
 
     def _show_user_feedback(
-        self, action: str, description: str, timeout: float = 1.5
+        self,
+        action: str,
+        description: str,
+        feedback_type: FeedbackType,
+        timeout: float = 1.5,
     ) -> None:
         """
         Show user feedback for an action in the UI.
@@ -913,14 +1106,21 @@ class MPVPlayer(mpv.MPV):
         Args:
             action: Short name of the action
             description: Longer description of what happened
+            feedback_type: Feedback type category
             timeout: How long to show the feedback (seconds)
         """
-        self._user_action_feedback = {
-            "action": action,
-            "description": description,
-            "timestamp": time.time(),
-        }
-        self._user_feedback_timeout = timeout
+        should_show_feedback = (
+            True if PLAYERSETTINGS.user_feedback_visible == "yes" else False
+        )
+
+        if should_show_feedback:
+            self._user_feedback = UserFeedback(
+                action=action,
+                description=description,
+                feedback_type=feedback_type,
+                timestamp=time.time(),
+                timeout=timeout,
+            )
 
     def _get_user_feedback_text(self) -> Optional[str]:
         """
@@ -929,26 +1129,39 @@ class MPVPlayer(mpv.MPV):
         Returns:
             Formatted feedback text or None if no feedback to show
         """
-        if not self._user_action_feedback:
+        if not self._user_feedback:
             return None
 
         # Check if feedback has expired
-        elapsed = time.time() - self._user_action_feedback["timestamp"]
-        if elapsed > self._user_feedback_timeout:
-            self._user_action_feedback = None
+        elapsed = time.time() - self._user_feedback.timestamp
+        if elapsed > self._user_feedback.timeout:
+            self._user_feedback = None
             return None
 
         # Format the feedback
-        action = self._user_action_feedback["action"]
-        description = self._user_action_feedback["description"]
-        return f"\n[bold cyan]► {action}:[/bold cyan] [white]{description}[/white]"
+        action = self._user_feedback.action
+        description = self._user_feedback.description
+        feedback_type = self._user_feedback.feedback_type
+
+        # Apply gradients based on the current theme and feedback type
+        # Choose different gradient types based on feedback category
+        gradient_type = "feedback"
+        if feedback_type == FeedbackType.ERROR:
+            gradient_type = "error"
+        elif feedback_type == FeedbackType.SYSTEM:
+            gradient_type = "system"
+
+        styled_action = apply_gradient_to_text(action, gradient_type, bold=True)
+        styled_description = create_subtle_gradient_text(description, gradient_type)
+
+        return f"\n► {styled_action}: {styled_description}"
 
     # --- Utility Methods ---
 
     def _get_current_song_name(self) -> str:
         """Get the name of the currently playing song."""
-        if 0 <= self._current_playlist_pos < len(self._current_song_names):
-            return self._current_song_names[self._current_playlist_pos]
+        if 0 <= self._state.current_playlist_pos < len(self._current_song_names):
+            return self._current_song_names[self._state.current_playlist_pos]
         return "Unknown"
 
     def _get_song_source(self) -> str:
@@ -957,17 +1170,10 @@ class MPVPlayer(mpv.MPV):
 
         # Check if song is from history
         if (
-            self._current_playlist_pos < self._queue_start_index
-            and self._queue_start_index > 0
+            self._state.current_playlist_pos < self._state.queue_start_index
+            and self._state.queue_start_index > 0
         ):
             source_text = " [dim](From History)[/dim]"
-
-        # Check if song is from local file
-        if hasattr(self, "_file_paths") and 0 <= self._current_playlist_pos < len(
-            self._file_paths
-        ):
-            if self._file_paths[self._current_playlist_pos]:
-                source_text += " [green dim](Local File)[/green dim]"
 
         return source_text
 
@@ -990,7 +1196,7 @@ class MPVPlayer(mpv.MPV):
             info_text += f" [dim]·[/] [bold magenta]Album:[/] {album_text}"
 
         # Add position information
-        position_info = f"[dim]Song {self._current_playlist_pos + 1} of {len(self._current_song_names)}[/dim]"
+        position_info = f"[dim]Song {self._state.current_playlist_pos + 1} of {len(self._current_song_names)}[/dim]"
         info_text += f"\n{position_info}"
 
         return info_text
@@ -1005,30 +1211,34 @@ class MPVPlayer(mpv.MPV):
         Returns:
             Formatted history text or None if not available
         """
-        if not self._history_loaded or self._play_count <= 1:
+        if not self._history.loaded or self._history.play_count <= 1:
             return None
 
         # Format the play count with appropriate styling and gradients
         style = get_gradient_style()
 
-        if self._play_count > 10:
+        if self._history.category == HistoryCategory.FAVORITE:
             count_text = apply_gradient_to_text(
-                f"You've played this {self._play_count} times!", "history", bold=True
+                f"You've played this {self._history.play_count} times!",
+                "history",
+                bold=True,
             )
-        elif self._play_count > 5:
+        elif self._history.category == HistoryCategory.REGULAR:
             count_text = apply_gradient_to_text(
-                f"You've played this {self._play_count} times", "history"
+                f"You've played this {self._history.play_count} times", "history"
             )
-        elif self._play_count > 1:
-            count_text = f"[dim]You've played this {self._play_count} times[/dim]"
+        elif self._history.category == HistoryCategory.OCCASIONAL:
+            count_text = (
+                f"[dim]You've played this {self._history.play_count} times[/dim]"
+            )
         else:
             return None
 
         # Format the last played info if available
         last_played_text = ""
-        if self._last_played:
+        if self._history.last_played:
             current_time = int(time.time())
-            time_diff = current_time - self._last_played
+            time_diff = current_time - self._history.last_played
 
             if time_diff < 3600:  # Less than an hour
                 minutes = time_diff // 60
@@ -1059,12 +1269,17 @@ class MPVPlayer(mpv.MPV):
             description: Longer description of what happened
             timeout: How long to show the feedback (seconds)
         """
-        self._user_action_feedback = {
-            "action": action,
-            "description": description,
-            "timestamp": time.time(),
-        }
-        self._user_feedback_timeout = timeout
+        should_show_feedback = (
+            True if PLAYERSETTINGS.user_feedback_visible == "yes" else False
+        )
+
+        if should_show_feedback:
+            self._user_feedback = UserFeedback(
+                action=action,
+                description=description,
+                timestamp=time.time(),
+                timeout=timeout,
+            )
 
     def _get_user_feedback_text(self) -> Optional[str]:
         """
@@ -1073,18 +1288,18 @@ class MPVPlayer(mpv.MPV):
         Returns:
             Formatted feedback text or None if no feedback to show
         """
-        if not self._user_action_feedback:
+        if not self._user_feedback:
             return None
 
         # Check if feedback has expired
-        elapsed = time.time() - self._user_action_feedback["timestamp"]
-        if elapsed > self._user_feedback_timeout:
-            self._user_action_feedback = None
+        elapsed = time.time() - self._user_feedback.timestamp
+        if elapsed > self._user_feedback.timeout:
+            self._user_feedback = None
             return None
 
         # Format the feedback with gradients
-        action = self._user_action_feedback["action"]
-        description = self._user_action_feedback["description"]
+        action = self._user_feedback.action
+        description = self._user_feedback.description
 
         # Apply gradients based on the current theme
         styled_action = apply_gradient_to_text(action, "feedback", bold=True)
@@ -1100,10 +1315,31 @@ class MPVPlayer(mpv.MPV):
             Formatted status text
         """
         try:
-            status = "Paused" if self.pause else "Playing"
-            vol = self.volume
+            # Use our safe accessor to get pause state
+            is_paused = self._is_paused()
+
+            # Convert PlaybackState enum to string
+            if self._state.playback_state == PlaybackState.PAUSED or is_paused:
+                status = "Paused"
+                self._state.playback_state = (
+                    PlaybackState.PAUSED
+                )  # Ensure enum is in sync
+            elif self._state.playback_state == PlaybackState.PLAYING and not is_paused:
+                status = "Playing"
+            else:
+                status = "Stopped"
+
+            # Get volume safely to avoid property access errors
+            try:
+                vol = self.volume
+            except Exception:
+                vol = 0
+                logger.error("Could not access volume property")
+
             theme_info = (
-                f" · Theme: {self._current_theme}" if self._current_theme else ""
+                f" · Theme: {self._state.current_theme}"
+                if self._state.current_theme
+                else ""
             )
 
             # Apply subtle gradient to the status text
@@ -1112,10 +1348,22 @@ class MPVPlayer(mpv.MPV):
             )
             return f"[dim]{status_text}[/dim]"
         except ShutdownError:
-            self._stop_requested = True
+            self._state.stop_requested = True
+            self._state.playback_state = PlaybackState.STOPPED
             return "[dim]Status: Stopped[/dim]"
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error getting status text: {e}")
             return "[dim]Status: Unknown[/dim]"
+
+    # Add a method to safely check if MPV is paused
+    def _is_paused(self) -> bool:
+        """Safely check if the player is in paused state."""
+        try:
+            return self.pause
+        except Exception as e:
+            # If we can't access the pause property, use our state
+            logger.debug(f"Could not access pause property: {e}")
+            return self._state.playback_state == PlaybackState.PAUSED
 
     def _create_progress_bar(self, elapsed: float, duration: float) -> Progress:
         """
@@ -1142,12 +1390,22 @@ class MPVPlayer(mpv.MPV):
             TextColumn("[bold cyan]{task.fields[time]} / {task.fields[duration]}"),
         )
 
-        # Get playback status text
+        # Get playback status text - Fix property access error
         try:
-            play_status = "[red] PAUSED[/red]" if self.pause else " PLAYING"
+            # Use self._state.playback_state instead of directly accessing self.pause
+            # which can trigger property access errors
+            play_status = (
+                "[red] PAUSED[/red]"
+                if self._state.playback_state == PlaybackState.PAUSED
+                else " PLAYING"
+            )
         except ShutdownError:
             play_status = " STOPPED"
-            self._stop_requested = True
+            self._state.stop_requested = True
+            self._state.playback_state = PlaybackState.STOPPED
+        except Exception as e:
+            logger.error(f"Error getting playback status: {e}")
+            play_status = " UNKNOWN"
 
         # Add task to progress
         progress.add_task(
@@ -1181,13 +1439,19 @@ class MPVPlayer(mpv.MPV):
         """
         try:
             return {
-                "is_playing": not self.pause,
+                "is_playing": self._state.playback_state == PlaybackState.PLAYING,
                 "position": self.time_pos or 0,
                 "duration": self.duration or 0,
                 "volume": self.volume,
-                "metadata": self._metadata.copy(),
-                "playlist_position": self._current_playlist_pos,
+                "metadata": {
+                    "title": self._metadata.title,
+                    "artist": self._metadata.artist,
+                    "album": self._metadata.album,
+                    "duration": self._metadata.duration,
+                },
+                "playlist_position": self._state.current_playlist_pos,
                 "playlist_count": len(self._current_song_names),
+                "lyrics_status": self._lyrics.status.name,
             }
         except ShutdownError:
             return {
@@ -1198,6 +1462,7 @@ class MPVPlayer(mpv.MPV):
                 "metadata": {},
                 "playlist_position": 0,
                 "playlist_count": 0,
+                "lyrics_status": LyricsStatus.DISABLED.name,
             }
 
     def set_volume(self, volume: int) -> None:
@@ -1209,6 +1474,48 @@ class MPVPlayer(mpv.MPV):
         """
         self.volume = max(0, min(130, volume))
         logger.debug(f"Volume set to {self.volume}")
+
+    def _execute_playlist_jump(self, jump_amount: int) -> None:
+        """
+        Jump forward or backward in the playlist by the specified number of tracks.
+
+        Args:
+            jump_amount: Number of tracks to jump (positive for forward, negative for backward)
+        """
+        try:
+            # Calculate the new position
+            current_pos = self._state.current_playlist_pos
+            new_pos = current_pos + jump_amount
+
+            # Ensure the new position is within valid bounds
+            playlist_length = len(self._current_song_names)
+            if playlist_length <= 0:
+                return
+
+            # Handle wraparound if enabled in settings
+            enable_wraparound = (
+                getattr(PLAYERSETTINGS, "playlist_wraparound", "yes") == "yes"
+            )
+            if enable_wraparound:
+                # Wrap around if we go beyond the ends of the playlist
+                new_pos = new_pos % playlist_length
+            else:
+                # Clamp to valid range without wraparound
+                new_pos = max(0, min(new_pos, playlist_length - 1))
+
+            # Only jump if the position has changed
+            if new_pos != current_pos:
+                logger.debug(f"Jumping from position {current_pos} to {new_pos}")
+                # Update our internal state
+                self._state.current_playlist_pos = new_pos
+                # Tell MPV to play the track at the new position
+                self.playlist_play_index(new_pos)
+        except Exception as e:
+            logger.error(f"Error executing playlist jump: {e}")
+            # Show user feedback about the error
+            self._show_user_feedback(
+                "Jump Error", f"Failed to jump: {str(e)}", FeedbackType.ERROR
+            )
 
 
 class MP3Player:
