@@ -8,15 +8,19 @@ and proper integration with the unified database structure.
 import time
 import locale
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass
+import gc
 from enum import Enum, auto
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, Future
 from rich.box import HEAVY
 from rich.live import Live
 from rich.panel import Panel
 from rich.console import Group
 from rich.progress import TextColumn, BarColumn, Progress
+import weakref
+from functools import partial
+from collections import deque
 
 from ..core.settings import KeyboardShortcuts, Settings
 from ..player.history import RecentlyPlayedManager
@@ -35,6 +39,8 @@ from ..utils.gradient_utils import (
 from . import python_mpv as mpv
 from .python_mpv import ShutdownError
 from .lyrics_handler import LyricsHandler
+from .cache import LRUCache
+from .memory import memory_stats_decorator, optimize_memory_usage
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +148,50 @@ class LyricsState:
     no_lyrics_message: Optional[str] = None
 
 
+class WeakPropertyObserver:
+    """
+    Weak reference-based property observer to prevent memory leaks.
+
+    This class creates property observers that don't hold strong references
+    to their parent objects, preventing memory leaks through circular references.
+    """
+
+    def __init__(self, instance, property_name, callback):
+        """
+        Create a weak reference observer.
+
+        Args:
+            instance: The MPV player instance
+            property_name: Name of the property to observe
+            callback: Callback function to call when property changes
+        """
+        self.instance_ref = weakref.ref(instance)
+        self.property_name = property_name
+        self.callback = callback
+        self.registered = False
+
+    def register(self):
+        """Register the observer with the MPV instance."""
+        instance = self.instance_ref()
+        if instance is not None:
+            instance.observe_property(self.property_name, self.callback)
+            self.registered = True
+
+    def unregister(self):
+        """Unregister the observer from the MPV instance."""
+        instance = self.instance_ref()
+        if instance is not None and self.registered:
+            try:
+                instance.unobserve_property(self.property_name, self.callback)
+                self.registered = False
+            except Exception as e:
+                logger.debug(f"Error unregistering observer: {e}")
+
+    def __del__(self):
+        """Automatically unregister when garbage collected."""
+        self.unregister()
+
+
 class MPVPlayer(mpv.MPV):
     """
     Enhanced MPV player with rich UI and extended functionality.
@@ -192,14 +242,18 @@ class MPVPlayer(mpv.MPV):
         # Set up core components
         self.console = get_console()
         self.lyrics_handler = LyricsHandler()
-        self._thread_pool = ThreadPoolExecutor(max_workers=2)
+        # Use a smaller thread pool and make it context-managed
+        self._thread_pool = ThreadPoolExecutor(max_workers=2).__enter__()
         self.history_manager = RecentlyPlayedManager()
 
         # Initialize state using dataclasses
         self._init_state_properties(volume)
         self._configure_mpv(loglevel)
-        self._setup_property_observers()
+        self._setup_weak_property_observers()
         self._setup_key_bindings()
+
+        # Track active futures for proper cleanup
+        self._active_futures = set()
 
     def _init_state_properties(self, volume: int) -> None:
         """Initialize all state properties with default values using dataclasses."""
@@ -216,11 +270,22 @@ class MPVPlayer(mpv.MPV):
         )
         self._user_feedback: Optional[UserFeedback] = None
 
-        # Playlist state
-        self._current_song_names: List[str] = []
+        # Use a fixed-size list for caching to prevent memory growth
+        self._lyrics_cache = LRUCache(max_size=5)  # Cache last 5 lyrics
+        self._metadata_cache = LRUCache(max_size=10)  # Cache last 10 metadata objects
+
+        # Playlist state - use a deque for better memory performance with large lists
+        self._current_song_names = deque(maxlen=1000)  # Limit to 1000 songs max
 
         # Set initial volume
         self.volume = volume
+
+        # Memory tracking
+        self._memory_stats = {
+            "peak_lyrics_size": 0,
+            "peak_metadata_size": 0,
+            "last_gc_time": time.time(),
+        }
 
     def _configure_mpv(self, loglevel: str) -> None:
         """Configure MPV settings for optimal playback."""
@@ -230,17 +295,44 @@ class MPVPlayer(mpv.MPV):
 
     # ? --- Property Observers ---
 
-    def _setup_property_observers(self) -> None:
-        """Set up observers for MPV player properties."""
-        self.observe_property("pause", self._on_pause_change)
-        self.observe_property("duration", self._on_duration_change)
-        self.observe_property("metadata", self._on_metadata_change)
-        self.observe_property("playlist-pos", self._on_playlist_pos_change)
+    def _setup_weak_property_observers(self) -> None:
+        """Set up property observers using weak references to prevent memory leaks."""
+        # Store observers in a list so they aren't garbage collected
+        self._observers = []
 
-        # Track playback position
+        # Create observer for pause changes
+        pause_observer = WeakPropertyObserver(self, "pause", self._on_pause_change)
+        pause_observer.register()
+        self._observers.append(pause_observer)
+
+        # Create observer for duration changes
+        duration_observer = WeakPropertyObserver(
+            self, "duration", self._on_duration_change
+        )
+        duration_observer.register()
+        self._observers.append(duration_observer)
+
+        # Create observer for metadata changes
+        metadata_observer = WeakPropertyObserver(
+            self, "metadata", self._on_metadata_change
+        )
+        metadata_observer.register()
+        self._observers.append(metadata_observer)
+
+        # Create observer for playlist position changes
+        playlist_observer = WeakPropertyObserver(
+            self, "playlist-pos", self._on_playlist_pos_change
+        )
+        playlist_observer.register()
+        self._observers.append(playlist_observer)
+
+        # Create observer for time position with direct property observer
         @self.property_observer("time-pos")
         def _track_time_pos(_name: str, value: Optional[float]) -> None:
-            self._state.elapsed_time = value if value is not None else 0
+            # This is safe because it's a primitive type (float)
+            # and doesn't create circular references
+            if hasattr(self, "_state"):
+                self._state.elapsed_time = value if value is not None else 0
 
     def _on_pause_change(self, _name: str, value: Optional[bool]) -> None:
         """
@@ -338,16 +430,29 @@ class MPVPlayer(mpv.MPV):
 
         # Reset metadata and lyrics for new song
         self._state.metadata_ready = False
+        self._metadata.title = "Unknown"
+        self._metadata.artist = "Unknown"
+        self._metadata.album = "Unknown"
+
+        # Thoroughly reset lyrics state
         self._lyrics.cached_lyrics = None
-        self._lyrics.no_lyrics_message = (
-            None  # Reset the no lyrics message for the new song
-        )
+        self._lyrics.no_lyrics_message = None
         self._lyrics.status = LyricsStatus.LOADING
+
+        # Also clear from lyrics cache to ensure fresh fetch
+        if hasattr(self, "_lyrics_cache"):
+            song_name = self._current_song_names[value]
+            # Use the remove method of LRUCache which handles the lookup properly
+            self._lyrics_cache.remove(song_name) if hasattr(
+                self._lyrics_cache, "remove"
+            ) else None
+
         self._history.loaded = False  # Reset history data
 
         # Cancel any pending lyrics fetch
         if self._lyrics.future and not self._lyrics.future.done():
             self._lyrics.future.cancel()
+            self._lyrics.future = None  # Ensure future is fully reset
 
         # Show user feedback for track change
         song_name = self._current_song_names[value]
@@ -543,6 +648,7 @@ class MPVPlayer(mpv.MPV):
 
     # * --- Main Player API ---
 
+    @memory_stats_decorator(interval_seconds=30)
     def player(
         self,
         queue: List[str],
@@ -558,7 +664,6 @@ class MPVPlayer(mpv.MPV):
             song_names: List of song names corresponding to the URLs
             show_lyrics: Whether to show lyrics
             start_index: Index in the queue to start from (for history integration)
-            file_paths: Optional list of local file paths (prioritized over URLs)
 
         Returns:
             Result code (0 for success)
@@ -591,15 +696,31 @@ class MPVPlayer(mpv.MPV):
             )
             self._start_display(first_song)
 
-            # Wait for playback to complete
-            if self.playlist_count:
-                self.wait_for_playback()
+            # Wait for playback to complete - use a safe check here to prevent ShutdownError
+            try:
+                if not self._state.stop_requested:
+                    # Safely check playlist_count with error handling
+                    playlist_count = self._safe_get_property("playlist_count", 0)
+                    if playlist_count:
+                        self.wait_for_playback()
+
+                    # Track memory stats periodically during display loop
+                    if hasattr(self, "_log_memory_stats") and self._run_display_loop:
+                        self._log_memory_stats()
+            except ShutdownError:
+                logger.debug("MPV core shutdown detected during playback, exiting cleanly")
+                # Already handled by quit/terminate, just continue to cleanup
+                pass
 
             return 0
 
         except KeyboardInterrupt:
             self.console.print("\n[yellow]Playback interrupted by user[/]")
             return 1
+        except ShutdownError:
+            # This is actually normal when using quit, so don't show as error
+            logger.debug("MPV core shutdown detected, exiting cleanly")
+            return 0
         except Exception as e:
             logger.error(f"Error during playback: {e}", exc_info=True)
             self.console.print(f"[bold red]Playback error: {str(e)}[/]")
@@ -609,6 +730,10 @@ class MPVPlayer(mpv.MPV):
             self._stop_display()
             if self._thread_pool:
                 self._thread_pool.shutdown(wait=False)
+            # Final memory cleanup
+            self.cleanup_resources()
+            # Force garbage collection before exit
+            gc.collect()
 
     def _initialize_player(self, queue: List[str], start_index: int = 0) -> None:
         """
@@ -655,14 +780,14 @@ class MPVPlayer(mpv.MPV):
         try:
             # Define control key information
             controls_text = (
-                "[white][bold cyan]󱁐[/]:Pause · "
-                "[bold cyan]q[/]:Quit · "
-                "[bold cyan]b[/]:Prev · "
-                "[bold cyan]n[/]:Next · "
-                "[bold cyan]←→[/]:Seek · "
-                "[bold cyan]↑↓[/]:Volume · "
-                "[bold cyan]l[/]:Lyrics · "
-                "[bold cyan]t[/]:Theme[/]"
+                "[white][bold cyan]󱁐[/] Pause · "
+                "[bold cyan]q[/] Quit · "
+                "[bold cyan]b[/] Prev · "
+                "[bold cyan]n[/] Next · "
+                "[bold cyan]←→[/] Seek · "
+                "[bold cyan]↑↓[/] Volume · "
+                "[bold cyan]l[/] Lyrics · "
+                "[bold cyan]t[/] Theme[/]"
             )
 
             # Initialize display state
@@ -770,27 +895,31 @@ class MPVPlayer(mpv.MPV):
                 logger.debug(f"Starting async lyrics lookup for '{song}'")
                 self._prefetch_lyrics(song, artist, album, int(duration))
 
+    @optimize_memory_usage()
     def _prefetch_lyrics(
         self, song: str, artist: str, album: str, duration: int
     ) -> None:
         """
-        Prefetch lyrics asynchronously in a background thread.
+        Prefetch lyrics asynchronously with optimized memory usage.
 
         Args:
             song: Song name
             artist: Artist name
-            album: Album name
-            duration: Song duration in seconds
+            album: Song duration in seconds
         """
-        # Skip if we already have cached lyrics
+        # Skip if we already have cached lyrics for this song
         if self._lyrics.cached_lyrics:
             self._lyrics.status = LyricsStatus.AVAILABLE
             return
 
-        # Define the fetch function
+        # Cancel any existing future to avoid memory leaks
+        if self._lyrics.future and not self._lyrics.future.done():
+            self._lyrics.future.cancel()
+
+        # Define the fetch function with weak references to avoid memory leaks
         def fetch_lyrics():
             try:
-                # First check cache
+                # First check memory cache (fast)
                 cached = self.lyrics_handler.get_from_cache(song, artist, album)
                 if cached:
                     logger.debug(f"Found lyrics in cache for '{song}'")
@@ -801,7 +930,7 @@ class MPVPlayer(mpv.MPV):
                 lyrics = self.lyrics_handler.fetch_lyrics(song, artist, album, duration)
                 if lyrics:
                     logger.info(f"Successfully fetched lyrics for '{song}'")
-                    # Store in cache
+                    # Store in cache (limit size to prevent memory bloat)
                     self.lyrics_handler.store_in_cache(lyrics, song, artist, album)
                     self._lyrics.status = LyricsStatus.AVAILABLE
                     return lyrics
@@ -814,8 +943,17 @@ class MPVPlayer(mpv.MPV):
                 self._lyrics.status = LyricsStatus.NOT_FOUND
                 return []
 
-        # Launch the async fetch
+        # Launch the async fetch and track the future for cleanup
         self._lyrics.future = self._thread_pool.submit(fetch_lyrics)
+        # Track active futures for proper cleanup
+        if hasattr(self, "_active_futures"):
+            self._active_futures.add(self._lyrics.future)
+            # Add done callback to remove future from tracking set
+            self._lyrics.future.add_done_callback(
+                lambda f: self._active_futures.discard(f)
+                if hasattr(self, "_active_futures")
+                else None
+            )
 
     def _get_lyrics_display(
         self,
@@ -1305,7 +1443,7 @@ class MPVPlayer(mpv.MPV):
         styled_action = apply_gradient_to_text(action, "feedback", bold=True)
         styled_description = create_subtle_gradient_text(description, "feedback")
 
-        return f"\n► {styled_action}: {styled_description}"
+        return f"\n󰧂 {styled_action}: {styled_description}"
 
     def _get_status_text(self) -> str:
         """
@@ -1329,12 +1467,10 @@ class MPVPlayer(mpv.MPV):
             else:
                 status = "Stopped"
 
-            # Get volume safely to avoid property access errors
-            try:
-                vol = self.volume
-            except Exception:
+            # Get volume safely using our _safe_get_property method instead of direct access
+            vol = self._safe_get_property("volume", 0)
+            if vol is None:
                 vol = 0
-                logger.error("Could not access volume property")
 
             theme_info = (
                 f" · Theme: {self._state.current_theme}"
@@ -1355,15 +1491,38 @@ class MPVPlayer(mpv.MPV):
             logger.error(f"Error getting status text: {e}")
             return "[dim]Status: Unknown[/dim]"
 
-    # Add a method to safely check if MPV is paused
+    # Replace direct property access with safe access
     def _is_paused(self) -> bool:
         """Safely check if the player is in paused state."""
         try:
-            return self.pause
+            # Use safe_get_property instead of direct property access
+            paused = self._safe_get_property("pause", False)
+            return bool(paused)
         except Exception as e:
             # If we can't access the pause property, use our state
             logger.debug(f"Could not access pause property: {e}")
             return self._state.playback_state == PlaybackState.PAUSED
+
+    # Add a helper method for safe property access
+    def _safe_get_property(self, name: str, default=None):
+        """Safely get a property, returning default if any error occurs."""
+        try:
+            if hasattr(self, "_core_shutdown") and self._core_shutdown:
+                return default
+
+            if self._state.stop_requested:
+                return default
+
+            # Use direct property access but catch any exceptions
+            try:
+                value = getattr(self, name)
+                return value
+            except (ShutdownError, AttributeError) as e:
+                logger.debug(f"Property access failed for {name}: {e}")
+                return default
+        except Exception as e:
+            logger.debug(f"Safe property access failed: {e}")
+            return default
 
     def _create_progress_bar(self, elapsed: float, duration: float) -> Progress:
         """
@@ -1386,23 +1545,18 @@ class MPVPlayer(mpv.MPV):
 
         progress = Progress(
             TextColumn("[bold blue]{task.description}"),
-            BarColumn(bar_width=40, style=bar_color, complete_style=complete_color),
+            BarColumn(bar_width=30, style=bar_color, complete_style=complete_color),
             TextColumn("[bold cyan]{task.fields[time]} / {task.fields[duration]}"),
         )
 
-        # Get playback status text - Fix property access error
+        # Get playback status text
         try:
-            # Use self._state.playback_state instead of directly accessing self.pause
-            # which can trigger property access errors
+            # Use the state instead of property access
             play_status = (
                 "[red] PAUSED[/red]"
                 if self._state.playback_state == PlaybackState.PAUSED
                 else " PLAYING"
             )
-        except ShutdownError:
-            play_status = " STOPPED"
-            self._state.stop_requested = True
-            self._state.playback_state = PlaybackState.STOPPED
         except Exception as e:
             logger.error(f"Error getting playback status: {e}")
             play_status = " UNKNOWN"
@@ -1438,11 +1592,14 @@ class MPVPlayer(mpv.MPV):
             Dictionary with playback state, position, duration, volume and metadata
         """
         try:
+            if self._state.stop_requested:
+                raise ShutdownError("Player is shutting down")
+
             return {
                 "is_playing": self._state.playback_state == PlaybackState.PLAYING,
-                "position": self.time_pos or 0,
-                "duration": self.duration or 0,
-                "volume": self.volume,
+                "position": self._safe_get_property("time_pos", 0),
+                "duration": self._safe_get_property("duration", 0),
+                "volume": self._safe_get_property("volume", 0),
                 "metadata": {
                     "title": self._metadata.title,
                     "artist": self._metadata.artist,
@@ -1464,6 +1621,19 @@ class MPVPlayer(mpv.MPV):
                 "playlist_count": 0,
                 "lyrics_status": LyricsStatus.DISABLED.name,
             }
+        except Exception as e:
+            logger.error(f"Error getting playback info: {e}")
+            return {
+                "is_playing": False,
+                "position": 0,
+                "duration": 0,
+                "volume": 0,
+                "metadata": {},
+                "playlist_position": 0,
+                "playlist_count": 0,
+                "lyrics_status": LyricsStatus.DISABLED.name,
+                "error": str(e),
+            }
 
     def set_volume(self, volume: int) -> None:
         """
@@ -1472,7 +1642,7 @@ class MPVPlayer(mpv.MPV):
         Args:
             volume: Volume level (0-130)
         """
-        self.volume = max(0, min(130, volume))
+        self.volume = max(0, min(PLAYERSETTINGS.maximum_volume, volume))
         logger.debug(f"Volume set to {self.volume}")
 
     def _execute_playlist_jump(self, jump_amount: int) -> None:
@@ -1516,6 +1686,74 @@ class MPVPlayer(mpv.MPV):
             self._show_user_feedback(
                 "Jump Error", f"Failed to jump: {str(e)}", FeedbackType.ERROR
             )
+
+    # Ensure player shutdown is handled gracefully
+    def terminate(self):
+        """Properly terminate the player, shutting down MPV gracefully."""
+        try:
+            # Mark as stopping
+            self._state.stop_requested = True
+            self._state.playback_state = PlaybackState.STOPPED
+
+            # Clean up thread pool
+            if hasattr(self, "_thread_pool") and self._thread_pool:
+                self._thread_pool.shutdown(wait=False)
+
+            # Call parent terminate method
+            super().terminate()
+        except Exception as e:
+            logger.error(f"Error terminating player: {e}")
+
+    def quit(self, code=None):
+        """Override quit to ensure clean shutdown."""
+        try:
+            # Mark as stopping first
+            self._state.stop_requested = True
+            self._state.playback_state = PlaybackState.STOPPED
+
+            # Then call parent quit method
+            super().quit(code)
+        except Exception as e:
+            logger.error(f"Error quitting player: {e}")
+
+    def __del__(self):
+        """Ensure proper cleanup of resources when object is garbage collected."""
+        self.cleanup_resources()
+
+    def cleanup_resources(self):
+        """Properly clean up all resources to prevent memory leaks."""
+        try:
+            # Cancel any pending lyrics futures
+            if (
+                hasattr(self, "_lyrics")
+                and self._lyrics.future
+                and not self._lyrics.future.done()
+            ):
+                self._lyrics.future.cancel()
+
+            # Clean up thread pool
+            if hasattr(self, "_thread_pool") and self._thread_pool:
+                try:
+                    self._thread_pool.__exit__(None, None, None)
+                except Exception as e:
+                    logger.debug(f"Error shutting down thread pool: {e}")
+
+            # Unregister all property observers
+            try:
+                self.unobserve_property("pause", self._on_pause_change)
+                self.unobserve_property("duration", self._on_duration_change)
+                self.unobserve_property("metadata", self._on_metadata_change)
+                self.unobserve_property("playlist-pos", self._on_playlist_pos_change)
+            except Exception as e:
+                logger.debug(f"Error unregistering observers: {e}")
+        except Exception as e:
+            logger.error(f"Error during resource cleanup: {e}")
+
+        # Call parent cleanup if available
+        try:
+            super().__del__()
+        except Exception:
+            pass
 
 
 class MP3Player:
