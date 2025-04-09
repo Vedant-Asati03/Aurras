@@ -9,15 +9,23 @@ import time
 import random
 import logging
 import sqlite3
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 
 from ..utils.path_manager import PathManager
 from ..utils.exceptions import LyricsError
 from ..services.lyrics import LyricsManager
 from ..utils.console_manager import get_console, get_available_themes, get_current_theme
+from ..utils.gradient_utils import get_gradient_style, apply_gradient_to_text
 
 _path_manager = PathManager()
 logger = logging.getLogger(__name__)
+
+# Regular expression patterns as constants for better maintainability
+TIMESTAMP_PATTERN = r"\[(\d+):(\d+\.\d+)\]"
+WORD_TIMESTAMP_PATTERN = r"<\d+:\d+\.\d+>"
+LINE_TIMESTAMP_PATTERN = r"\[\d+:\d+\.\d+\]"
+WORD_PATTERN = r"<(\d+):(\d+\.\d+)>\s*([^<]+)"
+LINE_PATTERN = r"\[(\d+):(\d+\.\d+)\](.*?)(?=\[\d+:\d+\.\d+\]|$)"
 
 
 class LyricsHandler:
@@ -34,85 +42,14 @@ class LyricsHandler:
         self._memory_cache: Dict[str, List[str]] = {}
         self._db_path = _path_manager.cache_db
         self._console = get_console()
-
-        # Define gradient styles for different themes
-        self._gradient_styles = {
-            "NEON": {
-                "current": "#FF00FF",  # Magenta
-                "gradient": [
-                    "#FF00FF",
-                    "#CC00FF",
-                    "#9900FF",
-                    "#6600FF",
-                    "#3300FF",
-                    "#0000FF",
-                    "#0000CC",
-                    "#000099",
-                ],
-                "dim": "#333399",
-            },
-            "VINTAGE": {
-                "current": "#CC9966",  # Sepia
-                "gradient": [
-                    "#CC9966",
-                    "#BB8855",
-                    "#AA7744",
-                    "#996633",
-                    "#885522",
-                    "#774411",
-                    "#663300",
-                    "#552200",
-                ],
-                "dim": "#331100",
-            },
-            "MINIMAL": {
-                "current": "#FFFFFF",  # White
-                "gradient": [
-                    "#FFFFFF",
-                    "#DDDDDD",
-                    "#BBBBBB",
-                    "#999999",
-                    "#777777",
-                    "#555555",
-                    "#333333",
-                    "#111111",
-                ],
-                "dim": "#111111",
-            },
-            "NIGHTCLUB": {
-                "current": "#FF00FF",  # Magenta
-                "gradient": [
-                    "#FF00FF",
-                    "#CC00FF",
-                    "#9900FF",
-                    "#6600FF",
-                    "#3300FF",
-                    "#0000FF",
-                    "#0000AA",
-                    "#000055",
-                ],
-                "dim": "#000033",
-            },
-            "DEFAULT": {
-                "current": "#00FF7F",  # Spring green
-                "gradient": [
-                    "#00FF7F",
-                    "#00DD6E",
-                    "#00BB5C",
-                    "#00994B",
-                    "#00773A",
-                    "#005528",
-                    "#003317",
-                    "#001105",
-                ],
-                "dim": "#001100",
-            },
-        }
+        # Optional simple gradient view method for subclasses to implement
+        self._create_simple_gradient_view: Callable[[List[str]], str] = (
+            lambda x: "\n".join(x)
+        )
 
     def has_lyrics_support(self) -> bool:
         """Check if lyrics support is available."""
         try:
-            # Use the underlying manager to check availability
             return self._lyrics_manager._should_show_lyrics()
         except Exception as e:
             logger.error(f"Error checking lyrics support: {e}")
@@ -139,39 +76,41 @@ class LyricsHandler:
                 logger.warning("Cannot fetch lyrics: missing song title")
                 return []
 
-            # Log what we're searching for
-            logger.info(
-                f"Fetching lyrics for: Song='{song}', Artist='{artist}', Album='{album}'"
-            )
-
             # Try to get from memory cache first
             cached_lyrics = self.get_from_cache(song, artist, album)
             if cached_lyrics:
                 return cached_lyrics
+
+            # Log what we're searching for
+            logger.info(
+                f"Fetching lyrics for: Song='{song}', Artist='{artist}', Album='{album}'"
+            )
 
             # Fetch from the lyrics service
             lyrics_data = self._lyrics_manager.obtain_lyrics_info(
                 song, artist, album, duration
             )
 
-            if lyrics_data:
-                # Extract synced lyrics if available, otherwise use plain lyrics
-                if lyrics_data.get("synced_lyrics"):
-                    # Synced lyrics can be a string or list of lines
-                    lyrics_lines = self._ensure_list(lyrics_data["synced_lyrics"])
-                    if lyrics_lines:
-                        logger.info(f"Found synced lyrics for '{song}'")
-                        return lyrics_lines
+            if not lyrics_data:
+                logger.info(f"No lyrics found for '{song}'")
+                return []
 
-                # Fall back to plain lyrics
-                if lyrics_data.get("plain_lyrics"):
-                    lyrics_lines = self._ensure_list(lyrics_data["plain_lyrics"])
-                    if lyrics_lines:
-                        logger.info(f"Found plain lyrics for '{song}'")
-                        return lyrics_lines
+            # Extract synced lyrics if available, otherwise use plain lyrics
+            if synced_lyrics := lyrics_data.get("synced_lyrics"):
+                lyrics_lines = self._ensure_list(synced_lyrics)
+                if lyrics_lines:
+                    logger.info(f"Found synced lyrics for '{song}'")
+                    return lyrics_lines
 
-            # No lyrics found
-            logger.info(f"No lyrics found for '{song}'")
+            # Fall back to plain lyrics
+            if plain_lyrics := lyrics_data.get("plain_lyrics"):
+                lyrics_lines = self._ensure_list(plain_lyrics)
+                if lyrics_lines:
+                    logger.info(f"Found plain lyrics for '{song}'")
+                    return lyrics_lines
+
+            # No usable lyrics found
+            logger.info(f"No usable lyrics found for '{song}'")
             return []
 
         except Exception as e:
@@ -288,6 +227,58 @@ class LyricsHandler:
         except Exception as e:
             logger.error(f"Error storing lyrics in database: {e}")
 
+    def get_no_lyrics_message(self) -> str:
+        """
+        Get a themed "no lyrics available" message.
+
+        Returns:
+            A formatted message indicating no lyrics are available
+        """
+        # Get theme color with safe fallbacks
+        theme_style = get_gradient_style()
+        theme_color = self._get_theme_color(theme_style)
+
+        # List of fun messages
+        unavailable_lyrics_messages = [
+            f"[bold {theme_color}]No lyrics available[/bold {theme_color}]",
+            f"[bold {theme_color}]Wow! so empty[/bold {theme_color}]",
+            f"[bold {theme_color}]Seems like nothing came out[/bold {theme_color}]",
+            f"[bold {theme_color}]Lyrics? What lyrics?[/bold {theme_color}]",
+            f"[bold {theme_color}]Lyrics? I don't see any lyrics[/bold {theme_color}]",
+            f"[bold {theme_color}]Lyrics? What are those?[/bold {theme_color}]",
+            f"[bold {theme_color}]Lyrics? I don't think so[/bold {theme_color}]",
+            f"[bold {theme_color}]Lyrics? Not today[/bold {theme_color}]",
+            f"[bold {theme_color}]Uh-oh! No lyrics here[/bold {theme_color}]",
+            f"[bold {theme_color}]No luck today, huh?[/bold {theme_color}]",
+        ]
+
+        return random.choice(unavailable_lyrics_messages)
+
+    def get_waiting_message(self) -> str:
+        """
+        Get a themed "waiting for lyrics" message.
+
+        Returns:
+            A formatted message indicating lyrics are being fetched
+        """
+        theme_style = get_gradient_style()
+        theme_color = self._get_theme_color(theme_style)
+        return f"[italic {theme_color}]Fetching lyrics[/italic {theme_color}]"
+
+    def get_error_message(self, error_text: str) -> str:
+        """
+        Get a themed error message.
+
+        Args:
+            error_text: The error text to display
+
+        Returns:
+            A formatted error message
+        """
+        # Use feedback colors for consistency with user feedback
+        error_text = apply_gradient_to_text(f"Error: {error_text}", "feedback")
+        return f"[italic]{error_text}[/italic]"
+
     def create_focused_lyrics_view(
         self,
         lyrics_lines: List[str],
@@ -295,7 +286,8 @@ class LyricsHandler:
         song: str = "",
         artist: str = "",
         album: str = "",
-        context_lines: int = 6,  # Increased from 3 to 6 for smoother gradient
+        context_lines: int = 6,
+        plain_mode: bool = False,
     ) -> str:
         """
         Create a focused view of lyrics with the current line highlighted with gradient effect.
@@ -305,39 +297,60 @@ class LyricsHandler:
             current_time: Current playback position in seconds
             song: Song name (for logging)
             artist: Artist name (for logging)
-            album: Album name (for logging)
+            album: Album name
             context_lines: Number of context lines to show
+            plain_mode: If True, display plain lyrics without timestamps
 
         Returns:
             Formatted lyrics text with gradient highlighting
         """
-        unavailable_lyrics_messages = [
-            "[bold red]No lyrics available[/bold red]",
-            "[bold orange]Wow! so empty[/bold orange]",
-            "[bold yellow]Seems like nothing came out[/bold yellow]",
-            "[bold green]Lyrics? What lyrics?[/bold green]",
-            "[bold blue]Lyrics? I don't see any lyrics[/bold blue]",
-            "[bold magenta]Lyrics? What are those?[/bold magenta]",
-            "[bold cyan]Lyrics? I don't think so[/bold cyan]",
-            "[bold white]Lyrics? Not today[/bold white]",
-            "[bold pink]Uh-oh! No lyrics here[/bold pink]",
-            "[bold purple]No luck today, huh?[/bold purple]",
-        ]
         if not lyrics_lines:
-            return random.choice(unavailable_lyrics_messages)
+            return self.get_no_lyrics_message()
 
-        # Check if these are synced lyrics by looking for timestamp patterns
-        if not self._is_synced_lyrics(lyrics_lines):
-            # For unsynced lyrics, create a simple gradient display
-            return self._create_simple_gradient_view(lyrics_lines[:15])
+        # Different display modes based on lyrics type and requested mode
+        if plain_mode:
+            return self._display_plain_lyrics(lyrics_lines)
+        # elif self._is_enhanced_lrc(lyrics_lines):
+        #     return self._create_enhanced_lrc_view(
+        #         lyrics_lines, current_time, context_lines
+        #     )
+        elif not self._is_synced_lyrics(lyrics_lines):
+            return self._display_plain_lyrics(lyrics_lines)
+        else:
+            return self._display_synced_lyrics(
+                lyrics_lines, current_time, context_lines
+            )
 
+    def _display_plain_lyrics(self, lyrics_lines: List[str]) -> str:
+        """Display plain lyrics with simple gradient formatting."""
+        plain_lyrics = self._get_plain_lyrics(lyrics_lines)
+        return self._create_simple_gradient_view(plain_lyrics[:15])
+
+    def _display_synced_lyrics(
+        self, lyrics_lines: List[str], current_time: float, context_lines: int
+    ) -> str:
+        """Display synced lyrics with the current line highlighted."""
         # Parse timestamps and build a list of (timestamp, text) tuples
+        parsed_lyrics = self._parse_synced_lyrics(lyrics_lines)
+
+        if not parsed_lyrics:
+            return "[italic]Could not parse lyrics timestamps[/italic]"
+
+        # Find the current line based on timestamp
+        current_index = self._find_current_lyric_index(parsed_lyrics, current_time)
+
+        # Create gradient display
+        return self._create_gradient_lyrics_view(
+            parsed_lyrics, current_time, current_index, context_lines
+        )
+
+    def _parse_synced_lyrics(self, lyrics_lines: List[str]) -> List[Tuple[float, str]]:
+        """Parse synced lyrics into a list of (timestamp, text) tuples."""
         parsed_lyrics = []
-        timestamp_pattern = r"\[(\d+):(\d+\.\d+)\](.*?)(?=\[\d+:\d+\.\d+\]|$)"
 
         # First, collect all timestamp-text pairs from all lines
         for line in lyrics_lines:
-            matches = re.finditer(timestamp_pattern, line)
+            matches = re.finditer(LINE_PATTERN, line)
             for match in matches:
                 minutes = int(match.group(1))
                 seconds = float(match.group(2))
@@ -348,119 +361,156 @@ class LyricsHandler:
 
         # Sort by timestamp in case they're not in order
         parsed_lyrics.sort(key=lambda x: x[0])
+        return parsed_lyrics
 
-        if not parsed_lyrics:
-            return "[italic]Could not parse lyrics timestamps[/italic]"
-
-        # Find the current line based on timestamp
-        current_index = 0
+    def _find_current_lyric_index(
+        self, parsed_lyrics: List[Tuple[float, str]], current_time: float
+    ) -> int:
+        """Find the index of the current lyric based on playback time."""
         for i, (timestamp, _) in enumerate(parsed_lyrics):
             if timestamp > current_time:
-                break
-            current_index = i
-
-        # Create gradient display
-        return self._create_gradient_lyrics_view(
-            parsed_lyrics, current_index, context_lines
-        )
+                return max(0, i - 1)
+        # If we get here, we're at the last line
+        return len(parsed_lyrics) - 1
 
     def _create_gradient_lyrics_view(
         self,
         parsed_lyrics: List[Tuple[float, str]],
+        current_time: float,
         current_index: int,
         context_lines: int,
     ) -> str:
         """
-        Create a gradient effect for lyrics with the current line at the peak.
+        Create a themed display for synced lyrics with word-level highlighting.
 
         Args:
             parsed_lyrics: List of (timestamp, text) tuples
+            current_time: Current playback position in seconds
             current_index: Index of current line
             context_lines: Number of context lines to show
 
         Returns:
-            Formatted lyrics with gradient effect
+            Formatted lyrics with word-level highlighting
         """
         # Calculate the range of lines to display
         start_index = max(0, current_index - context_lines)
         end_index = min(len(parsed_lyrics), current_index + context_lines + 1)
 
-        # Get the appropriate gradient colors based on the current theme
+        # Get the appropriate theme colors based on the current theme
         theme_style = self._get_theme_gradient_style()
 
-        # Build the focused lyrics display with gradient highlighting
+        # Build the focused lyrics display
         result_lines = []
 
         # Add a header showing current position if we're not at the beginning
         if start_index > 0:
-            result_lines.append(f"[{theme_style['dim']}]...[/{theme_style['dim']}]")
+            result_lines.append(f"[{theme_style['dim']}][/{theme_style['dim']}]")
 
-        # Add the lines with gradient highlighting
+        # Add the lines with proper highlighting
         for i in range(start_index, end_index):
-            _, text = parsed_lyrics[i]
+            timestamp, text = parsed_lyrics[i]
 
             if i == current_index:
-                # Current line - peak of gradient (bold and brightest color)
-                result_lines.append(
-                    f"[bold {theme_style['current']}]{text}[/bold {theme_style['current']}]"
+                # Current line - highlight with word-level animation
+                word_highlight = self._simulate_word_highlighting(
+                    text, timestamp, current_time, parsed_lyrics, i, theme_style
                 )
+                result_lines.append(word_highlight)
             else:
-                # Calculate the distance from the current line
-                distance = abs(i - current_index)
-                if distance <= len(theme_style["gradient"]):
-                    # Apply gradient color based on distance
-                    color = (
-                        theme_style["gradient"][distance - 1]
-                        if distance > 0
-                        else theme_style["current"]
-                    )
-                    result_lines.append(f"[{color}]{text}[/{color}]")
-                else:
-                    # Too far from current line, use dim color
-                    result_lines.append(
-                        f"[{theme_style['dim']}]{text}[/{theme_style['dim']}]"
-                    )
+                # Other lines - use theme color but dimmed
+                result_lines.append(
+                    f"[{theme_style['dim']}]{text}[/{theme_style['dim']}]"
+                )
 
         # Add a footer if we're not at the end
         if end_index < len(parsed_lyrics):
-            result_lines.append(f"[{theme_style['dim']}]...[/{theme_style['dim']}]")
+            result_lines.append(f"[{theme_style['dim']}][/{theme_style['dim']}]")
 
         return "\n".join(result_lines)
 
-    def _create_simple_gradient_view(self, lyrics_lines: List[str]) -> str:
+    def _simulate_word_highlighting(
+        self,
+        text: str,
+        line_start_time: float,
+        current_time: float,
+        parsed_lyrics: List[Tuple[float, str]],
+        line_index: int,
+        theme_style: Dict[str, Any],
+    ) -> str:
         """
-        Create a simple gradient effect for non-synced lyrics.
+        Simulate word-level highlighting for standard LRC format.
 
         Args:
-            lyrics_lines: List of lyrics lines
+            text: The line text
+            line_start_time: Timestamp of current line
+            current_time: Current playback position
+            parsed_lyrics: All parsed lyrics
+            line_index: Current line index
+            theme_style: Theme style dictionary
 
         Returns:
-            Formatted lyrics with gradient effect
+            Formatted text with simulated word-level highlighting
         """
-        theme_style = self._get_theme_gradient_style()
-        result_lines = []
+        # Split the line into words
+        words = text.split()
+        if not words:
+            return text
 
-        for i, line in enumerate(lyrics_lines):
-            # Create a smooth gradient from top to bottom
-            gradient_index = min(i, len(theme_style["gradient"]) - 1)
-            color = theme_style["gradient"][gradient_index]
-
-            # Add the line with the appropriate color
-            if i == 0:
-                # First line is bold
-                result_lines.append(f"[bold {color}]{line}[/bold {color}]")
+        # Calculate the end time of this line (start of next line or estimate)
+        line_end_time = None
+        if line_index < len(parsed_lyrics) - 1:
+            line_end_time = parsed_lyrics[line_index + 1][0]
+        else:
+            # For the last line, estimate duration based on average line duration
+            if line_index > 0:
+                prev_duration = line_start_time - parsed_lyrics[line_index - 1][0]
+                line_end_time = line_start_time + prev_duration
             else:
-                result_lines.append(f"[{color}]{line}[/{color}]")
+                # Default to 5 seconds if we can't estimate
+                line_end_time = line_start_time + 5
 
-        return "\n".join(result_lines)
+        # Calculate line duration
+        line_duration = line_end_time - line_start_time
+
+        # Time elapsed since start of the line
+        elapsed_in_line = current_time - line_start_time
+
+        # If elapsed time is negative, we're still before this line starts
+        if elapsed_in_line < 0:
+            return f"[{theme_style['dim']}]{text}[/{theme_style['dim']}]"
+
+        # Calculate which word should be highlighted based on elapsed time percentage
+        total_chars = (
+            sum(len(word) for word in words) + len(words) - 1
+        )  # Include spaces
+
+        # Calculate "progress" through the line (0.0 to 1.0)
+        progress = min(1.0, elapsed_in_line / line_duration)
+
+        # Calculate which character we're at based on progress
+        target_char_pos = int(progress * total_chars)
+
+        # Figure out which word this corresponds to
+        current_word_index = 0
+        char_count = 0
+
+        for i, word in enumerate(words):
+            char_count += len(word)
+            if i < len(words) - 1:
+                char_count += 1  # Account for space
+            if char_count > target_char_pos:
+                current_word_index = i
+                break
+
+        # Use our existing word highlighting function with the theme style
+        return self._highlight_current_word(
+            [{"text": word} for word in words], current_word_index, theme_style
+        )
 
     def _get_theme_gradient_style(self) -> Dict[str, Any]:
         """Get the gradient style based on the current theme."""
-        # Get the current active theme directly from console manager
-        theme_name = get_current_theme()
-
-        # Return the gradient style for the theme, or default if not found
-        return self._gradient_styles.get(theme_name, self._gradient_styles["DEFAULT"])
+        # Get gradient styles from the shared utility
+        return get_gradient_style()
 
     # --- Helper Methods ---
 
@@ -502,9 +552,19 @@ class LyricsHandler:
                 result = cursor.fetchone()
 
                 if result and (result[0] or result[1]):
-                    return (
-                        result[0].splitlines() if result[0] else result[1].splitlines()
-                    )
+                    # For synced lyrics, ensure we properly preserve exact line breaks
+                    # by using splitlines(True) which keeps the line endings
+                    if result[0]:
+                        synced_lyrics = result[0].splitlines(True)
+                        # Remove any trailing whitespace while preserving the timestamp format
+                        synced_lyrics = [
+                            line.rstrip() + "\n" if not line.endswith("\n") else line
+                            for line in synced_lyrics
+                        ]
+                        logger.debug(f"Found synced lyrics in DB for '{song}'")
+                        return synced_lyrics
+                    else:
+                        return result[1].splitlines()
 
                 # Try fuzzy match if exact match fails and we have a reasonable song name
                 if len(song) > 3:  # Only try fuzzy match for substantial titles
@@ -523,12 +583,20 @@ class LyricsHandler:
                     if result and (result[0] or result[1]):
                         synced_lyrics, plain_lyrics = result
 
-                        # Prefer synced lyrics if available
+                        # Prefer synced lyrics if available, with proper format preservation
                         if synced_lyrics:
+                            synced_lines = synced_lyrics.splitlines(True)
+                            # Ensure proper line endings
+                            synced_lines = [
+                                line.rstrip() + "\n"
+                                if not line.endswith("\n")
+                                else line
+                                for line in synced_lines
+                            ]
                             logger.debug(
                                 f"Found synced lyrics in DB with fuzzy match for '{song}'"
                             )
-                            return synced_lyrics.splitlines()
+                            return synced_lines
                         elif plain_lyrics:
                             logger.debug(
                                 f"Found plain lyrics in DB with fuzzy match for '{song}'"
@@ -614,6 +682,42 @@ class LyricsHandler:
         return False
 
     @staticmethod
+    def _is_enhanced_lrc(lyrics_lines: List[str]) -> bool:
+        """
+        Check if lyrics are in enhanced LRC format with word-level timestamps.
+
+        Args:
+            lyrics_lines: Lyrics lines to check
+
+        Returns:
+            True if lyrics are in enhanced LRC format
+        """
+        # Enhanced LRC detection sometimes fails on cached lyrics, let's make it more robust
+        # Check for word-level timestamp pattern <MM:SS.SS>
+        word_timestamp_pattern = r"<\d+:\d+\.\d+>"
+
+        # Join all lines to check for word timestamps anywhere
+        all_text = "\n".join(lyrics_lines)
+        if re.search(r"\[\d+:\d+\.\d+\]", all_text) and re.search(
+            word_timestamp_pattern, all_text
+        ):
+            # We found both line timestamps and word timestamps somewhere
+            word_timestamps = re.findall(word_timestamp_pattern, all_text)
+            if len(word_timestamps) >= 2:  # At least two word timestamps
+                return True
+
+        # Original line-by-line check as backup
+        for line in lyrics_lines[:10]:  # Check first 10 lines
+            if re.search(r"\[\d+:\d+\.\d+\]", line) and re.search(
+                word_timestamp_pattern, line
+            ):
+                word_timestamps = re.findall(word_timestamp_pattern, line)
+                if len(word_timestamps) >= 2:
+                    return True
+
+        return False
+
+    @staticmethod
     def _extract_plain_lyrics(lyrics: List[str]) -> str:
         """
         Extract plain text from synced lyrics.
@@ -631,3 +735,412 @@ class LyricsHandler:
             if plain_line:
                 plain_lines.append(plain_line)
         return "\n".join(plain_lines)
+
+    # def _is_enhanced_lrc(self, lyrics_lines: List[str]) -> bool:
+    #     """
+    #     Check if lyrics are in enhanced LRC format with word-level timestamps.
+
+    #     Args:
+    #         lyrics_lines: Lyrics lines to check
+
+    #     Returns:
+    #         True if lyrics are in enhanced LRC format
+    #     """
+    #     # Enhanced LRC detection sometimes fails on cached lyrics, let's make it more robust
+    #     # Check for word-level timestamp pattern <MM:SS.SS>
+    #     word_timestamp_pattern = r"<\d+:\d+\.\d+>"
+
+    #     # Join all lines to check for word timestamps anywhere
+    #     all_text = "\n".join(lyrics_lines)
+    #     if re.search(r"\[\d+:\d+\.\d+\]", all_text) and re.search(
+    #         word_timestamp_pattern, all_text
+    #     ):
+    #         # We found both line timestamps and word timestamps somewhere
+    #         word_timestamps = re.findall(word_timestamp_pattern, all_text)
+    #         if len(word_timestamps) >= 2:  # At least two word timestamps
+    #             return True
+
+    #     # Original line-by-line check as backup
+    #     for line in lyrics_lines[:10]:  # Check first 10 lines
+    #         if re.search(r"\[\d+:\d+\.\d+\]", line) and re.search(
+    #             word_timestamp_pattern, line
+    #         ):
+    #             word_timestamps = re.findall(word_timestamp_pattern, line)
+    #             if len(word_timestamps) >= 2:
+    #                 return True
+
+    #     return False
+
+    # def _create_enhanced_lrc_view(
+    #     self, lyrics_lines: List[str], current_time: float, context_lines: int
+    # ) -> str:
+    #     """
+    #     Create a view for enhanced LRC format with word-level highlighting.
+
+    #     Args:
+    #         lyrics_lines: Enhanced LRC lyrics lines
+    #         current_time: Current playback position in seconds
+    #         context_lines: Number of context lines to show
+
+    #     Returns:
+    #         Formatted lyrics with word-level highlighting
+    #     """
+    #     # Get the theme style for highlighting
+    #     theme_style = self._get_theme_gradient_style()
+
+    #     # Parse the enhanced LRC lines into a structured format
+    #     parsed_lines = self._parse_enhanced_lrc(lyrics_lines)
+
+    #     if not parsed_lines:
+    #         return "[italic]Could not parse enhanced lyrics format[/italic]"
+
+    #     # Find the current line based strictly on timestamps - the line we're currently in
+    #     current_line_index = 0
+    #     for i, line_data in enumerate(parsed_lines):
+    #         line_time = line_data["timestamp"]
+    #         if line_time <= current_time:
+    #             current_line_index = i
+    #         else:
+    #             break
+
+    #     # Calculate the range of lines to display
+    #     start_index = max(0, current_line_index - context_lines)
+    #     end_index = min(len(parsed_lines), current_line_index + context_lines + 1)
+
+    #     # Build the focused lyrics display
+    #     result_lines = []
+
+    #     # Add header if not at beginning
+    #     if start_index > 0:
+    #         result_lines.append(f"[{theme_style['dim']}][/{theme_style['dim']}]")
+
+    #     # Add lines with appropriate highlighting
+    #     for i in range(start_index, end_index):
+    #         line_data = parsed_lines[i]
+
+    #         if i == current_line_index:
+    #             # Current line - highlight words based on their timestamps
+    #             line_text = self._highlight_words_by_timestamp(
+    #                 line_data["words"], current_time, theme_style
+    #             )
+    #             result_lines.append(line_text)
+    #         elif i < current_line_index:
+    #             # Past lines - show as dimmed but all words visible
+    #             plain_text = " ".join(word["text"] for word in line_data["words"])
+    #             result_lines.append(
+    #                 f"[{theme_style['dim']}]{plain_text}[/{theme_style['dim']}]"
+    #             )
+    #         else:
+    #             # Future lines - show as very dimmed
+    #             plain_text = " ".join(word["text"] for word in line_data["words"])
+    #             dim_color = theme_style.get("dim", "#555555")
+    #             result_lines.append(f"[{dim_color}]{plain_text}[/{dim_color}]")
+
+    #     # Add footer if not at end
+    #     if end_index < len(parsed_lines):
+    #         result_lines.append(f"[{theme_style['dim']}]...[/{theme_style['dim']}]")
+
+    #     return "\n".join(result_lines)
+
+    # def _highlight_words_by_timestamp(
+    #     self,
+    #     words: List[Dict[str, Any]],
+    #     current_time: float,
+    #     theme_style: Dict[str, Any],
+    # ) -> str:
+    #     """
+    #     Highlight words in a line based on their timestamps.
+
+    #     This method only highlights words whose timestamps have passed,
+    #     creating a progressive highlighting effect synchronized with playback.
+
+    #     Args:
+    #         words: List of word data dictionaries with timestamps
+    #         current_time: Current playback time in seconds
+    #         theme_style: Theme style dictionary
+
+    #     Returns:
+    #         Formatted string with progressive word highlighting
+    #     """
+    #     # Get theme colors with fallbacks
+    #     theme_color = self._get_theme_color(theme_style)
+    #     gradient_colors = theme_style.get("title", ["#00FF7F", "#00DD6E", "#00BB5C"])
+    #     dim_color = theme_style.get("dim", "#555555")
+
+    #     # Format each word based on its timestamp
+    #     formatted_words = []
+
+    #     # Find the current word (most recent one that should be visible)
+    #     current_word_index = -1
+    #     for i, word_data in enumerate(words):
+    #         if word_data["timestamp"] <= current_time:
+    #             current_word_index = i
+    #         else:
+    #             # Once we encounter a word timestamp in the future, stop
+    #             break
+
+    #     # Format each word
+    #     for i, word_data in enumerate(words):
+    #         word_text = word_data["text"]
+
+    #         if i <= current_word_index:
+    #             # Words that should be visible - format with gradient based on recency
+    #             distance = current_word_index - i  # How far back from current word
+
+    #             # Current word (most recent) - highlight boldly
+    #             if i == current_word_index:
+    #                 formatted_words.append(
+    #                     f"[bold {theme_color}]{word_text}[/bold {theme_color}]"
+    #                 )
+    #             # Recent words - use gradient colors
+    #             elif distance < len(gradient_colors):
+    #                 color_index = min(distance, len(gradient_colors) - 1)
+    #                 color = gradient_colors[color_index]
+    #                 formatted_words.append(f"[{color}]{word_text}[/{color}]")
+    #             # Words further back - use dim color
+    #             else:
+    #                 formatted_words.append(f"[{dim_color}]{word_text}[/{dim_color}]")
+    #         else:
+    #             # Words not yet reached - use very dim color
+    #             formatted_words.append(f"[{dim_color}]{word_text}[/{dim_color}]")
+
+    #     return " ".join(formatted_words)
+
+    # def _parse_enhanced_lrc(self, lyrics_lines: List[str]) -> List[Dict[str, Any]]:
+    #     """
+    #     Parse enhanced LRC format into a structured format.
+
+    #     Args:
+    #         lyrics_lines: Enhanced LRC lyrics lines
+
+    #     Returns:
+    #         List of dictionaries containing line timestamps and word-level data
+    #     """
+    #     parsed_lines = []
+
+    #     # If the lyrics are in a single line, try to split them properly
+    #     if len(lyrics_lines) == 1 and "<" in lyrics_lines[0] and "[" in lyrics_lines[0]:
+    #         # This might be cached lyrics that lost line breaks
+    #         # Try to split by line timestamps
+    #         split_pattern = r"(\[\d+:\d+\.\d+\])"
+    #         split_parts = re.split(split_pattern, lyrics_lines[0])
+
+    #         # Reconstruct lines properly
+    #         if len(split_parts) > 2:
+    #             reconstructed_lines = []
+    #             i = 0
+    #             while i < len(split_parts) - 1:
+    #                 if re.match(r"\[\d+:\d+\.\d+\]", split_parts[i]):
+    #                     reconstructed_lines.append(
+    #                         f"{split_parts[i]}{split_parts[i + 1]}"
+    #                     )
+    #                     i += 2
+    #                 else:
+    #                     i += 1
+
+    #             if reconstructed_lines:
+    #                 logger.debug("Reconstructed enhanced LRC lines from cached format")
+    #                 lyrics_lines = reconstructed_lines
+
+    #     # Continue with the normal parsing
+    #     for line in lyrics_lines:
+    #         # Skip empty lines
+    #         if not line.strip():
+    #             continue
+
+    #         # Extract line timestamp
+    #         line_match = re.search(r"\[(\d+):(\d+\.\d+)\]", line)
+    #         if not line_match:
+    #             continue
+
+    #         minutes = int(line_match.group(1))
+    #         seconds = float(line_match.group(2))
+    #         line_timestamp = minutes * 60 + seconds
+
+    #         # Extract word timestamps and text
+    #         words_data = []
+    #         word_pattern = r"<(\d+):(\d+\.\d+)>\s*([^<]+)"
+
+    #         # Remove the line timestamp for word processing
+    #         line_without_timestamp = re.sub(r"\[\d+:\d+\.\d+\]", "", line).strip()
+
+    #         word_matches = re.finditer(word_pattern, line_without_timestamp)
+    #         for match in word_matches:
+    #             word_minutes = int(match.group(1))
+    #             word_seconds = float(match.group(2))
+    #             word_timestamp = word_minutes * 60 + word_seconds
+    #             word_text = match.group(3).strip()
+
+    #             if word_text:
+    #                 words_data.append({"timestamp": word_timestamp, "text": word_text})
+
+    #         # Only add lines that have word data
+    #         if words_data:
+    #             parsed_lines.append({"timestamp": line_timestamp, "words": words_data})
+
+    #     # Sort by timestamp
+    #     if parsed_lines:
+    #         parsed_lines.sort(key=lambda x: x["timestamp"])
+    #         return parsed_lines
+
+    #     # If standard parsing failed, try an alternative approach for cached lyrics
+    #     if any("<" in line for line in lyrics_lines):
+    #         logger.debug("Trying alternative parsing for enhanced LRC")
+    #         return self._parse_enhanced_lrc_alternative(lyrics_lines)
+
+    #     return []
+
+    # def _parse_enhanced_lrc_alternative(
+    #     self, lyrics_lines: List[str]
+    # ) -> List[Dict[str, Any]]:
+    #     """
+    #     Alternative parsing approach for enhanced LRC that might be in non-standard format.
+
+    #     Args:
+    #         lyrics_lines: Enhanced LRC lyrics lines
+
+    #     Returns:
+    #         List of dictionaries containing line timestamps and word-level data
+    #     """
+    #     parsed_lines = []
+
+    #     # Join all lyrics to handle potential formatting issues
+    #     all_lyrics = " ".join(lyrics_lines)
+
+    #     # Extract all line timestamps and their content
+    #     line_pattern = r"\[(\d+):(\d+\.\d+)\](.*?)(?=\[\d+:\d+\.\d+\]|$)"
+    #     line_matches = re.finditer(line_pattern, all_lyrics)
+
+    #     for line_match in line_matches:
+    #         line_minutes = int(line_match.group(1))
+    #         line_seconds = float(line_match.group(2))
+    #         line_timestamp = line_minutes * 60 + line_seconds
+    #         line_content = line_match.group(3).strip()
+
+    #         if not line_content:
+    #             continue
+
+    #         # Extract word timestamps and text
+    #         words_data = []
+    #         word_pattern = r"<(\d+):(\d+\.\d+)>\s*([^<]+)"
+    #         word_matches = re.finditer(word_pattern, line_content)
+
+    #         for match in word_matches:
+    #             word_minutes = int(match.group(1))
+    #             word_seconds = float(match.group(2))
+    #             word_timestamp = word_minutes * 60 + word_seconds
+    #             word_text = match.group(3).strip()
+
+    #             if word_text:
+    #                 words_data.append({"timestamp": word_timestamp, "text": word_text})
+
+    #         # Only add lines that have word data
+    #         if words_data:
+    #             parsed_lines.append({"timestamp": line_timestamp, "words": words_data})
+
+    #     # Sort by timestamp
+    #     if parsed_lines:
+    #         parsed_lines.sort(key=lambda x: x["timestamp"])
+
+    #     return parsed_lines
+
+    def _highlight_current_word(
+        self,
+        words: List[Dict[str, Any]],
+        current_word_index: int,
+        theme_style: Dict[str, Any],
+    ) -> str:
+        """
+        Create a string with the current word highlighted using a gradient effect.
+
+        Args:
+            words: List of word data dictionaries
+            current_word_index: Index of the current word
+            theme_style: Theme style dictionary
+
+        Returns:
+            Formatted string with prominent gradient word highlighting
+        """
+        # Get theme colors with fallbacks
+        theme_color = self._get_theme_color(theme_style)
+        gradient_colors = theme_style.get("title", ["#00FF7F", "#00DD6E", "#00BB5C"])
+        dim_color = theme_style.get("dim", "#555555")
+
+        # Format each word based on its distance from the current word
+        formatted_words = []
+        for i, word_data in enumerate(words):
+            word_text = word_data["text"]
+            distance = abs(i - current_word_index)
+
+            formatted_words.append(
+                self._format_word_with_gradient(
+                    word_text, distance, theme_color, gradient_colors, dim_color
+                )
+            )
+
+        return " ".join(formatted_words)
+
+    def _format_word_with_gradient(
+        self,
+        word: str,
+        distance: int,
+        theme_color: str,
+        gradient_colors: List[str],
+        dim_color: str,
+    ) -> str:
+        """Format a single word based on its distance from the current word."""
+        # Current or adjacent word - use primary color and bold
+        if distance <= 1:
+            return f"[bold {theme_color}]{word}[/bold {theme_color}]"
+
+        # Words within gradient range - use gradient colors
+        if distance <= len(gradient_colors) + 1:
+            # Index into gradient colors, with bounds checking
+            color_index = min(distance - 2, len(gradient_colors) - 1)
+            color_index = max(0, color_index)  # Ensure non-negative
+            color = gradient_colors[color_index]
+            return f"[{color}]{word}[/{color}]"
+
+        # Far words - use dim color
+        return f"[{dim_color}]{word}[/{dim_color}]"
+
+    # Helper method to get theme color with fallbacks
+    def _get_theme_color(self, theme_style: Dict[str, Any]) -> str:
+        """Get the primary theme color with appropriate fallbacks."""
+        return theme_style.get("primary", theme_style.get("title", ["#00FF7F"])[0])
+
+    def _get_plain_lyrics(self, lyrics_lines: List[str]) -> List[str]:
+        """
+        Extract plain text from any type of lyrics format.
+
+        Args:
+            lyrics_lines: List of lyrics lines (can be synced, enhanced LRC, or plain)
+
+        Returns:
+            List of plain lyrics lines without timestamps
+        """
+        plain_lines = []
+
+        # Handle enhanced LRC format
+        if self._is_enhanced_lrc(lyrics_lines):
+            for line in lyrics_lines:
+                # Remove line timestamp
+                line_without_time = re.sub(r"\[\d+:\d+\.\d+\]", "", line).strip()
+                # Remove word timestamps
+                plain_line = re.sub(r"<\d+:\d+\.\d+>", "", line_without_time).strip()
+                if plain_line:
+                    plain_lines.append(plain_line)
+
+        # Handle standard LRC format
+        elif self._is_synced_lyrics(lyrics_lines):
+            for line in lyrics_lines:
+                # Remove timestamp patterns
+                plain_line = re.sub(r"\[\d+:\d+\.\d+\]", "", line).strip()
+                if plain_line:
+                    plain_lines.append(plain_line)
+
+        # Already plain lyrics
+        else:
+            plain_lines = [line.strip() for line in lyrics_lines if line.strip()]
+
+        return plain_lines
