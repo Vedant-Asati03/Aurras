@@ -150,20 +150,15 @@ def get_lyrics_display(
 
 def get_lyrics_header() -> str:
     """Get a theme-consistent lyrics section header."""
-    # Get theme from unified theme system
     theme_name = get_current_theme()
     theme_obj = get_theme(theme_name)
 
-    # Use adapters to get theme styles
     from ...themes.adapters import get_gradient_styles
 
     theme_gradients = get_gradient_styles(theme_obj)
     header_gradient = theme_gradients.get("primary", theme_gradients.get("title", None))
 
-    if header_gradient and isinstance(header_gradient, list) and header_gradient:
-        header_color = header_gradient[0]
-
-    return f"\n\n[bold {header_color}]󰇘󰇘󰇘󰇘 Lyrics 󰇘󰇘󰇘󰇘[/bold {header_color}]\n"
+    return f"\n\n[bold {header_gradient}]󰇘󰇘󰇘󰇘 Lyrics 󰇘󰇘󰇘󰇘[/bold {header_gradient}]\n"
 
 
 def format_feedback_message(message: str) -> str:
