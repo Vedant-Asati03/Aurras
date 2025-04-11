@@ -2,29 +2,57 @@
 Rich console adapter for the Aurras theme system.
 
 This module provides functionality to convert theme definitions
-to Rich library compatible formats.
+to Rich library compatible formats with optimized caching.
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional, Union, cast
 import logging
 
 from rich.theme import Theme as RichTheme
+from rich.style import Style
 
 from ..definitions import ThemeDefinition
-from ..utils import get_fallback_value
+from ..utils import get_fallback_value, ThemeValueCache
 
 logger = logging.getLogger(__name__)
+
+# Caches for expensive theme conversions - use name as key instead of ThemeDefinition
+_rich_theme_cache = ThemeValueCache[str, RichTheme]()
+_gradient_cache = ThemeValueCache[str, Dict[str, List[str]]]()
 
 
 def theme_to_rich_theme(theme_def: ThemeDefinition) -> RichTheme:
     """
-    Convert a ThemeDefinition to a Rich Theme.
+    Convert a ThemeDefinition to a Rich Theme with optimized caching.
 
     Args:
         theme_def: The theme definition to convert
 
     Returns:
         A Rich Theme instance for console styling
+
+    Example:
+        >>> theme = get_theme("GALAXY")
+        >>> rich_theme = theme_to_rich_theme(theme)
+        >>> isinstance(rich_theme, RichTheme)
+        True
+    """
+    # Use the theme name for the cache key instead of the ThemeDefinition object
+    theme_name = theme_def.name
+
+    # Use cache for better performance
+    return _rich_theme_cache.get(theme_name, _compute_rich_theme, theme_def)
+
+
+def _compute_rich_theme(theme_def: ThemeDefinition) -> RichTheme:
+    """
+    Internal function to compute a Rich theme from a ThemeDefinition.
+
+    Args:
+        theme_def: The theme definition to convert
+
+    Returns:
+        A newly computed Rich Theme instance
     """
     # Define the style mappings with fallbacks
     style_mapping = {
@@ -112,12 +140,18 @@ def theme_to_rich_theme(theme_def: ThemeDefinition) -> RichTheme:
     for style_name, (primary, fallbacks, default) in style_mapping.items():
         theme_styles[style_name] = get_fallback_value(primary, fallbacks, default)
 
-    return RichTheme(theme_styles)
+    # Create the rich theme and return it
+    try:
+        return RichTheme(theme_styles)
+    except Exception as e:
+        logger.error(f"Error creating Rich theme: {e}")
+        # Return a basic fallback theme if there's an error
+        return RichTheme({"primary": "white", "error": "red"})
 
 
 def get_gradient_styles(theme_def: ThemeDefinition) -> Dict[str, List[str]]:
     """
-    Extract gradient styles from a theme definition.
+    Extract gradient styles from a theme definition with optimized caching.
 
     This creates a dictionary of gradient styles compatible with
     the gradient_utils module for console rendering.
@@ -127,8 +161,33 @@ def get_gradient_styles(theme_def: ThemeDefinition) -> Dict[str, List[str]]:
 
     Returns:
         Dictionary mapping style names to gradient color lists
+
+    Example:
+        >>> theme = get_theme("NEON")
+        >>> gradients = get_gradient_styles(theme)
+        >>> isinstance(gradients, dict)
+        True
+        >>> "title" in gradients
+        True
     """
-    result = {
+    # Use the theme name for the cache key instead of the ThemeDefinition object
+    theme_name = theme_def.name
+
+    # Use cache for better performance
+    return _gradient_cache.get(theme_name, _compute_gradient_styles, theme_def)
+
+
+def _compute_gradient_styles(theme_def: ThemeDefinition) -> Dict[str, List[str]]:
+    """
+    Internal function to compute gradient styles from a theme definition.
+
+    Args:
+        theme_def: The theme definition to extract gradients from
+
+    Returns:
+        Dictionary of computed gradient styles
+    """
+    result: Dict[str, Union[str, List[str]]] = {
         "primary": theme_def.primary.hex if theme_def.primary else "#FFFFFF",
         "secondary": (
             theme_def.secondary.hex
@@ -264,4 +323,58 @@ def get_gradient_styles(theme_def: ThemeDefinition) -> Dict[str, List[str]]:
     # Dim color
     result["dim"] = theme_def.dim if theme_def.dim else "#333333"
 
-    return result
+    # We know all values in result are either strings or List[str]
+    # Cast to the correct return type for type checking
+    return cast(Dict[str, List[str]], result)
+
+
+def invalidate_caches(theme_name: Optional[str] = None) -> None:
+    """
+    Invalidate the caches for theme conversions.
+
+    Call this function whenever a theme is modified to ensure
+    that the cached values are regenerated.
+
+    Args:
+        theme_name: Specific theme to invalidate, or None for all themes
+    """
+    if theme_name:
+        _rich_theme_cache.invalidate(theme_name)
+        _gradient_cache.invalidate(theme_name)
+    else:
+        _rich_theme_cache.invalidate()
+        _gradient_cache.invalidate()
+        # Also clear the lru_cache on the main function
+        theme_to_rich_theme.cache_clear()
+
+
+def create_rich_style_from_color(
+    hex_color: str, bold: bool = False, dim: bool = False
+) -> Style:
+    """
+    Create a Rich Style object from a hex color string.
+
+    This is a convenience function for creating a Rich Style object
+    with commonly used attributes directly from a hex color.
+
+    Args:
+        hex_color: Hex color string
+        bold: Whether the style should be bold
+        dim: Whether the style should be dim
+
+    Returns:
+        A Rich Style object for console styling
+
+    Example:
+        >>> style = create_rich_style_from_color("#FF0000", bold=True)
+        >>> style.color.name
+        '#FF0000'
+        >>> style.bold
+        True
+    """
+    try:
+        return Style(color=hex_color, bold=bold, dim=dim)
+    except Exception as e:
+        logger.error(f"Error creating Rich style from color {hex_color}: {e}")
+        # Return a default style if there's an error
+        return Style(color="white", bold=bold, dim=dim)
