@@ -7,14 +7,12 @@ lyrics in the MPV player interface with theme-consistent styling.
 
 import logging
 from concurrent.futures import Future
-from typing import List, Optional, Dict, Any
 
 from ..lyrics_handler import LyricsHandler
 from ..memory import optimize_memory_usage
 from ..cache import LRUCache
+from ...themes.manager import get_theme, get_current_theme
 
-from ...utils.exceptions import DisplayError
-from ...utils.gradient_utils import apply_gradient_to_text
 from .state import LyricsStatus, LyricsState
 
 logger = logging.getLogger(__name__)
@@ -152,18 +150,29 @@ def get_lyrics_display(
 
 def get_lyrics_header() -> str:
     """Get a theme-consistent lyrics section header."""
-    from ...utils.gradient_utils import get_gradient_style
+    # Get theme from unified theme system
+    theme_name = get_current_theme()
+    theme_obj = get_theme(theme_name)
 
-    theme_style = get_gradient_style()
-    header_color = theme_style.get("primary", theme_style.get("title", ["magenta"])[0])
-    return f"\n\n[bold {header_color}]─── Lyrics ───[/bold {header_color}]\n"
+    # Use adapters to get theme styles
+    from ...themes.adapters import get_gradient_styles
+
+    theme_gradients = get_gradient_styles(theme_obj)
+    header_gradient = theme_gradients.get("primary", theme_gradients.get("title", None))
+
+    if header_gradient and isinstance(header_gradient, list) and header_gradient:
+        header_color = header_gradient[0]
+
+    return f"\n\n[bold {header_color}]󰇘󰇘󰇘󰇘 Lyrics 󰇘󰇘󰇘󰇘[/bold {header_color}]\n"
 
 
 def format_feedback_message(message: str) -> str:
     """Format a feedback message with theme-consistent styling."""
-    from ...utils.gradient_utils import apply_gradient_to_text
+    from ..lyrics_handler import LyricsHandler
 
-    feedback_text = apply_gradient_to_text(message, "feedback")
+    # Create a temporary handler just for formatting
+    temp_handler = LyricsHandler()
+    feedback_text = temp_handler.apply_gradient_to_text(message, "feedback")
     return f"[italic]{feedback_text}[/italic]"
 
 
