@@ -78,7 +78,8 @@ class LyricsFetcher:
                 )
                 plain_lyrics = (
                     syncedlyrics.search(
-                        f"{self.track_name} - {self.artist_name}", plain_only=True
+                        f"{self.track_name} - {self.artist_name}",
+                        plain_only=True,
                     ).split("\n")
                     or []
                 )
