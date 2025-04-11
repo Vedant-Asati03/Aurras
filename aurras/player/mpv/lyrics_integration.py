@@ -156,9 +156,9 @@ def get_lyrics_header() -> str:
     from ...themes.adapters import get_gradient_styles
 
     theme_gradients = get_gradient_styles(theme_obj)
-    header_gradient = theme_gradients.get("primary", theme_gradients.get("title", None))
+    lyrics_header_style = theme_gradients.get("primary")
 
-    return f"\n\n[bold {header_gradient}]󰇘󰇘󰇘󰇘 Lyrics 󰇘󰇘󰇘󰇘[/bold {header_gradient}]\n"
+    return f"\n\n[bold {lyrics_header_style}]󰇘󰇘󰇘󰇘 Lyrics 󰇘󰇘󰇘󰇘[/bold {lyrics_header_style}]\n"
 
 
 def format_feedback_message(message: str) -> str:
