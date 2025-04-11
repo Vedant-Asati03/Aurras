@@ -12,18 +12,18 @@ Example:
 """
 
 import os
-import re
+import json
 import time
 import logging
 import sqlite3
 import subprocess
-import json
 import contextlib
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Iterator, Tuple
 from rich.console import Console
 
 from ..utils.path_manager import PathManager
+from ..utils.handle_fuzzy_search import FuzzySearcher
 
 METADATA_FILE = "metadata.spotdl"
 DEFAULT_BATCH_SIZE = 25
@@ -282,30 +282,18 @@ class DownloadsDatabase:
                 result = {}
                 for row in cursor.fetchall():
                     song_dict = dict(row)
-                    track_name = song_dict.get("track_name", "")
-
-                    # Create both lowercase key and original track name key
-                    key = track_name.lower()
+                    track_name: str = song_dict.get("track_name", "")
 
                     # Format the song data according to the requested format
                     song_data = {
                         "track_name": track_name,
-                        "url": "",  # Default empty string as it's not in database
+                        "url": song_dict.get("file_path", ""),
                         "artist_name": song_dict.get("artist_name", ""),
                         "album_name": song_dict.get("album_name", ""),
-                        "thumbnail_url": song_dict.get(
-                            "cover_url", ""
-                        ),  # Use cover_url as thumbnail_url
+                        "thumbnail_url": song_dict.get("cover_url", ""),
                         "duration": song_dict.get("duration", 0),
-                        "file_path": song_dict.get(
-                            "file_path", ""
-                        ),  # Keep this for internal use
                     }
 
-                    # Add the entry to the result dictionary
-                    result[key] = song_data
-
-                    # Also add with original track name as key for consistency with example
                     result[track_name] = song_data.copy()
 
                 return result
@@ -316,7 +304,12 @@ class DownloadsDatabase:
 
 
 class ExtractMetadata:
-    def __init__(self, database: Optional[DownloadsDatabase] = None):
+    def __init__(
+        self,
+        output_dir: Path,
+        format: str,
+        database: Optional[DownloadsDatabase] = None,
+    ):
         """
         Initialize the metadata extractor.
 
@@ -324,6 +317,7 @@ class ExtractMetadata:
             database: Optional database instance for dependency injection
         """
         self.database = database or DownloadsDatabase()
+        self.output_dir = output_dir
         self._file_path_cache: Dict[Tuple[str, str], Optional[Path]] = {}
 
     def extract_metadata_from_spotdl_saved(self, batch_size: int = DEFAULT_BATCH_SIZE):
@@ -357,8 +351,9 @@ class ExtractMetadata:
                             data=song_data, artists=artist_str
                         )
 
-                        # Find the file path
-                        file_path = self._find_downloaded_file(artist_str, song_name)
+                        file_path = self._find_downloaded_file(
+                            artist_str, song_name, self.output_dir
+                        )
                         if file_path:
                             song_data = self._add_filepath_to_extracted_metadata(
                                 data=song_data, file_path=str(file_path)
@@ -455,13 +450,16 @@ class ExtractMetadata:
         else:
             console.print("[yellow]No metadata to update in batch[/yellow]")
 
-    def _find_downloaded_file(self, artist: str, title: str) -> Optional[Path]:
+    def _find_downloaded_file(
+        self, artist: str, title: str, output_dir: Path
+    ) -> Optional[Path]:
         """
         Find the downloaded file based on artist and title.
 
         Args:
             artist: Artist name
             title: Song title
+            output_dir: Directory where the file is downloaded
 
         Returns:
             Path to the downloaded file, or None if not found
@@ -471,50 +469,17 @@ class ExtractMetadata:
         if cache_key in self._file_path_cache:
             return self._file_path_cache[cache_key]
 
-        # Use the predictable filename format that matches the one specified in spotdl command
-        safe_artist = re.sub(r'[\\/*?:"<>|]', "", artist)
-        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
+        all_files = os.listdir(output_dir)
+        file_name = FuzzySearcher(threshold=0.5).find_best_match(
+            f"{artist} - {title}", all_files
+        )
 
-        filename = f"{safe_artist} - {safe_title}.mp3"
-        expected_path = Path(output_dir) / filename
+        file_path = output_dir / file_name if file_name else None
 
-        if expected_path.exists():
-            self._file_path_cache[cache_key] = expected_path
-            return expected_path
+        if file_path.exists():
+            self._file_path_cache[cache_key] = file_path
 
-        # Fall back to the old method if the expected file doesn't exist
-        # This is helpful for files downloaded before this change
-        # ...existing code for fallback approach...
-
-        # Clean artist and title for filesystem compatibility
-        safe_artist = re.sub(r'[\\/*?:"<>|]', "", artist)
-        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
-
-        # Try common patterns
-        patterns = [
-            f"{safe_artist} - {safe_title}.mp3",
-            f"{safe_artist.strip()} - {safe_title.strip()}.mp3",
-            f"{title}.mp3",
-        ]
-
-        # Check for each pattern
-        dir_path = Path(output_dir)
-        for pattern in patterns:
-            potential_path = dir_path / pattern
-            if potential_path.exists():
-                self._file_path_cache[cache_key] = potential_path
-                return potential_path
-
-        # If no exact match, search for files containing both artist and title
-        for file_path in dir_path.glob("*.mp3"):
-            file_name = file_path.name.lower()
-            if safe_artist.lower() in file_name and safe_title.lower() in file_name:
-                self._file_path_cache[cache_key] = file_path
-                return file_path
-
-        # Cache the negative result too
-        self._file_path_cache[cache_key] = None
-        return None
+        return file_path if file_path and file_path.exists() else None
 
 
 class SongDownloader:
@@ -523,18 +488,28 @@ class SongDownloader:
     def __init__(
         self,
         song_list_to_download: List[str],
-        path_manager: Optional[PathManager] = None,
+        download_path=output_dir,
+        format="mp3",
+        bitrate="auto",
     ):
         """
         Initialize the SongDownloader.
 
         Args:
             song_list_to_download: List of song names to download
+            downlaod_path: Path to directory for song[s] to download in
+            format: Format of the song[s] to download
+            bitrate: Quality of the song[s] to download
             path_manager: Optional path manager for dependency injection
         """
-        self._path_manager = path_manager or _path_manager
+        self._path_manager = _path_manager
         self.song_list_to_download = song_list_to_download
-        self.metadata_extractor = ExtractMetadata()
+        self.download_path = download_path or str(
+            self._path_manager.downloaded_songs_dir
+        )
+        self.format = format
+        self.bitrate = bitrate
+        self.metadata_extractor = ExtractMetadata(Path(self.download_path), self.format)
 
     def download_songs(self):
         """
@@ -545,8 +520,11 @@ class SongDownloader:
             return
 
         try:
-            console.print(f"Songs will be saved to: [cyan]{output_dir}[/cyan]")
-            self._download_with_subprocess()
+            console.print(f"Songs will be saved to: [cyan]{self.download_path}[/cyan]")
+            if self._download_with_subprocess():
+                # This way if download fails, we dont extract metadata
+                with change_dir(self.download_path):
+                    self.metadata_extractor.extract_metadata_from_spotdl_saved()
 
         except KeyboardInterrupt:
             console.print("[red]Downloading Cancelled![/red]")
@@ -558,11 +536,6 @@ class SongDownloader:
             logger.error(f"Failed to download songs: {e}", exc_info=True)
             console.print(f"[bold red]Error during download: {str(e)}[/bold red]")
 
-        finally:
-            # Extract metadata regardless of download success/failure
-            with change_dir(output_dir):
-                self.metadata_extractor.extract_metadata_from_spotdl_saved()
-
     def _download_with_subprocess(self):
         """
         Download songs using spotdl via subprocess with retry mechanism.
@@ -571,25 +544,35 @@ class SongDownloader:
         # Format: {artist} - {title}.{output-ext}
         output_format = "{artists} - {title}"
 
-        cmd = (
-            f"spotdl download {' '.join(f'"{item}"' for item in self.song_list_to_download)} "
-            f'--output "{output_format}" '
-            f"--ytm-data --preload --save-file {METADATA_FILE}"
-        )
+        cmd_parts = [
+            f"spotdl download {' '.join(f'"{item}"' for item in self.song_list_to_download)}",
+            f'--output "{output_format}"',
+        ]
+
+        if self.format is not None:
+            cmd_parts.append(f'--format "{self.format}"')
+
+        if self.bitrate is not None:
+            cmd_parts.append(f'--bitrate "{self.bitrate}"')
+
+        cmd_parts.append("--ytm-data --preload --save-file metadata.spotdl")
+
+        cmd = " ".join(cmd_parts)
 
         attempts = 0
         while attempts < MAX_RETRIES:
             try:
-                with change_dir(output_dir):
+                with change_dir(self.download_path):
                     logger.info(
                         f"Downloading songs (attempt {attempts + 1}/{MAX_RETRIES})"
                     )
+                    logger.debug(f"Running command: {cmd}")
                     subprocess.run(
                         cmd,
                         check=True,
                         shell=True,
                     )
-                return  # Success, exit the retry loop
+                return True  # Success, exit the retry loop
             except subprocess.CalledProcessError as e:
                 attempts += 1
                 logger.warning(f"Download attempt {attempts} failed: {e}")
@@ -603,3 +586,4 @@ class SongDownloader:
                         "[red]Max retry attempts reached. Download failed.[/red]"
                     )
                     raise
+        return False  # In case we somehow exit the loop without returning
