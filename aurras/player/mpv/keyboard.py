@@ -5,10 +5,7 @@ This module contains keyboard bindings and handlers for the MPV player interface
 """
 
 import logging
-from functools import partial
-from typing import Callable, Any
 from ...core.settings import KeyboardShortcuts
-from ..python_mpv import ShutdownError
 from .state import FeedbackType, PlaybackState, LyricsStatus
 
 logger = logging.getLogger(__name__)
@@ -165,8 +162,7 @@ def setup_key_bindings(player) -> None:
     # Theme cycling - updated to ensure theme name is properly tracked
     @player.on_key_press(KEYBOARDSHORTCUTS.switch_themes)
     def _cycle_theme() -> None:
-        from ...utils.console_manager import (
-            get_console,
+        from ...utils.console.manager import (
             change_theme,
             get_available_themes,
             get_current_theme,
@@ -191,7 +187,6 @@ def setup_key_bindings(player) -> None:
                 "Theme", f"Changed to {next_theme}", FeedbackType.THEME
             )
         except ValueError:
-            # If the current theme isn't found in the list, start with first theme
             next_theme = available_themes[0]
             change_theme(next_theme)
             player._state.current_theme = next_theme
