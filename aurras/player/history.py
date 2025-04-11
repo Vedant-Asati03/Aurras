@@ -4,20 +4,22 @@ History Manager Module
 This module provides functionality for tracking and replaying recently played songs.
 """
 
-import sqlite3
 import time
-from typing import List, Optional
-from rich.console import Console
-from rich.table import Table
-from rich.box import ROUNDED
-from rich.panel import Panel
-from rich.text import Text
-from rich.style import Style
-from rich.logging import RichHandler
-from rich import print as rprint
 import logging
+import sqlite3
+from typing import List, Optional, Dict, Any
+
+from rich.text import Text
+from rich.table import Table
+from rich.panel import Panel
+from rich.box import ROUNDED
+from rich.console import Console
+from rich import print as rprint
+from rich.logging import RichHandler
 
 from ..utils.path_manager import PathManager
+from ..themes import get_theme, get_current_theme
+from ..themes.adapters import theme_to_rich_theme, get_gradient_styles
 
 _path_manager = PathManager()
 
@@ -47,13 +49,6 @@ class RecentlyPlayedManager:
     MAX_HISTORY = 10000  # Maximum number of songs to keep in history
     DUPLICATE_TIMEFRAME = 30 * 60  # 30 minutes in seconds
 
-    # Rich styles for consistent appearance
-    TITLE_STYLE = Style(color="cyan", bold=True)
-    SUCCESS_STYLE = Style(color="green")
-    WARNING_STYLE = Style(color="yellow")
-    ERROR_STYLE = Style(color="red", bold=True)
-    INFO_STYLE = Style(color="blue")
-
     def __new__(cls):
         """Ensure singleton pattern - only one instance of history manager exists."""
         if cls._instance is None:
@@ -72,6 +67,20 @@ class RecentlyPlayedManager:
         self._last_played_song = None
         self._initialize_db()
         self._initialized = True
+
+    def _get_theme_styles(self) -> Dict[str, Any]:
+        """Get the current theme styles."""
+        current_theme_name = get_current_theme()
+        theme = get_theme(current_theme_name)
+        theme_styles = theme_to_rich_theme(theme).styles
+        return theme_styles
+
+    def _get_theme_gradients(self) -> Dict[str, List[str]]:
+        """Get the current theme gradients."""
+        current_theme_name = get_current_theme()
+        theme = get_theme(current_theme_name)
+        theme_gradients = get_gradient_styles(theme)
+        return theme_gradients
 
     def _initialize_db(self):
         """Initialize the database for storing play history."""
@@ -99,6 +108,11 @@ class RecentlyPlayedManager:
             song_name: Name of the song
             source: Source of the song (e.g., 'search', 'playlist', 'offline')
         """
+        # Get theme styles
+        theme_styles = self._get_theme_styles()
+        info_style = theme_styles.get("info", "blue")
+        success_style = theme_styles.get("success", "green")
+
         # Directly check the database for the most recent entry to avoid relying on instance variable
         with sqlite3.connect(_path_manager.history_db) as conn:
             cursor = conn.cursor()
@@ -128,7 +142,7 @@ class RecentlyPlayedManager:
                     log.info(
                         Text(
                             f"Updated play count for repeated: {song_name}",
-                            style=self.INFO_STYLE,
+                            style=info_style,
                         )
                     )
                     conn.commit()
@@ -161,15 +175,11 @@ class RecentlyPlayedManager:
                         (count - self.MAX_HISTORY,),
                     )
                     conn.commit()
-                log.info(
-                    Text("Trimmed history to maximum size", style=self.INFO_STYLE)
-                )
+                log.info(Text("Trimmed history to maximum size", style=info_style))
             else:
                 conn.commit()
 
-            log.info(
-                Text(f"Added to history: {song_name}", style=self.SUCCESS_STYLE)
-            )
+            log.info(Text(f"Added to history: {song_name}", style=success_style))
 
     def get_history_count(self) -> int:
         """Get the total number of songs in history."""
@@ -214,10 +224,10 @@ class RecentlyPlayedManager:
             cursor.execute("SELECT COUNT(*) FROM play_history")
             count = cursor.fetchone()[0]
 
-            print(f" Total songs in history: {count}")
+            print(f" Total songs in history: {count}")
 
             if count <= 1:  # Need at least 2 songs to have a "previous" song
-                print(" Not enough history to get previous song")
+                print(" Not enough history to get previous song")
                 return None
 
             # Move position back in history
@@ -227,7 +237,7 @@ class RecentlyPlayedManager:
             else:
                 self._current_position = min(self._current_position + 1, count - 1)
 
-            print(f" New position in history: {self._current_position}")
+            print(f" New position in history: {self._current_position}")
 
             # Get the song at the current position
             cursor.execute(
@@ -241,7 +251,9 @@ class RecentlyPlayedManager:
                 song_name = result[0]
                 return song_name
             else:
-                rprint(Text("No previous song found", style=self.WARNING_STYLE))
+                theme_styles = self._get_theme_styles()
+                warning_style = theme_styles.get("warning", "yellow")
+                rprint(Text("No previous song found", style=warning_style))
                 return None
 
     def get_next_song(self) -> Optional[str]:
@@ -256,12 +268,12 @@ class RecentlyPlayedManager:
         # If already at the end or no history navigation has occurred
         if self._current_position <= 0:
             self._current_position = -1
-            print(" Already at most recent song")
+            print(" Already at most recent song")
             return None
 
         # Move position forward in history
         self._current_position -= 1
-        print(f" New position for next: {self._current_position}")
+        print(f" New position for next: {self._current_position}")
 
         with sqlite3.connect(_path_manager.history_db) as conn:
             cursor = conn.cursor()
@@ -276,20 +288,40 @@ class RecentlyPlayedManager:
                 song_name = result[0]
                 return song_name
             else:
-                rprint(Text("No next song found", style=self.WARNING_STYLE))
+                theme_styles = self._get_theme_styles()
+                warning_style = theme_styles.get("warning", "yellow")
+                rprint(Text("No next song found", style=warning_style))
                 return None
 
-    def display_history(self) -> None:
-        """Display the song play history in a formatted table."""
-        with console.status("[bold blue]Loading history...", spinner="aesthetic"):
-            recent_songs = self.get_recent_songs(20)  # Show up to 20 recent songs
+    def display_history(self, limit: int = 20) -> None:
+        """
+        Display the song play history in a formatted table.
+
+        Args:
+            limit: Maximum number of songs to display (default: 20)
+        """
+        # Get theme styles and gradients
+        theme_styles = self._get_theme_styles()
+        theme_gradients = self._get_theme_gradients()
+
+        primary_color = theme_styles.get("primary", "cyan")
+        secondary_color = theme_styles.get("secondary", "magenta")
+        green_color = theme_styles.get("success", "green")
+        blue_color = theme_styles.get("info", "blue")
+        yellow_color = theme_styles.get("warning", "yellow")
+        dim_color = theme_gradients.get("dim", "#555555")
+
+        with console.status(
+            f"[bold {blue_color}]Loading history...", spinner="aesthetic"
+        ):
+            recent_songs = self.get_recent_songs(limit)  # Use the provided limit
 
         if not recent_songs:
             console.print(
                 Panel(
                     "[italic]No song history found.[/italic]",
                     title="[bold]History[/bold]",
-                    border_style="yellow",
+                    border_style=yellow_color,
                     title_align="center",
                     padding=(1, 2),
                 )
@@ -297,22 +329,22 @@ class RecentlyPlayedManager:
             return
 
         table = Table(
-            title="[bold cyan]🎵 Recently Played Songs[/bold cyan]",
+            title=f"[bold {primary_color}]🎵 Recently Played Songs (Showing {len(recent_songs)} of {self.get_history_count()})[/bold {primary_color}]",
             box=ROUNDED,
-            border_style="cyan",
-            header_style="bold magenta",
+            border_style=primary_color,
+            header_style=f"bold {secondary_color}",
             show_lines=True,
-            title_style="bold cyan",
+            title_style=f"bold {primary_color}",
             caption="[dim italic]Your listening journey[/dim italic]",
             caption_style="dim italic",
             padding=(0, 1),
         )
 
         table.add_column("#", style="dim", justify="right")
-        table.add_column("󰽱 Song", style="green bold")
-        table.add_column(" Played", style="blue")
-        table.add_column(" Source", style="magenta")
-        table.add_column(" Count", style="yellow bold", justify="center")
+        table.add_column("󰽱 Song", style=f"bold {green_color}")
+        table.add_column(" Played", style=blue_color)
+        table.add_column(" Source", style=secondary_color)
+        table.add_column(" Count", style=f"bold {yellow_color}", justify="center")
 
         # Create alternate row styling
         styles = ["", "dim"]
@@ -328,20 +360,20 @@ class RecentlyPlayedManager:
 
             # Style the count based on value
             if play_count > 5:
-                count_display = f"[bold gold1]{play_count}[/bold gold1]"
+                count_display = f"[bold gold1]{play_count}[/bold gold1]"
             elif play_count > 1:
-                count_display = f"[yellow]{play_count}[/yellow]"
+                count_display = f"[{yellow_color}]{play_count}[/{yellow_color}]"
             else:
                 count_display = ""
 
             # Format source with emoji based on type
             source = song["source"]
             if source == "search":
-                source_display = " search"
+                source_display = " search"
             elif source == "playlist":
                 source_display = "󰲹 playlist"
             elif source == "offline":
-                source_display = " offline"
+                source_display = " offline"
             else:
                 source_display = source
 
@@ -362,18 +394,23 @@ class RecentlyPlayedManager:
 
         # Tips panel
         tips = Panel(
-            "[cyan]Tip:[/cyan] Use [bold green]'b'[/bold green] key during playback to play previous song\n"
-            "[cyan]Tip:[/cyan] Use [bold green]'n'[/bold green] key during playback to play next song",
+            f"[{primary_color}]Tip:[/{primary_color}] Use [bold {green_color}]'b'[/bold {green_color}] key during playback to play previous song\n"
+            f"[{primary_color}]Tip:[/{primary_color}] Use [bold {green_color}]'n'[/bold {green_color}] key during playback to play next song\n"
+            f"[{primary_color}]Tip:[/{primary_color}] Use [bold {green_color}]'--history-limit NUMBER'[/bold {green_color}] to show more or fewer songs",
             title="[bold]Navigation Tips[/bold]",
-            border_style="dim blue",
+            border_style=f"dim {blue_color}",
             expand=False,
         )
         console.print(tips)
 
     def clear_history(self) -> None:
         """Clear the song play history."""
+        theme_styles = self._get_theme_styles()
+        error_color = theme_styles.get("error", "red")
+        success_color = theme_styles.get("success", "green")
+
         with console.status(
-            "[bold red]Clearing history database...", spinner="bouncingBar"
+            f"[bold {error_color}]Clearing history database...", spinner="bouncingBar"
         ):
             with sqlite3.connect(_path_manager.history_db) as conn:
                 cursor = conn.cursor()
@@ -384,9 +421,9 @@ class RecentlyPlayedManager:
             self._last_played_song = None
 
         panel = Panel(
-            "[bold green] Play history has been cleared successfully.[/bold green]",
+            f"[bold {success_color}] Play history has been cleared successfully.[/bold {success_color}]",
             title="[bold]History Cleared[/bold]",
-            border_style="green",
+            border_style=success_color,
             padding=(1, 2),
         )
         console.print(panel)
