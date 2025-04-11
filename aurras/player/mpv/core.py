@@ -11,13 +11,12 @@ import logging
 import gc
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 
 from rich.live import Live
-from rich.console import Group
 
 from ...core.settings import KeyboardShortcuts, Settings
-from ...utils.console_manager import get_console
+from ...utils.console.manager import get_console
 from ...utils.exceptions import DisplayError
 from ..python_mpv import MPV, ShutdownError
 from ..lyrics_handler import LyricsHandler
@@ -42,8 +41,6 @@ from .ui import (
     create_display_content,
     create_player_panel,
     get_controls_text,
-    format_song_info,
-    get_status_text,
 )
 from .lyrics_integration import prefetch_lyrics, get_lyrics_display
 
