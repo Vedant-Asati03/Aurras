@@ -307,7 +307,6 @@ class ExtractMetadata:
     def __init__(
         self,
         output_dir: Path,
-        format: str,
         database: Optional[DownloadsDatabase] = None,
     ):
         """
@@ -509,7 +508,7 @@ class SongDownloader:
         )
         self.format = format
         self.bitrate = bitrate
-        self.metadata_extractor = ExtractMetadata(Path(self.download_path), self.format)
+        self.metadata_extractor = ExtractMetadata(Path(self.download_path))
 
     def download_songs(self):
         """
