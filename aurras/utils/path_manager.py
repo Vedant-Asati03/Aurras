@@ -27,7 +27,6 @@ class PathManager:
         self._downloaded_songs_dir = self.app_dir / "songs"
         self._playlists_dir = self.app_dir / "playlists"
         self._log_dir = self.app_dir / "logs"
-        self._mpv_dir = self.app_dir / "mpv"
 
         # Create directories
         self._config_dir.mkdir(parents=True, exist_ok=True)
@@ -35,15 +34,35 @@ class PathManager:
         self._downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
         self._playlists_dir.mkdir(parents=True, exist_ok=True)
         self._log_dir.mkdir(parents=True, exist_ok=True)
-        self._mpv_dir.mkdir(parents=True, exist_ok=True)
 
         # Define important file paths with improved documentation
         self.config_file = self._config_dir / "config.yaml"
         self.default_config = self._config_dir / "default_config.yaml"
         self.history_db = self._database_dir / "play_history.db"
         self.saved_playlists = self._database_dir / "saved_playlists.db"
-        self.mpv_conf = self._mpv_dir / "mpv.conf"
-        self.input_conf = self._mpv_dir / "input.conf"
+
+    def create_required_directories(self):
+        """
+        Create all required directories for the application.
+
+        This method ensures that all directories needed by the application
+        exist, creating them if necessary.
+        """
+        # Main application directory
+        self.app_dir.mkdir(parents=True, exist_ok=True)
+
+        # Critical subdirectories
+        self._config_dir.mkdir(parents=True, exist_ok=True)
+        self._database_dir.mkdir(parents=True, exist_ok=True)
+        self._downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
+        self._playlists_dir.mkdir(parents=True, exist_ok=True)
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Additional directories that might be needed
+        (self.app_dir / "backups").mkdir(parents=True, exist_ok=True)
+        (self.app_dir / "credentials").mkdir(parents=True, exist_ok=True)
+
+        return True
 
     def construct_path(self, *path_parts):
         """
@@ -111,11 +130,6 @@ class PathManager:
     def log_dir(self):
         """Path to the log directory."""
         return self._log_dir
-
-    @property
-    def mpv_dir(self):
-        """Path to the MPV directory."""
-        return self._mpv_dir
 
     @property
     def log_file(self):
