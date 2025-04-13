@@ -1,8 +1,8 @@
 import re
-from typing import List, Tuple, Dict, Union, Optional
-from difflib import SequenceMatcher
-from functools import lru_cache
 import logging
+from functools import lru_cache
+from typing import List, Optional
+from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
