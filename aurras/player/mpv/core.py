@@ -127,7 +127,6 @@ class MPVPlayer(MPV):
         )
         self._user_feedback: Optional[UserFeedback] = None
 
-        self._lyrics_cache = LRUCache(max_size=5)
         self._metadata_cache = LRUCache(max_size=10)
 
         self._current_song_names = deque(maxlen=1000)
@@ -246,12 +245,6 @@ class MPVPlayer(MPV):
         self._lyrics.cached_lyrics = None
         self._lyrics.no_lyrics_message = None
         self._lyrics.status = LyricsStatus.LOADING
-
-        if hasattr(self, "_lyrics_cache"):
-            song_name = self._current_song_names[value]
-            self._lyrics_cache.remove(song_name) if hasattr(
-                self._lyrics_cache, "remove"
-            ) else None
 
         self._history.loaded = False
 
@@ -514,7 +507,6 @@ class MPVPlayer(MPV):
             album,
             duration,
             self.lyrics_handler,
-            self._lyrics_cache,
             self._thread_pool,
             self._active_futures,
         )
