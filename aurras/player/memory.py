@@ -1,19 +1,20 @@
+"""
+Memory Management Module
+
+This module provides tools for monitoring and optimizing memory usage within the
+application. It includes decorators for tracking memory consumption, automated
+garbage collection, and caching strategies to prevent memory leaks.
+"""
+
 import gc
+import time
 import logging
 import tracemalloc
 from functools import wraps
-import time
+from typing import Dict, Any
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Set, Tuple
 
-# Import settings
-from ..core.settings import Settings
-
-# Initialize logger
 logger = logging.getLogger(__name__)
-
-# Get settings
-PLAYERSETTINGS = Settings()
 
 
 @dataclass
@@ -37,7 +38,7 @@ class PlayerMemoryStats:
         self.component_sizes[component_name] = size_bytes
 
     def should_run_gc(self) -> bool:
-        """Determine if garbage collection should run based on time and memory growth."""
+        """Determine if garbage collection should run based on time."""
         current_time = time.time()
         time_since_last_gc = current_time - self.last_gc_time
         return time_since_last_gc >= self.gc_frequency_seconds
@@ -48,7 +49,13 @@ class PlayerMemoryStats:
         self.collection_count += 1
 
     def get_memory_report(self) -> Dict[str, Any]:
-        """Get a complete memory usage report."""
+        """
+        Generate a complete memory usage report.
+        
+        Returns:
+            Dictionary containing memory statistics including uptime,
+            peak memory usage, garbage collection runs, and component sizes.
+        """
         return {
             "uptime_seconds": time.time() - self.start_time,
             "peak_memory_mb": self.peak_memory_usage,
@@ -58,43 +65,21 @@ class PlayerMemoryStats:
         }
 
 
-def get_memory_setting(setting_name: str, default_value: str) -> str:
-    """
-    Safely get a memory-related setting with a fallback default.
-
-    Args:
-        setting_name: Name of the setting to retrieve
-        default_value: Default value to return if setting is not found
-
-    Returns:
-        Setting value or default
-    """
-    try:
-        # Try to get the setting using hyphenated format (from YAML)
-        hyphenated_name = f"memory-{setting_name.replace('_', '-')}"
-        if hasattr(PLAYERSETTINGS, hyphenated_name):
-            return getattr(PLAYERSETTINGS, hyphenated_name)
-
-        # Try with underscores (from direct attribute)
-        underscored_name = f"memory_{setting_name}"
-        if hasattr(PLAYERSETTINGS, underscored_name):
-            return getattr(PLAYERSETTINGS, underscored_name)
-
-        # If neither exists, return default
-        return default_value
-    except Exception as e:
-        logger.debug(f"Error getting memory setting {setting_name}: {e}")
-        return default_value
+# Memory settings constant
+MEMORY_GC_THRESHOLD_MB = 50  # Trigger GC after 50MB growth
 
 
 def optimize_memory_usage():
     """
     Decorator to optimize memory usage in a method.
-
+    
     This decorator performs memory optimization tasks:
     1. Runs garbage collection before and after the method
     2. Limits the maximum size of caches and other collections
-    3. Makes sure circular references are properly broken
+    3. Ensures circular references are properly broken
+    
+    Returns:
+        Decorator function that wraps methods with memory optimization
     """
 
     def decorator(func):
@@ -104,21 +89,31 @@ def optimize_memory_usage():
             collected = gc.collect()
             logger.debug(f"Pre-method GC collected {collected} objects")
 
-            # Check if we need to reset caches
+            # Reset caches when they grow too large
             if hasattr(self, "_lyrics_cache") and len(self._lyrics_cache) > 5:
                 self._lyrics_cache.clear()
 
             if hasattr(self, "_metadata_cache") and len(self._metadata_cache) > 10:
                 self._metadata_cache.clear()
 
-            # Execute the method
             result = func(self, *args, **kwargs)
 
-            # Clean up any resolved futures
             if hasattr(self, "_active_futures"):
                 # Remove done futures from tracking
-                done_futures = set(f for f in self._active_futures if f.done())
-                self._active_futures -= done_futures
+                done_futures = [f for f in self._active_futures if f.done()]
+
+                if hasattr(self._active_futures, "difference_update"):
+                    self._active_futures.difference_update(done_futures)
+                elif hasattr(self._active_futures, "remove"):
+                    for future in done_futures:
+                        try:
+                            self._active_futures.remove(future)
+                        except (ValueError, KeyError):
+                            pass
+                else:
+                    logger.warning(
+                        f"Unsupported _active_futures type: {type(self._active_futures)}"
+                    )
 
             # Run garbage collection after the method
             collected = gc.collect()
@@ -134,39 +129,35 @@ def optimize_memory_usage():
 def memory_stats_decorator(interval_seconds=60):
     """
     Decorator to periodically log memory usage statistics.
+    
+    Memory monitoring is always enabled. This decorator will track memory usage,
+    log statistics at regular intervals, and trigger garbage collection when
+    memory growth exceeds the threshold.
 
     Args:
         interval_seconds: How often to log memory stats (in seconds)
 
     Returns:
-        The decorator function
+        Decorator function that wraps methods with memory monitoring
     """
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # Start memory tracking if enabled (with safe default)
-            enable_tracking = get_memory_setting("monitoring", "no") == "yes"
-
             try:
-                # Import psutil here to avoid requiring it if not used
                 import psutil
-
                 process = psutil.Process()
             except ImportError:
-                logger.debug(
-                    "psutil not available, limited memory monitoring available"
-                )
+                logger.debug("psutil not available, limited memory monitoring available")
                 process = None
 
             last_check_time = time.time()
 
-            if enable_tracking and tracemalloc:
-                # Start detailed memory tracking
+            # Start detailed memory tracking with tracemalloc
+            if tracemalloc:
                 try:
                     tracemalloc.start()
                 except RuntimeError:
-                    # Handle case where tracemalloc is already started
                     pass
 
             # Get initial memory usage
@@ -174,12 +165,10 @@ def memory_stats_decorator(interval_seconds=60):
             if process:
                 initial_memory = process.memory_info().rss / (1024 * 1024)  # MB
 
-            # Define a function to log stats
             def log_memory_stats():
                 nonlocal last_check_time
 
                 current_time = time.time()
-                # Only log at specified intervals
                 if current_time - last_check_time < interval_seconds:
                     return
 
@@ -190,17 +179,15 @@ def memory_stats_decorator(interval_seconds=60):
                     current_memory = process.memory_info().rss / (1024 * 1024)  # MB
                     memory_delta = current_memory - initial_memory
 
-                    # Log basic memory stats
                     logger.info(
                         f"Memory usage: {current_memory:.2f} MB (Δ {memory_delta:+.2f} MB)"
                     )
 
-                    # Log GC stats
                     gc_counts = gc.get_count()
                     logger.debug(f"GC state: {gc_counts} collections")
 
-                    # Log tracemalloc stats if enabled
-                    if enable_tracking and tracemalloc.is_tracing():
+                    # Log tracemalloc stats if available
+                    if tracemalloc.is_tracing():
                         try:
                             snapshot = tracemalloc.take_snapshot()
                             top_stats = snapshot.statistics("lineno")
@@ -214,17 +201,14 @@ def memory_stats_decorator(interval_seconds=60):
                             logger.debug(f"Error getting tracemalloc stats: {e}")
 
                     # Force collection if memory usage grows significantly
-                    gc_threshold = int(get_memory_setting("gc-threshold", "50"))
-                    if (
-                        memory_delta > gc_threshold
-                    ):  # More than threshold MB growth (default 50MB)
+                    gc_threshold = MEMORY_GC_THRESHOLD_MB
+                    if memory_delta > gc_threshold:
                         logger.warning(
                             f"Memory growth detected: {memory_delta:.2f} MB - triggering garbage collection"
                         )
                         collected = gc.collect()
                         logger.info(f"Garbage collected {collected} objects")
                 else:
-                    # Without psutil, we can still log basic GC info
                     gc_counts = gc.get_count()
                     logger.debug(f"GC state: {gc_counts} collections")
                     collected = gc.collect()
@@ -234,11 +218,9 @@ def memory_stats_decorator(interval_seconds=60):
             args[0]._log_memory_stats = log_memory_stats
 
             try:
-                # Call the original function
                 return func(*args, **kwargs)
             finally:
-                # Stop tracking when done
-                if enable_tracking and tracemalloc.is_tracing():
+                if tracemalloc.is_tracing():
                     try:
                         tracemalloc.stop()
                     except Exception as e:
