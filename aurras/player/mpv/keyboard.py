@@ -5,11 +5,13 @@ This module contains keyboard bindings and handlers for the MPV player interface
 """
 
 import logging
-from ...core.settings import KeyboardShortcuts
+
+from ...core.settings import load_settings
 from .state import FeedbackType, PlaybackState, LyricsStatus
 
 logger = logging.getLogger(__name__)
-KEYBOARDSHORTCUTS = KeyboardShortcuts()
+
+SETTINGS = load_settings()
 
 
 def setup_key_bindings(player) -> None:
@@ -21,25 +23,23 @@ def setup_key_bindings(player) -> None:
     """
 
     # Quit handler
-    @player.on_key_press(KEYBOARDSHORTCUTS.quit_playback)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.quit_playback)
     def _quit() -> None:
         player._show_user_feedback("Quit", "Exiting player", FeedbackType.SYSTEM)
         player._state.stop_requested = True
-        player._state.playback_state = (
-            PlaybackState.STOPPED
-        )  # Use directly imported enum
+        player._state.playback_state = PlaybackState.STOPPED
         player.quit()
 
     # Volume control
-    @player.on_key_press(KEYBOARDSHORTCUTS.volume_up)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.volume_up)
     def _volume_up() -> None:
-        new_volume = min(130, player.volume + 5)
+        new_volume = min(SETTINGS.maximum_volume, player.volume + 5)
         player.volume = new_volume
         player._show_user_feedback(
             "Volume", f"Increased to {new_volume}%", FeedbackType.VOLUME
         )
 
-    @player.on_key_press(KEYBOARDSHORTCUTS.volume_down)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.volume_down)
     def _volume_down() -> None:
         new_volume = max(0, player.volume - 5)
         player.volume = new_volume
@@ -48,12 +48,11 @@ def setup_key_bindings(player) -> None:
         )
 
     # Toggle lyrics display
-    @player.on_key_press(KEYBOARDSHORTCUTS.toggle_lyrics)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.toggle_lyrics)
     def _toggle_lyrics() -> None:
         player._state.show_lyrics = not player._state.show_lyrics
         action = "Showing" if player._state.show_lyrics else "Hiding"
 
-        # Update lyrics status based on visibility - fixed to use imported LyricsStatus enum
         if not player._state.show_lyrics:
             player._lyrics.status = LyricsStatus.DISABLED
         elif player._lyrics.cached_lyrics:
@@ -66,12 +65,12 @@ def setup_key_bindings(player) -> None:
         )
 
     # Seeking
-    @player.on_key_press(KEYBOARDSHORTCUTS.seek_forward)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.seek_forward)
     def _seek_forward() -> None:
         player.seek(10)
         player._show_user_feedback("Seek", "Forward 10s", FeedbackType.SEEKING)
 
-    @player.on_key_press(KEYBOARDSHORTCUTS.seek_backward)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.seek_backward)
     def _seek_backward() -> None:
         player.seek(-10)
         player._show_user_feedback("Seek", "Backward 10s", FeedbackType.SEEKING)
@@ -86,7 +85,7 @@ def setup_key_bindings(player) -> None:
         player._state.jump_number += key
         player._show_user_feedback(
             "Jump Mode",
-            f"Jump {player._state.jump_number} tracks, press {KEYBOARDSHORTCUTS.previous_track}/{KEYBOARDSHORTCUTS.next_track}",
+            f"Jump {player._state.jump_number} tracks, press {SETTINGS.keyboard_shortcuts.previous_track}/{SETTINGS.keyboard_shortcuts.next_track}",
             FeedbackType.NAVIGATION,
         )
 
@@ -101,7 +100,7 @@ def setup_key_bindings(player) -> None:
         )
 
     # Modified next and previous handlers to work with jump mode
-    @player.on_key_press(KEYBOARDSHORTCUTS.next_track)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.next_track)
     def _next_track() -> None:
         if player._state.jump_mode:
             try:
@@ -125,7 +124,7 @@ def setup_key_bindings(player) -> None:
             )
             player.playlist_next()
 
-    @player.on_key_press(KEYBOARDSHORTCUTS.previous_track)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.previous_track)
     def _prev_track() -> None:
         if player._state.jump_mode:
             try:
@@ -150,7 +149,7 @@ def setup_key_bindings(player) -> None:
             player.playlist_prev()
 
     # Add escape key to cancel jump mode
-    @player.on_key_press(KEYBOARDSHORTCUTS.stop_jump_mode)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.stop_jump_mode)
     def _cancel_jump_mode() -> None:
         if player._state.jump_mode:
             player._state.jump_mode = False
@@ -159,8 +158,7 @@ def setup_key_bindings(player) -> None:
                 "Jump Mode", "Cancelled", FeedbackType.NAVIGATION
             )
 
-    # Theme cycling - updated to ensure theme name is properly tracked
-    @player.on_key_press(KEYBOARDSHORTCUTS.switch_themes)
+    @player.on_key_press(SETTINGS.keyboard_shortcuts.switch_themes)
     def _cycle_theme() -> None:
         from ...utils.console.manager import (
             change_theme,
