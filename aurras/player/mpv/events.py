@@ -7,7 +7,6 @@ system to prevent memory leaks in callback functions.
 
 import logging
 import weakref
-from typing import Optional, Dict, Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -68,26 +67,22 @@ def create_property_observers(player):
     """
     observers = []
 
-    # Create observer for pause changes
     pause_observer = WeakPropertyObserver(player, "pause", player._on_pause_change)
     pause_observer.register()
     observers.append(pause_observer)
 
-    # Create observer for duration changes
     duration_observer = WeakPropertyObserver(
         player, "duration", player._on_duration_change
     )
     duration_observer.register()
     observers.append(duration_observer)
 
-    # Create observer for metadata changes
     metadata_observer = WeakPropertyObserver(
         player, "metadata", player._on_metadata_change
     )
     metadata_observer.register()
     observers.append(metadata_observer)
 
-    # Create observer for playlist position changes
     playlist_observer = WeakPropertyObserver(
         player, "playlist-pos", player._on_playlist_pos_change
     )
