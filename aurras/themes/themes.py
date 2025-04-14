@@ -6,8 +6,9 @@ Each theme is fully typed and provides a consistent structure for the applicatio
 """
 
 from typing import Dict, Final
-from .definitions import ThemeDefinition, ThemeCategory
+
 from .colors import ThemeColor
+from .definitions import ThemeDefinition, ThemeCategory
 
 
 # Define the built-in themes with proper typing
@@ -30,11 +31,21 @@ GALAXY: Final[ThemeDefinition] = ThemeDefinition(
     text_muted=ThemeColor("#BFBFBF"),  # Muted text
     border=ThemeColor("#6272A4"),  # Border color
     title_gradient=["#BD93F9", "#B899FA", "#B39FFB", "#AEA5FC"],
-    artist_gradient=["#8BE9FD", "#8BE9FDAA", "#8BE9FD77", "#8BE9FD44"],  # Added for consistency
+    artist_gradient=[
+        "#8BE9FD",
+        "#8BE9FDAA",
+        "#8BE9FD77",
+        "#8BE9FD44",
+    ],  # Added for consistency
     status_gradient=["#F8F8F2", "#F8F8F2AA", "#F8F8F277"],  # Added for consistency
     progress_gradient=["#50FA7B", "#50FA7BAA"],  # Added for consistency
     feedback_gradient=["#50FA7B", "#50FA7BAA", "#50FA7B77"],  # Added for consistency
-    history_gradient=["#8BE9FD", "#8BE9FDAA", "#8BE9FD77", "#8BE9FD44"],  # Added for consistency
+    history_gradient=[
+        "#8BE9FD",
+        "#8BE9FDAA",
+        "#8BE9FD77",
+        "#8BE9FD44",
+    ],  # Added for consistency
     dim="#333366",
 )
 
@@ -346,5 +357,35 @@ AVAILABLE_THEMES: Final[Dict[str, ThemeDefinition]] = {
     MONOCHROME.name: MONOCHROME,
 }
 
-# Default theme name with proper typing
+
+# Default theme that will be used if no theme is specified in settings
 DEFAULT_THEME: Final[str] = GALAXY.name
+
+
+def get_default_theme_from_settings() -> str:
+    """
+    Get the default theme from the settings.yaml file.
+
+    Returns:
+        The theme name specified in settings, or DEFAULT_THEME if not found
+    """
+    try:
+        from ..core.settings import load_settings
+
+        SETTINGS = load_settings()
+        dafault_theme = SETTINGS.appearance_settings.theme
+
+        theme_name = dafault_theme.upper()
+
+        if theme_name in AVAILABLE_THEMES:
+            return theme_name
+
+        return DEFAULT_THEME
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting theme from settings: {e}")
+
+        return DEFAULT_THEME
