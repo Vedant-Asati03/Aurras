@@ -7,11 +7,13 @@ between history songs and searched songs.
 """
 
 import logging
+from collections import deque
 from typing import List, Dict, Tuple
+
 from rich.console import Console
 
-from ...services.youtube.search import SearchSong
 from ..history import RecentlyPlayedManager
+from ...services.youtube.search import SearchSong
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -30,7 +32,7 @@ class HistoryIntegration:
         deduplicate: Whether to remove duplicate songs from history
     """
 
-    def __init__(self, max_history_songs: int = 20, deduplicate: bool = True):
+    def __init__(self, max_history_songs: int = 21, deduplicate: bool = True):
         """
         Initialize the history integration handler.
 
@@ -42,6 +44,7 @@ class HistoryIntegration:
         self.max_history_songs = max_history_songs
         self.deduplicate = deduplicate
         self._navigating_history = False
+        self.history_cache = deque(maxlen=max_history_songs)
         logger.debug(f"History integration initialized (max_songs={max_history_songs})")
 
     def get_history_songs(self) -> List[Dict]:
@@ -51,15 +54,12 @@ class HistoryIntegration:
         Returns:
             List of history song dictionaries with metadata
         """
-        # Get recent history (default is most recent first)
         recent_history = self.history_manager.get_recent_songs(self.max_history_songs)
 
-        # IMPORTANT: Reverse the history list so oldest songs play first
-        # History comes from DB ordered by most recent first, we need oldest first
-        recent_history.reverse()
+        history_deque = deque(reversed(recent_history), maxlen=self.max_history_songs)
 
-        logger.debug(f"Retrieved {len(recent_history)} history songs")
-        return recent_history
+        logger.debug(f"Retrieved {len(history_deque)} history songs")
+        return list(history_deque)
 
     def get_history_song_names(self) -> List[str]:
         """
@@ -70,14 +70,13 @@ class HistoryIntegration:
         """
         recent_history = self.get_history_songs()
 
-        # Extract and optionally deduplicate song names
-        history_songs = []
+        history_songs = deque(maxlen=self.max_history_songs)
         for song in recent_history:
             song_name = song["song_name"]
             if not self.deduplicate or song_name not in history_songs:
                 history_songs.append(song_name)
 
-        return history_songs
+        return list(history_songs)
 
     def get_urls_for_history_songs(self, history_songs: List[str]) -> List[str]:
         """
@@ -103,7 +102,6 @@ class HistoryIntegration:
                 history_urls.append(temp_search.song_url_searched[0])
             else:
                 failed_songs.append(song_name)
-                # Use a placeholder URL to maintain playlist order
                 history_urls.append("null://")
 
         if failed_songs:
@@ -129,17 +127,13 @@ class HistoryIntegration:
             - Combined list of URLs (history + searched)
             - Start index for searched songs (where history ends)
         """
-        # Get history songs
         history_songs = self.get_history_song_names()
 
         if not history_songs:
-            # If no history, just return the searched songs
             return searched_songs, searched_urls, 0
 
-        # Get URLs for history songs
         history_urls = self.get_urls_for_history_songs(history_songs)
 
-        # Combine the lists
         all_songs = history_songs + searched_songs
         all_urls = history_urls + searched_urls
         start_index = len(history_songs)  # This is where the searched songs start
@@ -207,7 +201,7 @@ class HistoryIntegration:
 
 
 def integrate_history_with_playback(
-    searched_songs: List[str], searched_urls: List[str], max_history_songs: int = 20
+    searched_songs: List[str], searched_urls: List[str], max_history_songs: int = 21
 ) -> Tuple[List[str], List[str], int]:
     """
     Utility function to integrate history with current search results.
@@ -230,10 +224,8 @@ def integrate_history_with_playback(
         searched_songs, searched_urls
     )
 
-    # Display info about the history
     integration.display_history_info(all_songs[:start_index])
 
-    # Add searched songs to history
     integration.add_songs_to_history(searched_songs)
 
     return all_songs, all_urls, start_index
