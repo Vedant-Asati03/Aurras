@@ -8,12 +8,10 @@ lyrics in the MPV player interface with theme-consistent styling.
 import logging
 from concurrent.futures import Future
 
+from .state import LyricsStatus, LyricsState
 from ..lyrics_handler import LyricsHandler
 from ..memory import optimize_memory_usage
-from ..cache import LRUCache
 from ...themes.manager import get_theme, get_current_theme
-
-from .state import LyricsStatus, LyricsState
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +23,8 @@ def prefetch_lyrics(
     album: str,
     duration: int,
     lyrics_handler: LyricsHandler,
-    lyrics_cache: LRUCache,
     thread_pool,
-    active_futures: set = None,
+    active_futures=None,
 ) -> Future:
     """
     Prefetch lyrics asynchronously with optimized memory usage.
@@ -38,24 +35,15 @@ def prefetch_lyrics(
         album: Album name
         duration: Song duration in seconds
         lyrics_handler: Lyrics handler instance
-        lyrics_cache: Lyrics cache instance
         thread_pool: ThreadPoolExecutor instance for async fetching
-        active_futures: Set to track active futures for cleanup
+        active_futures: Collection to track active futures for cleanup (deque)
 
     Returns:
         Future for the async operation
     """
 
-    # Define the fetch function with weak references to avoid memory leaks
     def fetch_lyrics():
         try:
-            # First check memory cache (fast)
-            cached = lyrics_handler.get_from_cache(song, artist, album)
-            if cached:
-                logger.debug(f"Found lyrics in cache for '{song}'")
-                return cached
-
-            # If not in cache, fetch from service
             lyrics = lyrics_handler.fetch_lyrics(song, artist, album, duration)
             if lyrics:
                 logger.info(f"Successfully fetched lyrics for '{song}'")
@@ -72,13 +60,11 @@ def prefetch_lyrics(
     # Launch the async fetch and track the future for cleanup
     future = thread_pool.submit(fetch_lyrics)
 
-    # Track active futures for proper cleanup
     if active_futures is not None:
-        active_futures.add(future)
-        # Add done callback to remove future from tracking set
+        active_futures.append(future)
         future.add_done_callback(
-            lambda f: active_futures.discard(f)
-            if hasattr(active_futures, "discard")
+            lambda f: active_futures.remove(f)
+            if f in active_futures and hasattr(active_futures, "remove")
             else None
         )
 
@@ -111,10 +97,8 @@ def get_lyrics_display(
     Returns:
         Formatted lyrics display content
     """
-    # Get theme-consistent header
     header = get_lyrics_header()
 
-    # Check prerequisites
     if (
         lyrics_state.status == LyricsStatus.DISABLED
         or not lyrics_handler.has_lyrics_support()
@@ -124,7 +108,6 @@ def get_lyrics_display(
     if not metadata_ready:
         return f"{header}{format_feedback_message('Waiting for song metadata...')}"
 
-    # Display logic for different scenarios
     if lyrics_state.status == LyricsStatus.AVAILABLE and lyrics_state.cached_lyrics:
         return f"{header}{format_cached_lyrics(song, artist, album, elapsed, lyrics_state, lyrics_handler)}"
 
@@ -165,7 +148,6 @@ def format_feedback_message(message: str) -> str:
     """Format a feedback message with theme-consistent styling."""
     from ..lyrics_handler import LyricsHandler
 
-    # Create a temporary handler just for formatting
     temp_handler = LyricsHandler()
     feedback_text = temp_handler.apply_gradient_to_text(message, "feedback")
     return f"[italic]{feedback_text}[/italic]"
@@ -193,7 +175,6 @@ def format_cached_lyrics(
     Returns:
         Formatted lyrics text
     """
-    # Safety check
     if not lyrics_state.cached_lyrics:
         return lyrics_handler.get_no_lyrics_message()
 
@@ -242,7 +223,6 @@ def handle_completed_lyrics_fetch(
                 song, artist, album, elapsed, lyrics_state, lyrics_handler
             )
         else:
-            # Get a stable "no lyrics" message
             lyrics_state.status = LyricsStatus.NOT_FOUND
             if lyrics_state.no_lyrics_message is None:
                 lyrics_state.no_lyrics_message = lyrics_handler.get_no_lyrics_message()
