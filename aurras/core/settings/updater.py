@@ -1,82 +1,67 @@
 """
 Settings Updater
 
-This module provides functionality for updating specific settings.
+This module provides functionality for updating specific settings using dot notation.
 """
 
 from .models import Settings
 from .io import load_settings, save_settings
 
+SETTINGS = load_settings()
 
-class UpdateSpecifiedSettings:
-    """Class for updating specific settings in the settings file."""
 
-    def __init__(self, setting_to_edit) -> None:
-        """Initialize with the setting to edit."""
-        self.user_edit = None
-        self.settings = load_settings()
+class SettingsUpdater:
+    """Class for updating specific settings using dot notation."""
 
-        # Convert kebab-case to snake_case for the pydantic model
-        self.setting_to_edit = setting_to_edit.replace("-", "_")
-        self.previous_setting = self._get_nested_attribute(
-            self.settings, self.setting_to_edit
-        )
+    def __init__(self, key_to_update: str) -> None:
+        self.key = key_to_update.replace("-", "_")  # support kebab-case
+        self.current_value = self._get_nested_value(SETTINGS, self.key)
+        self.new_value = None
 
-    def _get_nested_attribute(self, obj, attr_path):
-        """Get attribute that might be nested using dot notation."""
-        if "." in attr_path:
-            parts = attr_path.split(".")
-            current = obj
-            for part in parts:
-                # Use getattr for pydantic models
-                if hasattr(current, part):
-                    current = getattr(current, part)
-                else:
-                    return ""
-            return current
-        else:
-            return getattr(obj, attr_path, "")
+    def _get_nested_value(self, model, dotted_key: str):
+        """Get a nested value from a Pydantic model using dot notation."""
+        parts = dotted_key.split(".")
+        current = model
+        for part in parts:
+            if hasattr(current, part):
+                current = getattr(current, part)
+            else:
+                return None
+        return current
 
-    def _set_nested_attribute(self, obj, attr_path, value):
-        """Set attribute that might be nested using dot notation."""
-        if "." in attr_path:
-            parts = attr_path.split(".")
-            # We need to handle nested attributes for pydantic models differently
-            # This is simplified and may need more robust implementation
-            current_dict = obj.dict()
-            temp = current_dict
-            for i, part in enumerate(parts[:-1]):
-                if part not in temp:
-                    temp[part] = {}
-                if i < len(parts) - 2:
-                    temp = temp[part]
-            temp[parts[-1]] = value
+    def _set_nested_value(self, model, dotted_key: str, value):
+        """Set a nested value in a Pydantic model using dot notation."""
+        data = model.model_dump()
+        parts = dotted_key.split(".")
+        temp = data
 
-            # Create new model with updated data
-            self.settings = Settings.parse_obj(current_dict)
-            return True
-        else:
-            # For direct attributes, we can use pydantic's __setattr__
-            setattr(obj, attr_path, value)
-            return True
+        for part in parts[:-1]:
+            if part not in temp or not isinstance(temp[part], dict):
+                temp[part] = {}
+            temp = temp[part]
 
-    def _get_user_edit(self):
-        """Get user input for the setting change."""
-        # Convert back to kebab-case for user display
-        display_setting = self.setting_to_edit.replace("_", "-")
-        self.user_edit = (
-            input(f"Enter new value for {display_setting}: ").strip().lower()
-        )
+        temp[parts[-1]] = value
 
-    def update_specified_setting_through_user(self):
-        """Update a specific setting based on user input."""
-        self._get_user_edit()
-        self.update_specified_setting_directly(self.user_edit)
+        # Rebuild model with updated data
+        return Settings(**data)
 
-    def update_specified_setting_directly(self, updated_setting: str):
-        """Update a specific setting with the provided value."""
-        if not updated_setting:
-            updated_setting = self.previous_setting
+    def _prompt_user_input(self):
+        """Prompt the user for the new value."""
+        display_key = self.key.replace("_", "-")
+        self.new_value = input(f"Enter new value for '{display_key}': ").strip()
 
-        self._set_nested_attribute(self.settings, self.setting_to_edit, updated_setting)
-        save_settings(self.settings)
+    def update_via_user_input(self):
+        """Main interface: prompt and update."""
+        self._prompt_user_input()
+        self.apply_update()
+
+    def update_directly(self, value: str):
+        """Set the new value programmatically."""
+        self.new_value = value
+        self.apply_update()
+
+    def apply_update(self):
+        """Apply the update and save the settings."""
+        global SETTINGS
+        SETTINGS = self._set_nested_value(SETTINGS, self.key, self.new_value)
+        save_settings(SETTINGS)
