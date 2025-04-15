@@ -33,7 +33,7 @@ def setup_key_bindings(player) -> None:
     # Volume control
     @player.on_key_press(SETTINGS.keyboard_shortcuts.volume_up)
     def _volume_up() -> None:
-        new_volume = min(SETTINGS.maximum_volume, player.volume + 5)
+        new_volume = min(float(SETTINGS.maximum_volume), player.volume + 5)
         player.volume = new_volume
         player._show_user_feedback(
             "Volume", f"Increased to {new_volume}%", FeedbackType.VOLUME
@@ -79,7 +79,7 @@ def setup_key_bindings(player) -> None:
     player._state.jump_mode = False
     player._state.jump_number = ""
 
-    # Single handler for all number keys
+    # Number key Handler
     def _handle_number_key(key: str) -> None:
         player._state.jump_mode = True
         player._state.jump_number += key
@@ -99,7 +99,7 @@ def setup_key_bindings(player) -> None:
             ),
         )
 
-    # Modified next and previous handlers to work with jump mode
+    # Next and previous handlers (Supports jump mode)
     @player.on_key_press(SETTINGS.keyboard_shortcuts.next_track)
     def _next_track() -> None:
         if player._state.jump_mode:
@@ -148,7 +148,7 @@ def setup_key_bindings(player) -> None:
             )
             player.playlist_prev()
 
-    # Add escape key to cancel jump mode
+    # Escape key to cancel jump mode
     @player.on_key_press(SETTINGS.keyboard_shortcuts.stop_jump_mode)
     def _cancel_jump_mode() -> None:
         if player._state.jump_mode:
@@ -158,6 +158,7 @@ def setup_key_bindings(player) -> None:
                 "Jump Mode", "Cancelled", FeedbackType.NAVIGATION
             )
 
+    # Cycle themes
     @player.on_key_press(SETTINGS.keyboard_shortcuts.switch_themes)
     def _cycle_theme() -> None:
         from ...utils.console.manager import (
