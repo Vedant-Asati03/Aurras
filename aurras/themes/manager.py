@@ -13,12 +13,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .definitions import ThemeDefinition, ThemeCategory
-from .themes import AVAILABLE_THEMES, DEFAULT_THEME
+from .themes import AVAILABLE_THEMES, get_default_theme_from_settings
 
 logger = logging.getLogger(__name__)
 
-# Global variable to track the current theme
-_current_theme = DEFAULT_THEME
+_current_theme = get_default_theme_from_settings()
 
 
 def get_theme(theme_name: Optional[str] = None) -> ThemeDefinition:
@@ -72,9 +71,7 @@ def set_current_theme(theme_name: str) -> bool:
     global _current_theme
 
     try:
-        # Ensure theme exists by trying to get it
         get_theme(theme_name)
-        # Store as uppercase for consistency
         _current_theme = theme_name.upper()
         logger.info(f"Current theme set to {_current_theme}")
         return True
