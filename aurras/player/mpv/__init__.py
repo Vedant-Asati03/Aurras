@@ -5,7 +5,7 @@ Provides an enhanced MPV player with rich UI, lyrics integration,
 and proper integration with the unified database structure.
 """
 
-from .core import MPVPlayer, MP3Player
+from .core import MPVPlayer
 from .state import (
     PlaybackState,
     LyricsStatus,
@@ -20,7 +20,6 @@ from .state import (
 
 __all__ = [
     "MPVPlayer",
-    "MP3Player",
     "PlaybackState",
     "LyricsStatus",
     "FeedbackType",
