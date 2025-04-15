@@ -7,10 +7,9 @@ used by the MPV player implementation.
 
 from enum import Enum, auto
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import Future
+from typing import Dict, Any, List, Optional, Tuple
 
-# Type aliases for better readability
 ThemeDict = Dict[str, Any]
 SongInfo = Tuple[str, str, str]  # song, artist, album
 
