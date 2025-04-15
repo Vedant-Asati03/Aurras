@@ -6,10 +6,11 @@ throughout the application.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Dict, List, Optional, TypedDict, Any
+
 import logging
+from enum import Enum, auto
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, TypedDict, Any
 
 from .colors import ThemeColor
 
