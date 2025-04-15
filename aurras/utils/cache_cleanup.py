@@ -15,7 +15,7 @@ _path_manager = PathManager()
 console = Console()
 
 
-def cleanup_lyrics_cache(days_old=30):
+def _cleanup_lyrics_cache(days_old=30):
     """
     Delete lyrics from the unified cache database that are older than the specified number of days.
 
@@ -52,7 +52,7 @@ def cleanup_lyrics_cache(days_old=30):
         return 0
 
 
-def cleanup_search_cache(days_old=30):
+def _cleanup_search_cache(days_old=30):
     """
     Delete old search cache entries from the unified cache database.
 
@@ -102,11 +102,11 @@ def cleanup_all_caches(days_old=30):
     results = {}
 
     # Cleanup lyrics cache in the unified database
-    lyrics_deleted = cleanup_lyrics_cache(days_old)
+    lyrics_deleted = _cleanup_lyrics_cache(days_old)
     results["lyrics"] = lyrics_deleted
 
     # Cleanup search cache in the unified database
-    search_deleted = cleanup_search_cache(days_old)
+    search_deleted = _cleanup_search_cache(days_old)
     results["searches"] = search_deleted
 
     # Add other cache cleanups here as needed
