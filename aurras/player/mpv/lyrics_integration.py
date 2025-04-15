@@ -11,7 +11,6 @@ from concurrent.futures import Future
 from .state import LyricsStatus, LyricsState
 from ..lyrics_handler import LyricsHandler
 from ..memory import optimize_memory_usage
-from ...themes.manager import get_theme, get_current_theme
 
 logger = logging.getLogger(__name__)
 
@@ -97,29 +96,28 @@ def get_lyrics_display(
     Returns:
         Formatted lyrics display content
     """
-    header = get_lyrics_header()
 
     if (
         lyrics_state.status == LyricsStatus.DISABLED
         or not lyrics_handler.has_lyrics_support()
     ):
-        return f"{header}{format_feedback_message('Lyrics feature not available')}"
+        return f"{format_feedback_message('Lyrics feature not available')}"
 
     if not metadata_ready:
-        return f"{header}{format_feedback_message('Waiting for song metadata...')}"
+        return f"{format_feedback_message('Waiting for song metadata...')}"
 
     if lyrics_state.status == LyricsStatus.AVAILABLE and lyrics_state.cached_lyrics:
-        return f"{header}{format_cached_lyrics(song, artist, album, elapsed, lyrics_state, lyrics_handler)}"
+        return f"{format_cached_lyrics(song, artist, album, elapsed, lyrics_state, lyrics_handler)}"
 
     if lyrics_state.future and lyrics_state.future.done():
-        return f"{header}{handle_completed_lyrics_fetch(song, artist, album, elapsed, lyrics_state, lyrics_handler)}"
+        return f"{handle_completed_lyrics_fetch(song, artist, album, elapsed, lyrics_state, lyrics_handler)}"
 
     if (
         lyrics_state.status == LyricsStatus.LOADING
         and lyrics_state.future
         and not lyrics_state.future.done()
     ):
-        return f"{header}{lyrics_handler.get_waiting_message()}"
+        return f"{lyrics_handler.get_waiting_message()}"
 
     # No fetch in progress and no cached lyrics
     if (
@@ -128,20 +126,7 @@ def get_lyrics_display(
     ):
         lyrics_state.no_lyrics_message = lyrics_handler.get_no_lyrics_message()
 
-    return f"{header}{lyrics_state.no_lyrics_message or 'No lyrics available'}"
-
-
-def get_lyrics_header() -> str:
-    """Get a theme-consistent lyrics section header."""
-    theme_name = get_current_theme()
-    theme_obj = get_theme(theme_name)
-
-    from ...themes.adapters import get_gradient_styles
-
-    theme_gradients = get_gradient_styles(theme_obj)
-    lyrics_header_style = theme_gradients.get("primary")
-
-    return f"\n\n[bold {lyrics_header_style}]󰇘󰇘󰇘󰇘 Lyrics 󰇘󰇘󰇘󰇘[/bold {lyrics_header_style}]\n"
+    return f"{lyrics_state.no_lyrics_message or 'No lyrics available'}"
 
 
 def format_feedback_message(message: str) -> str:
