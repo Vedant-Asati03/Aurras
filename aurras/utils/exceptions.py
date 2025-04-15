@@ -77,7 +77,91 @@ class DisplayError(PlayerError):
     pass
 
 
-class MPVCommandError(PlayerError):
-    """Exception raised when an MPV command fails."""
+class NetworkError(AurrasError):
+    """Exception raised when there's a network connectivity issue."""
+
+    pass
+
+
+class StreamingError(PlaybackError):
+    """Exception raised when there's an issue with streaming content."""
+
+    pass
+
+
+class DownloadError(AurrasError):
+    """Exception raised when there's an issue downloading content."""
+
+    pass
+
+
+class LibraryError(AurrasError):
+    """Exception raised when there's an issue with an external library dependency."""
+
+    pass
+
+
+class MPVLibraryError(LibraryError):
+    """Exception raised when there's an issue with the MPV library."""
+
+    pass
+
+
+class DatabaseError(AurrasError):
+    """Exception raised when there's an issue with database operations."""
+
+    pass
+
+
+class APIError(AurrasError):
+    """Exception raised when there's an issue with an external API."""
+
+    pass
+
+
+class SpotifyAPIError(APIError):
+    """Exception raised when there's an issue with the Spotify API."""
+
+    pass
+
+
+class CommandError(AurrasError):
+    """Exception raised when there's an issue with command processing."""
+
+    pass
+
+
+class MemoryError(AurrasError):
+    """Exception raised when there's an issue with memory management."""
+
+    pass
+
+
+class CacheError(AurrasError):
+    """Exception raised when there's an issue with caching."""
+
+    pass
+
+
+class BackupError(AurrasError):
+    """Exception raised when there's an issue with backup or restore operations."""
+
+    pass
+
+
+class ThemeError(AurrasError):
+    """Exception raised when there's an issue with theme management."""
+
+    pass
+
+
+class TimeoutError(AurrasError):
+    """Exception raised when an operation times out."""
+
+    pass
+
+
+class InvalidInputError(AurrasError):
+    """Exception raised when user input is invalid."""
 
     pass
