@@ -13,8 +13,6 @@ from collections import deque
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 
-from rich.live import Live
-
 from .state import (
     PlaybackState,
     LyricsStatus,
@@ -29,11 +27,7 @@ from .state import (
 from .keyboard import setup_key_bindings
 from .events import create_property_observers
 from .lyrics_integration import prefetch_lyrics, get_lyrics_display
-from .ui import (
-    create_display_content,
-    create_player_panel,
-    get_controls_text,
-)
+from .ui import PlayerLayout
 from ..cache import LRUCache
 from ..python_mpv import MPV, ShutdownError
 from ..memory import memory_stats_decorator, optimize_memory_usage
@@ -116,13 +110,15 @@ class MPVPlayer(MPV):
     def _init_state_properties(self, volume: int) -> None:
         """Initialize all state properties with default values using dataclasses."""
         self._state = PlayerState(
-            show_lyrics=True if SETTINGS.display_lyrics == "yes" else False
+            show_lyrics=True
+            if SETTINGS.appearance_settings.display_lyrics == "yes"
+            else False
         )
         self._metadata = Metadata()
         self._history = HistoryData()
         self._lyrics = LyricsState(
             status=LyricsStatus.DISABLED
-            if SETTINGS.display_lyrics != "yes"
+            if SETTINGS.appearance_settings.display_lyrics != "yes"
             else LyricsStatus.LOADING
         )
         self._user_feedback: Optional[UserFeedback] = None
@@ -381,15 +377,15 @@ class MPVPlayer(MPV):
             song_name: The initial song name to display
         """
         try:
-            controls_text = get_controls_text()
+            player_layout = PlayerLayout(console=self.console)
 
             last_song = None
             metadata_ready = False
             refresh_count = 0
 
-            with Live(
-                refresh_per_second=4, console=self.console, transient=True
-            ) as live:
+            player_layout.start_live_ui(refresh_per_second=4.0)
+
+            try:
                 while (
                     not self._state.stop_requested
                     and self._state.playback_state != PlaybackState.STOPPED
@@ -412,7 +408,7 @@ class MPVPlayer(MPV):
                         if not metadata_ready and refresh_count > 2:
                             metadata_ready = self._state.metadata_ready
 
-                        lyrics_section = ""
+                        # Check for lyrics and history without storing unused variables
                         if self._state.show_lyrics:
                             lyrics_section = get_lyrics_display(
                                 current_song,
@@ -428,27 +424,33 @@ class MPVPlayer(MPV):
                         if not self._history.loaded:
                             self._load_history_data(current_song)
 
-                        history_text = self._get_history_text(current_song)
+                        # Create player state dictionary for UI update
+                        player_state = {
+                            "song": current_song,
+                            "artist": artist,
+                            "album": album,
+                            "elapsed": elapsed,
+                            "duration": duration,
+                            "playback_state": self._state.playback_state,
+                            "volume": self._safe_get_property("volume", 0),
+                            "theme": self._state.current_theme,
+                            "playlist_position": self._state.current_playlist_pos,
+                            "playlist_count": len(self._current_song_names),
+                            "feedback": self._user_feedback,
+                            "lyrics_lines": lyrics_section
+                            if self._lyrics.status == LyricsStatus.AVAILABLE
+                            else [],
+                        }
 
-                        content = create_display_content(
-                            current_song,
-                            artist,
-                            album,
-                            elapsed,
-                            duration,
-                            self._state.playback_state,
-                            self._safe_get_property("volume", 0),
-                            self._state.current_theme,
-                            self._state.current_playlist_pos,
-                            len(self._current_song_names),
-                            self._user_feedback,
-                            history_text,
-                            lyrics_section,
-                        )
+                        # Toggle lyrics display in layout if needed
+                        if (
+                            self._state.show_lyrics
+                            and player_layout.show_lyrics != self._state.show_lyrics
+                        ):
+                            player_layout.toggle_lyrics()
 
-                        panel = create_player_panel(content, controls_text)
-
-                        live.update(panel)
+                        # Update the UI with current player state
+                        player_layout.update(player_state)
 
                         time.sleep(self._state.current_refresh_rate)
 
@@ -458,6 +460,8 @@ class MPVPlayer(MPV):
                     except Exception as e:
                         logger.error(f"Display update error: {e}")
                         time.sleep(1.0)
+            finally:
+                player_layout.stop_live_ui()
 
         except Exception as e:
             logger.error(f"Display thread error: {e}")
@@ -662,7 +666,9 @@ class MPVPlayer(MPV):
             timeout: How long to show the feedback in seconds
         """
         should_show_feedback = (
-            True if SETTINGS.user_feedback_visible == "yes" else False
+            True
+            if SETTINGS.appearance_settings.user_feedback_visible == "yes"
+            else False
         )
 
         if should_show_feedback:
