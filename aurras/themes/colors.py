@@ -6,10 +6,12 @@ in a consistent way across the application.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Optional, cast
+
 import re
 import colorsys
+
+from typing import List, Optional, cast
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
