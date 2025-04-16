@@ -696,7 +696,7 @@ class ListDisplay(UIComponent):
                     )
                 else:
                     name = item
-                    index_prefix = f"{actual_idx + 1}. " if self.show_indices else "• "
+                    index_prefix = f"{actual_idx + 1}. " if self.show_indices else " "
                     lines.append(f"[{style_prefix}]{index_prefix}{name}[/]")
 
             # Add pagination info if applicable
