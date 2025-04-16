@@ -619,7 +619,7 @@ class ListDisplay(UIComponent):
 
             # Configure columns
             if self.show_indices:
-                table.add_column("#", style="dim", width=3, justify="right")
+                table.add_column("", style="dim", width=3, justify="right")
 
             has_descriptions = any(
                 isinstance(item, tuple) and len(item) > 1 for item in self.items
