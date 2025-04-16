@@ -20,20 +20,65 @@ import subprocess
 import contextlib
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Iterator, Tuple
-from rich.console import Console
 
+from .settings import load_settings
 from ..utils.path_manager import PathManager
+from ..utils.console.manager import get_console
 from ..utils.handle_fuzzy_search import FuzzySearcher
+from ..utils.console.renderer import (
+    get_current_theme_instance,
+    get_theme_styles,
+    get_theme_gradients,
+)
+
+SETTINGS = load_settings()
 
 METADATA_FILE = "metadata.spotdl"
 DEFAULT_BATCH_SIZE = 25
-MAX_RETRIES = 3
-RETRY_DELAY = 5
+MAX_RETRIES = int(SETTINGS.maximum_retries)
 
 _path_manager = PathManager()
-output_dir = str(_path_manager.downloaded_songs_dir)
-console = Console()
+console = get_console()
 logger = logging.getLogger(__name__)
+
+
+class ThemeHelper:
+    """Utility class for theme-related operations to reduce code duplication."""
+
+    @staticmethod
+    def retrieve_theme_gradients_and_styles():
+        """
+        Get the current theme instance and its gradients.
+
+        Returns:
+            Tuple of active theme gradients and styles.
+        """
+        active_theme_obj = get_current_theme_instance()
+        active_theme_gradients = get_theme_gradients(active_theme_obj)
+        active_theme_styles = get_theme_styles(active_theme_obj)
+        return active_theme_gradients, active_theme_styles
+
+    @staticmethod
+    def get_theme_color(theme_styles, key: str, default: str) -> str:
+        """
+        Get a color from theme styles with fallback.
+
+        Args:
+            theme_styles: The theme styles dictionary
+            key: The color key to look up
+            default: Default color to use if key not found
+
+        Returns:
+            Color value as string
+        """
+        style = theme_styles.get(key)
+
+        if isinstance(style, str):
+            return style
+        elif hasattr(style, "color") and style.color:
+            return style.color.name if hasattr(style.color, "name") else default
+        else:
+            return default
 
 
 @contextlib.contextmanager
@@ -326,6 +371,12 @@ class ExtractMetadata:
         Args:
             batch_size: Number of songs to process in a batch
         """
+        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+        warning_color = ThemeHelper.get_theme_color(
+            active_theme_styles, "warning", "yellow"
+        )
+        error_color = ThemeHelper.get_theme_color(active_theme_styles, "error", "red")
+
         try:
             with open(METADATA_FILE, "r") as file:
                 try:
@@ -333,7 +384,7 @@ class ExtractMetadata:
 
                     if not songs_data:
                         console.print(
-                            "[yellow]No songs found in metadata file[/yellow]"
+                            f"[bold {warning_color}]Warning:[/] No songs found in metadata file"
                         )
                         return
 
@@ -371,15 +422,19 @@ class ExtractMetadata:
 
                 except json.JSONDecodeError:
                     console.print(
-                        "[red]Error: metadata.spotdl file contains invalid JSON[/red]"
+                        f"[bold {error_color}]Error:[/] Metadata file contains invalid JSON"
                     )
                     logger.error("Invalid JSON in metadata.spotdl file")
 
         except FileNotFoundError:
-            console.print(f"[red]Error: {METADATA_FILE} file not found[/red]")
+            console.print(
+                f"[bold {error_color}]Error:[/] {METADATA_FILE} file not found"
+            )
             logger.error(f"{METADATA_FILE} file not found")
         except Exception as e:
-            console.print(f"[red]Error extracting metadata: {str(e)}[/red]")
+            console.print(
+                f"[bold {error_color}]Error:[/] Failed to extract metadata: {str(e)}"
+            )
             logger.error(f"Failed to extract metadata: {e}", exc_info=True)
 
     def _replace_artists_in_extracted_metadata(
@@ -395,8 +450,12 @@ class ExtractMetadata:
             Updated metadata with replaced artists
         """
         if not data:
+            _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+            error_color = ThemeHelper.get_theme_color(
+                active_theme_styles, "error", "red"
+            )
             console.print(
-                "[red]No metadata found for the song. [orange]Database not updated![/orange][/red]"
+                f"[bold {error_color}]Error:[/] No metadata found for the song. Database not updated!"
             )
             return {}
 
@@ -416,8 +475,12 @@ class ExtractMetadata:
             Updated metadata with file path
         """
         if not data:
+            _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+            error_color = ThemeHelper.get_theme_color(
+                active_theme_styles, "error", "red"
+            )
             console.print(
-                "[red]No metadata found for the song. [orange]Database not updated![/orange][/red]"
+                f"[bold {error_color}]Error:[/] No metadata found for the song. Database not updated!"
             )
             return {}
 
@@ -487,9 +550,9 @@ class SongDownloader:
     def __init__(
         self,
         song_list_to_download: List[str],
-        download_path=output_dir,
-        format="mp3",
-        bitrate="auto",
+        download_path=None,
+        format=None,
+        bitrate=None,
     ):
         """
         Initialize the SongDownloader.
@@ -503,86 +566,123 @@ class SongDownloader:
         """
         self._path_manager = _path_manager
         self.song_list_to_download = song_list_to_download
-        self.download_path = download_path or str(
-            self._path_manager.downloaded_songs_dir
-        )
-        self.format = format
-        self.bitrate = bitrate
-        self.metadata_extractor = ExtractMetadata(Path(self.download_path))
+        self.download_path = Path(
+            download_path if download_path is not None else SETTINGS.download_path
+        ).expanduser()
+        self.format = format if format is not None else SETTINGS.download_format
+        self.bitrate = bitrate if bitrate is not None else SETTINGS.download_bitrate
+
+        self.metadata_extractor = ExtractMetadata(self.download_path)
 
     def download_songs(self):
         """
         Download songs using subprocess for the actual download, but use SpotDL library for metadata.
         """
+        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+
+        warning_color = ThemeHelper.get_theme_color(
+            active_theme_styles, "warning", "yellow"
+        )
+        error_color = ThemeHelper.get_theme_color(active_theme_styles, "error", "red")
+        accent_color = ThemeHelper.get_theme_color(
+            active_theme_styles, "accent", "cyan"
+        )
+
         if not self.song_list_to_download:
-            console.print("[yellow]No songs provided for download[/yellow]")
+            console.print(
+                f"[bold {warning_color}]Warning:[/] No songs provided for download"
+            )
             return
 
         try:
-            console.print(f"Songs will be saved to: [cyan]{self.download_path}[/cyan]")
+            console.print(
+                f"Songs will be saved to: [bold {accent_color}]{self.download_path}[/]"
+            )
             if self._download_with_subprocess():
                 # This way if download fails, we dont extract metadata
                 with change_dir(self.download_path):
                     self.metadata_extractor.extract_metadata_from_spotdl_saved()
 
         except KeyboardInterrupt:
-            console.print("[red]Downloading Cancelled![/red]")
+            console.print(
+                f"[bold {error_color}]Cancelled:[/] Download cancelled by user"
+            )
             return
         except subprocess.CalledProcessError as e:
             logger.error(f"Subprocess error: {e}", exc_info=True)
-            console.print(f"[bold red]Error running spotdl: {str(e)}[/bold red]")
+            console.print(
+                f"[bold {error_color}]Error:[/] Error running spotdl: {str(e)}"
+            )
         except Exception as e:
             logger.error(f"Failed to download songs: {e}", exc_info=True)
-            console.print(f"[bold red]Error during download: {str(e)}[/bold red]")
+            console.print(
+                f"[bold {error_color}]Error:[/] Error during download: {str(e)}"
+            )
 
     def _download_with_subprocess(self):
         """
-        Download songs using spotdl via subprocess with retry mechanism.
+        Download songs using spotdl via subprocess.
         Uses a consistent output format to make filenames predictable.
+        Leverages spotdl's built-in retry mechanism.
         """
         # Format: {artist} - {title}.{output-ext}
         output_format = "{artists} - {title}"
+
+        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+
+        success_color = ThemeHelper.get_theme_color(
+            active_theme_styles, "success", "green"
+        )
+        error_color = ThemeHelper.get_theme_color(active_theme_styles, "error", "red")
+        accent_color = ThemeHelper.get_theme_color(
+            active_theme_styles, "accent", "cyan"
+        )
 
         cmd_parts = [
             f"spotdl download {' '.join(f'"{item}"' for item in self.song_list_to_download)}",
             f'--output "{output_format}"',
         ]
 
-        if self.format is not None:
+        if self.format:
             cmd_parts.append(f'--format "{self.format}"')
 
-        if self.bitrate is not None:
+        if self.bitrate:
             cmd_parts.append(f'--bitrate "{self.bitrate}"')
+
+        # Add max retries parameter to use spotdl's built-in retry mechanism
+        cmd_parts.append(f"--max-retries {MAX_RETRIES}")
 
         cmd_parts.append("--ytm-data --preload --save-file metadata.spotdl")
 
         cmd = " ".join(cmd_parts)
 
-        attempts = 0
-        while attempts < MAX_RETRIES:
-            try:
-                with change_dir(self.download_path):
-                    logger.info(
-                        f"Downloading songs (attempt {attempts + 1}/{MAX_RETRIES})"
-                    )
-                    logger.debug(f"Running command: {cmd}")
-                    subprocess.run(
-                        cmd,
-                        check=True,
-                        shell=True,
-                    )
-                return True  # Success, exit the retry loop
-            except subprocess.CalledProcessError as e:
-                attempts += 1
-                logger.warning(f"Download attempt {attempts} failed: {e}")
-                if attempts < MAX_RETRIES:
-                    console.print(
-                        f"[yellow]Retrying download in {RETRY_DELAY} seconds...[/yellow]"
-                    )
-                    time.sleep(RETRY_DELAY)
-                else:
-                    console.print(
-                        "[red]Max retry attempts reached. Download failed.[/red]"
-                    )
-                    raise
-        return False  # In case we somehow exit the loop without returning
+        try:
+            with change_dir(self.download_path):
+                logger.info(
+                    f"Downloading songs using spotdl with max retries: {MAX_RETRIES}"
+                )
+                logger.debug(f"Running command: {cmd}")
+
+                # Theme-consistent console output
+                console.print(
+                    f"[bold {accent_color}]Download:[/] Downloading {len(self.song_list_to_download)} songs (with max retries: {MAX_RETRIES})"
+                )
+
+                subprocess.run(
+                    cmd,
+                    check=True,
+                    shell=True,
+                )
+
+            console.print(
+                f"[bold {success_color}]Complete:[/] Successfully downloaded {len(self.song_list_to_download)} songs"
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Download failed: {e}")
+            console.print(
+                f"[bold {error_color}]Failed:[/] Download failed after {MAX_RETRIES} retries."
+            )
+            raise
+
+        return False  # In case we somehow exit the try/except without returning
