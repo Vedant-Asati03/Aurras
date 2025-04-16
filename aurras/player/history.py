@@ -227,7 +227,6 @@ class RecentlyPlayedManager:
             print(f" Total songs in history: {count}")
 
             if count <= 1:  # Need at least 2 songs to have a "previous" song
-                print(" Not enough history to get previous song")
                 return None
 
             # Move position back in history
@@ -253,44 +252,7 @@ class RecentlyPlayedManager:
             else:
                 theme_styles = self._get_theme_styles()
                 warning_style = theme_styles.get("warning", "yellow")
-                rprint(Text("No previous song found", style=warning_style))
-                return None
-
-    def get_next_song(self) -> Optional[str]:
-        """
-        Get the next song from history (moving forward).
-
-        Returns:
-            The name of the next song, or None if at the end of history
-        """
-        log.debug(f"Current position in history for next: {self._current_position}")
-
-        # If already at the end or no history navigation has occurred
-        if self._current_position <= 0:
-            self._current_position = -1
-            print(" Already at most recent song")
-            return None
-
-        # Move position forward in history
-        self._current_position -= 1
-        print(f" New position for next: {self._current_position}")
-
-        with sqlite3.connect(_path_manager.history_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT song_name FROM play_history "
-                "ORDER BY played_at DESC LIMIT 1 OFFSET ?",
-                (self._current_position,),
-            )
-            result = cursor.fetchone()
-
-            if result:
-                song_name = result[0]
-                return song_name
-            else:
-                theme_styles = self._get_theme_styles()
-                warning_style = theme_styles.get("warning", "yellow")
-                rprint(Text("No next song found", style=warning_style))
+                rprint(Text("No previous songs found in your listening history.", style=warning_style))
                 return None
 
     def display_history(self, limit: int = 20) -> None:
@@ -420,10 +382,4 @@ class RecentlyPlayedManager:
             self._current_position = -1
             self._last_played_song = None
 
-        panel = Panel(
-            f"[bold {success_color}] Play history has been cleared successfully.[/bold {success_color}]",
-            title="[bold]History Cleared[/bold]",
-            border_style=success_color,
-            padding=(1, 2),
-        )
-        console.print(panel)
+        console.print(f"[{success_color}]Listening history cleared successfully[/{success_color}]")
