@@ -10,27 +10,23 @@ import logging
 import argparse
 import textwrap
 from typing import List, Dict, Tuple
-from rich.text import Text
+
 from rich.panel import Panel
 
 from ..console import get_console
-from ..initialization import initialize_application
 from ..decorators import handle_exceptions
-from ...ui.input_handler import HandleUserInput
+from ..initialization import initialize_application
+from ...ui.core.input_processor import input_processor
 
-# Import command processors
+from .processors.theme import processor as theme_processor
+from .processors.player import processor as player_processor
 from .processors.backup import processor as backup_processor
 from .processors.history import processor as history_processor
 from .processors.library import processor as library_processor
-from .processors.player import processor as player_processor
 from .processors.playlist import processor as playlist_processor
 from .processors.settings import processor as settings_processor
-from .processors.theme import processor as theme_processor
 
-# Get logger
 logger = logging.getLogger(__name__)
-
-# Get rich console for output
 console = get_console()
 
 # List of available bitrates for song downloads
@@ -92,29 +88,14 @@ class AurrasApp:
 
     def __init__(self):
         """Initialize the AurrasApp class."""
-        self.handle_input = HandleUserInput()
 
     @handle_exceptions
     def run(self):
         """Run the Aurras application in interactive mode."""
-        # Show welcome message with style
-        welcome_text = Text("Welcome to Aurras Music Player!", style="bold green")
-        help_text = Text(
-            "Type '?' for feature help, 'help' for full instructions, or start typing to search for a song.",
-            style="cyan",
-        )
-        panel = Panel.fit(
-            Text.assemble(welcome_text, "\n\n", help_text),
-            border_style="bright_blue",
-            padding=(1, 2),
-            title="♪♫ Aurras ♫♪",
-            subtitle="v1.1.1",
-        )
-        console.print(panel)
-
         try:
             while True:
-                self.handle_input.handle_user_input()
+                input_processor.process_input()
+
         except KeyboardInterrupt:
             console.print("\n[bold green]Thanks for using Aurras![/bold green]")
             sys.exit(0)
@@ -258,25 +239,38 @@ def create_parser() -> Tuple[
         help="Download the playlist instead of playing it",
     )
     subparsers_dict["playlist"].add_argument(
-        "--shuffle", action="store_true", help="Play playlist in random order"
-    )
-    subparsers_dict["playlist"].add_argument(
-        "--repeat", action="store_true", help="Repeat playlist playback"
-    )
-    subparsers_dict["playlist"].add_argument(
-        "--no-lyrics",
+        "--delete",
         action="store_true",
-        help="Disable lyrics display during playback",
+        help="Delete the specified playlist",
     )
     subparsers_dict["playlist"].add_argument(
-        "--output-dir",
-        metavar="DIR",
-        help="Specify output directory for downloading playlist",
+        "--import",
+        action="store_true",
+        help="Import your playlist from Spotify.",
+    )
+    subparsers_dict["playlist"].add_argument(
+        "--search",
+        action="store_true",
+        help="Find all playlists containing the specified song names or artist name.",
+    )
+    subparsers_dict["playlist"].add_argument(
+        "--list", action="store_true", help="List all available playlists"
     )
     subparsers_dict["playlist"].add_argument(
         "--format",
         choices=["mp3", "flac", "ogg", "opus", "m4a", "wav"],
         help="Set a format for downloading the songs in the playlist",
+    )
+    subparsers_dict["playlist"].add_argument(
+        "--bitrate", choices=bitrates, help="Set audio quality for download."
+    )
+    subparsers_dict["playlist"].add_argument(
+        "--shuffle", action="store_true", help="Shuffle the playlist before playing"
+    )
+    subparsers_dict["playlist"].add_argument(
+        "--no-lyrics",
+        action="store_true",
+        help="Disable lyrics display during playlist playback",
     )
 
     # History command
@@ -297,9 +291,6 @@ def create_parser() -> Tuple[
     )
     subparsers_dict["history"].add_argument(
         "--previous", action="store_true", help="Play the previous song from history"
-    )
-    subparsers_dict["history"].add_argument(
-        "--next", action="store_true", help="Play the next song in history"
     )
 
     # Settings command
@@ -371,15 +362,6 @@ def create_parser() -> Tuple[
     return parser, subparsers_dict
 
 
-def display_help():
-    """Display help information about the Aurras music player."""
-    # Delegate to the help function in the player processor which provides detailed help
-    from ...ui.command_handler import InputCases
-
-    InputCases().help_requested()
-    return 0
-
-
 def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
@@ -443,15 +425,22 @@ def main():
                 if getattr(args, "download", False):
                     return playlist_processor.download_playlist(
                         args.name,
-                        getattr(args, "output_dir", None),
                         getattr(args, "format", None),
+                        getattr(args, "bitrate", None),
                     )
+                elif getattr(args, "delete", False):
+                    return playlist_processor.delete_playlist(args.name)
+                elif getattr(args, "import", False):
+                    return playlist_processor.import_playlist(args.name)
+                elif getattr(args, "search", False):
+                    return playlist_processor.search_playlists(args.name)
+                elif getattr(args, "list", False):
+                    return playlist_processor.list_playlists()
                 else:
                     return playlist_processor.play_playlist(
                         args.name,
                         not getattr(args, "no_lyrics", False),
                         getattr(args, "shuffle", False),
-                        getattr(args, "repeat", False),
                     )
 
             case "history":
@@ -459,8 +448,6 @@ def main():
                     return history_processor.clear_history()
                 elif getattr(args, "previous", False):
                     return history_processor.play_previous_song()
-                elif getattr(args, "next", False):
-                    return history_processor.play_next_song()
                 else:
                     return history_processor.display_history(getattr(args, "limit", 30))
 
