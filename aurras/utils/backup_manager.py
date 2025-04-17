@@ -8,15 +8,15 @@ import os
 import time
 import json
 import shutil
-import sqlite3
 import zipfile
 from pathlib import Path
 from datetime import datetime
-import yaml
 from rich.console import Console
 
 from ..utils.path_manager import PathManager
-from ..core.settings import LoadDefaultSettings
+
+# Update the import to use the new function-based approach
+from ..core.settings import load_settings
 
 _path_manager = PathManager()
 console = Console()
@@ -32,15 +32,15 @@ class BackupManager:
 
     def __init__(self):
         """Initialize the BackupManager."""
-        self.settings = LoadDefaultSettings().load_default_settings()
+        # Replace LoadDefaultSettings().settings with load_settings()
+        self.settings = load_settings()
         self.backup_dir = self._get_backup_directory()
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_backup_directory(self) -> Path:
         """Get the directory where backups should be stored."""
-        backup_location = self.settings.get("backup", {}).get(
-            "backup-location", "default"
-        )
+        # Pydantic model has attributes instead of dict-style access
+        backup_location = self.settings.backup.backup_location
 
         if backup_location == "default" or not backup_location:
             return _path_manager.construct_path("backups")
@@ -52,12 +52,13 @@ class BackupManager:
 
     def _should_backup_automatically(self) -> bool:
         """Check if automatic backup is enabled and due."""
-        backup_settings = self.settings.get("backup", {})
+        # Access settings through Pydantic model attributes
+        backup_settings = self.settings.backup
 
-        if backup_settings.get("enabled", "yes").lower() != "yes":
+        if backup_settings.enable_backups.lower() != "yes":
             return False
 
-        if backup_settings.get("auto-backup", "yes").lower() != "yes":
+        if backup_settings.automatic_backups.lower() != "yes":
             return False
 
         # Check when the last backup was made
@@ -71,7 +72,7 @@ class BackupManager:
                 last_backup_info = json.load(f)
 
             last_backup_time = last_backup_info.get("timestamp", 0)
-            frequency_days = int(backup_settings.get("backup-frequency", "7"))
+            frequency_days = int(backup_settings.backup_interval_days)
 
             # Convert frequency to seconds
             frequency_seconds = frequency_days * 24 * 60 * 60
@@ -102,7 +103,8 @@ class BackupManager:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file = self.backup_dir / f"aurras_backup_{timestamp}.zip"
 
-        backup_items = self.settings.get("backup", {}).get("backup-items", {})
+        # Update to access Pydantic model attributes
+        backup_items = self.settings.backup.backup_items
 
         if show_message:
             console.print("[cyan]Creating backup...[/cyan]")
@@ -117,19 +119,19 @@ class BackupManager:
             }
 
             # Backup settings
-            if backup_items.get("settings", "yes").lower() == "yes":
+            if backup_items.settings.lower() == "yes":
                 if _path_manager.settings_file.exists():
                     zipf.write(_path_manager.settings_file, "settings.yaml")
                     metadata["items"]["settings"] = True
 
             # Backup history
-            if backup_items.get("history", "yes").lower() == "yes":
+            if backup_items.history.lower() == "yes":
                 if _path_manager.history_db.exists():
                     zipf.write(_path_manager.history_db, "history.db")
                     metadata["items"]["history"] = True
 
             # Backup playlists
-            if backup_items.get("playlists", "yes").lower() == "yes":
+            if backup_items.playlists.lower() == "yes":
                 if _path_manager.saved_playlists.exists():
                     zipf.write(_path_manager.saved_playlists, "playlists.db")
                     metadata["items"]["playlists"] = True
@@ -145,7 +147,7 @@ class BackupManager:
                                 zipf.write(song_file, str(rel_path))
 
             # Backup cache if enabled
-            if backup_items.get("cache", "no").lower() == "yes":
+            if backup_items.cache.lower() == "yes":
                 if _path_manager.cache_db.exists():
                     zipf.write(_path_manager.cache_db, "cache.db")
                     metadata["items"]["cache"] = True
@@ -163,13 +165,13 @@ class BackupManager:
         # Clean up old backups
         self._cleanup_old_backups()
 
-    def _cleanup_old_backups(self, keep=5):
+    def _cleanup_old_backups(self):
         """
         Remove old backups, keeping the most recent ones.
-
-        Args:
-            keep: Number of recent backups to keep
         """
+        # Get the maximum backups value from settings
+        keep = int(self.settings.backup.maximum_backups)
+
         backup_files = sorted(
             [f for f in self.backup_dir.glob("aurras_backup_*.zip")],
             key=os.path.getmtime,
@@ -310,7 +312,7 @@ class BackupManager:
                         metadata = json.loads(zipf.read("metadata.json"))
                         date_str = metadata.get("date", "Unknown date")
                         items = ", ".join(metadata.get("items", {}).keys())
-                    except:
+                    except Exception:
                         # If metadata can't be read, use file info
                         date_str = datetime.fromtimestamp(
                             os.path.getmtime(backup_file)
