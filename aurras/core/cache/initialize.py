@@ -6,7 +6,6 @@ This module provides a class for initializing the search history database.
 
 import sqlite3
 
-# Replace absolute import
 from ...utils.path_manager import PathManager
 
 _path_manager = PathManager()
