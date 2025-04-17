@@ -299,7 +299,16 @@ class SettingsProcessor:
 
     @with_error_handling
     def set_setting(self, key: str, value: str) -> int:
-        """Set a specific setting to the provided value."""
+        """
+        Set a specific setting to the provided value.
+        
+        Args:
+            key: The setting key to update
+            value: The new value for the setting
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
         settings_updater = SettingsUpdater(key)
         settings_updater.update_directly(value)
         success_color = ThemeHelper.get_theme_color("success", "green")
@@ -391,44 +400,6 @@ class SettingsProcessor:
             f"[bold {success_color}]Path Updated:[/] Download path set to: {expanded_path}"
         )
         return 0
-
-    @with_error_handling
-    def list_themes(self) -> int:
-        """List all available themes with the current theme highlighted."""
-        available_themes = get_available_themes()
-        current_theme_name = get_current_theme()
-
-        items: List[Tuple[str, str]] = []
-        for theme_name in available_themes:
-            theme = get_theme(theme_name)
-            description = theme.display_name if hasattr(theme, "display_name") else ""
-            items.append((theme_name, description))
-
-        try:
-            selected_index = available_themes.index(current_theme_name)
-        except ValueError:
-            selected_index = -1
-
-        theme_list = ListDisplay(
-            items,
-            title=ThemeHelper.get_styled_text("Available Themes", "header", bold=True),
-            description=f"Current theme: {ThemeHelper.get_styled_text(current_theme_name, 'accent')}",
-            selected_index=selected_index,
-            show_indices=True,
-            style_key="list",
-            highlight_style="accent",
-        )
-
-        console.print(theme_list.render())
-        return 0
-
-    @with_error_handling
-    def set_theme(self, theme_name: str) -> int:
-        """Set the theme to the specified name."""
-        from ..processors.theme import ThemeProcessor
-
-        theme_processor = ThemeProcessor()
-        return theme_processor.set_theme(theme_name)
 
     @with_error_handling
     def open_settings_ui(self) -> int:
