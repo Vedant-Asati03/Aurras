@@ -32,13 +32,7 @@ class PlayerProcessor:
         """Play a song or multiple songs."""
         song_name_list = self._parse_args(song_name)
 
-        if song_name_list:
-            logger.info(f"Command-line song argument: '{', '.join(song_name_list)}'")
-            SongStreamHandler(song_name_list).listen_song_online(
-                show_lyrics=show_lyrics
-            )
-            return 0
-        else:
+        if not song_name_list:
             theme_styles = ThemeHelper.get_theme_colors()
             warning_color = theme_styles.get("warning", "yellow")
             console.print(
@@ -46,8 +40,12 @@ class PlayerProcessor:
             )
             return 1
 
+        logger.info(f"Command-line song argument: '{', '.join(song_name_list)}'")
+        SongStreamHandler(song_name_list).listen_song_online(show_lyrics=show_lyrics)
+        return 0
+
     @with_error_handling
-    def download_song(self, song_name, output_dir=None, format=None, bitrate=None):
+    def download_song(self, song_name: str, output_dir=None, format=None, bitrate=None):
         """Download a song or multiple songs using enhanced downloader."""
         song_name_list = self._parse_args(song_name)
 
