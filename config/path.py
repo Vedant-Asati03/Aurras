@@ -21,10 +21,6 @@ spotify_auth = _path_manager.spotify_auth
 recommendation = _path_manager.recommendation_db
 # songs
 downloaded_songs = _path_manager.downloaded_songs_dir
-# mpv
-mpv = _path_manager.mpv_dir
-mpv_conf = _path_manager.mpv_conf
-input_conf = _path_manager.input_conf
 # logs
 aurras_log = _path_manager.log_file
 # settings.yaml
