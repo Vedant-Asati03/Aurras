@@ -4,7 +4,7 @@ Search Database Module
 This module provides a class for searching songs in the database.
 """
 
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, List, Tuple
 from .loader import LoadSongHistoryData
 
 
@@ -19,7 +19,7 @@ class SearchFromSongDataBase:
         """
         self.load_song_metadata = LoadSongHistoryData()
 
-    def initialize_song_dict(self):
+    def initialize_song_dict(self) -> Dict[str, Tuple[str, str]]:
         """
         Initializes a dictionary of songs from the database.
         For backwards compatibility, returns only query, name, and URL.
@@ -28,14 +28,14 @@ class SearchFromSongDataBase:
             dict: Dictionary with search query as key and (name, url) as value
         """
         song_metadata_from_db = self.load_song_metadata.load_song_metadata_from_db()
-        song_dict = {
+        song_dict: Dict[str, Tuple[str, str]] = {
             song_user_searched: (track_name, url)
             for song_user_searched, track_name, url in song_metadata_from_db
         }
 
         return song_dict
 
-    def initialize_full_song_dict(self):
+    def initialize_full_song_dict(self) -> Dict[str, Dict[str, str]]:
         """
         Initializes a complete dictionary of songs with all metadata.
 
@@ -45,10 +45,10 @@ class SearchFromSongDataBase:
         song_metadata_from_db = (
             self.load_song_metadata.load_song_full_metadata_from_db()
         )
-        song_dict = {}
+        song_dict: Dict[str, Dict[str, str]] = {}
 
         for result in song_metadata_from_db:
-            search_query = result[0]
+            search_query: str = result[0]
             song_info = {
                 "track_name": result[1],
                 "url": result[2],
