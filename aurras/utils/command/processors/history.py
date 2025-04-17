@@ -8,18 +8,15 @@ import time
 import logging
 from typing import List, Tuple
 
+from .player import PlayerProcessor
 from ....player.history import RecentlyPlayedManager
-from ....ui.command_handler import InputCases
 from ...console.manager import get_console
 from ...console.renderer import (
     ListDisplay,
 )
 from ...theme_helper import ThemeHelper, with_error_handling
 
-# Get logger
 logger = logging.getLogger(__name__)
-
-# Get rich console for output
 console = get_console()
 
 
@@ -128,7 +125,11 @@ class HistoryProcessor:
             console.print(
                 f"[bold {success_color}]Playing previous song:[/bold {success_color}] [{primary_color}]{prev_song}[/{primary_color}]"
             )
-            InputCases().song_searched(prev_song)
+            PlayerProcessor().play_song(
+                song_name=prev_song,
+                show_lyrics=True,
+            )
+
         else:
             console.print(
                 f"[{warning_color}]No previous songs found in your listening history.[/{warning_color}]"
