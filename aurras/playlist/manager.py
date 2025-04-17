@@ -1,364 +1,229 @@
-import sqlite3
-import questionary
-import random
-from rich.console import Console
-from rich.table import Table
-from rich.box import ROUNDED
+"""
+Playlist Manager Module
 
-# Replace absolute import with relative import
-from ..utils.path_manager import PathManager
+This module provides a central class for managing playlists, including creating,
+downloading, deleting, and modifying playlists, as well as adding and removing songs.
+"""
 
-_path_manager = PathManager()  # Create an instance to use
+import time
+import logging
+from typing import List, Dict, Optional
 
-from ..utils.terminal import clear_screen
-from ..utils.exceptions import PlaylistNotFoundError
+from .download import DownloadPlaylist
+from .cache.updater import UpdatePlaylistDatabase
+from .cache.search_db import SearchFromPlaylistDataBase
+from ..core.downloader import ThemeHelper
+from ..utils.console.manager import get_console
+
+logger = logging.getLogger(__name__)
+
+console = get_console()
 
 
-class Select:
+class PlaylistManager:
     """
-    Class for selecting and managing playlists.
+    Central class for managing playlists in Aurras.
+    Combines functionality for creating, downloading, modifying, and deleting playlists.
     """
 
     def __init__(self):
-        """Initialize the SelectPlaylist class."""
+        """Initialize the PlaylistManager."""
+        self.db_updater = UpdatePlaylistDatabase()
+        self.db_searcher = SearchFromPlaylistDataBase()
+
+        # State management
         self.active_playlist = None
-        self.songs_in_active_playlist = None
         self.active_song = None
-        self.console = Console()
 
-    def load_playlist_from_db(self):
-        with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-            cursor = playlists.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        _, self.theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
 
-            tables = cursor.fetchall()
-            table_names = [table[0] for table in tables]
+    def get_theme_color(self, key: str, default: str) -> str:
+        """Get a color from the current theme."""
+        return ThemeHelper.get_theme_color(self.theme_styles, key, default)
 
-        return table_names
+    def create_playlist(self, playlist_name: str, description: str = "") -> None:
+        """
+        Create a new playlist.
 
-    def select_playlist_from_db(self):
-        """Select a playlist from the saved playlists."""
-        table_names = self.load_playlist_from_db()
-
-        if not table_names:
-            self.console.print(
-                "[bold red]No playlists found. Please import or create a playlist first.[/bold red]"
-            )
-            return
-
-        # Convert table names to display format and back for better UX
-        display_choices = [playlist.capitalize() for playlist in table_names]
-
-        selected = questionary.select(
-            "Your Playlists\n\n",
-            choices=display_choices,
-        ).ask()
-
-        if selected is None:
-            self.console.print("[yellow]Playlist selection cancelled.[/yellow]")
-            return
-
-        # Convert back to lowercase for database operations
-        self.active_playlist = selected.lower()
-
-    def songs_from_active_playlist(self):
-        """Get all songs from the active playlist."""
-        if not self.active_playlist:
-            self.console.print("[bold red]No playlist selected.[/bold red]")
-            self.songs_in_active_playlist = []
-            return
+        Args:
+            playlist_name: Name of the playlist to create
+            description: Optional description of the playlist
+        """
+        success_color = self.get_theme_color("success", "green")
+        error_color = self.get_theme_color("error", "red")
 
         try:
-            with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-                cursor = playlists.cursor()
+            current_time = int(time.time())
 
-                # Verify the playlist table exists
-                cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (self.active_playlist,),
-                )
-                if not cursor.fetchone():
-                    self.console.print(
-                        f"[bold red]Playlist '{self.active_playlist}' not found in database.[/bold red]"
-                    )
-                    self.songs_in_active_playlist = []
-                    return
-
-                # Get the songs
-                cursor.execute(f"SELECT playlists_songs FROM '{self.active_playlist}'")
-                songs_in_active_playlist = cursor.fetchall()
-
-                if songs_in_active_playlist:
-                    self.songs_in_active_playlist = [
-                        str(song[0]) for song in songs_in_active_playlist
-                    ]
-                else:
-                    self.console.print(
-                        f"[yellow]Playlist '{self.active_playlist}' is empty.[/yellow]"
-                    )
-                    self.songs_in_active_playlist = []
-        except sqlite3.Error as e:
-            self.console.print(f"[bold red]Database error: {str(e)}[/bold red]")
-            self.songs_in_active_playlist = []
-
-    def select_song_to_listen(self, playlist_name):
-        """Select a song to listen to from the list of songs in the active playlist."""
-        if playlist_name == "":
-            self.select_playlist_from_db()
-        else:
-            # Validate the playlist exists
-            with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-                cursor = playlists.cursor()
-                cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (playlist_name.lower(),),
-                )
-                if cursor.fetchone():
-                    self.active_playlist = playlist_name.lower()
-                else:
-                    self.console.print(
-                        f"[bold red]Playlist '{playlist_name}' not found.[/bold red]"
-                    )
-                    self.select_playlist_from_db()
-
-        # Make sure a playlist was selected
-        if not self.active_playlist:
-            return
-
-        self.songs_from_active_playlist()
-
-        # Make sure there are songs in the playlist
-        if not self.songs_in_active_playlist:
-            self.console.print(
-                f"[bold red]No songs found in playlist '{self.active_playlist}'.[/bold red]"
+            self.db_updater.save_playlist(
+                playlist_name=playlist_name,
+                description=description,
+                created_at=current_time,
+                updated_at=current_time,
             )
-            return
 
-        selected = questionary.select(
-            "Select a song to play",
-            choices=self.songs_in_active_playlist,
-        ).ask()
-
-        if selected is None:
-            self.console.print("[yellow]Song selection cancelled.[/yellow]")
-            return
-
-        self.active_song = selected
-        clear_screen()
-
-    def add_song_to_playlist(self, playlist_name, song_name):
-        """Add a song to an existing playlist.
-
-        Args:
-            playlist_name (str): Name of the playlist
-            song_name (str): Name of the song to add
-        """
-        if playlist_name == "":
-            self.select_playlist_from_db()
-        else:
-            self.active_playlist = playlist_name
-
-        with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-            cursor = playlists.cursor()
-            try:
-                # Check if song already exists in playlist
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM '{self.active_playlist}' WHERE playlists_songs = ?",
-                    (song_name,),
-                )
-                if cursor.fetchone()[0] > 0:
-                    self.console.print(
-                        f"[yellow]Song '{song_name}' already exists in playlist[/yellow]"
-                    )
-                    return False
-
-                # Add the song
-                cursor.execute(
-                    f"INSERT INTO '{self.active_playlist}' (playlists_songs) VALUES (?)",
-                    (song_name,),
-                )
-                self.console.print(
-                    f"[green]Added '{song_name}' to playlist '{self.active_playlist}'[/green]"
-                )
-                return True
-            except Exception as e:
-                self.console.print(f"[bold red]Error adding song: {str(e)}[/bold red]")
-                return False
-
-    def remove_song_from_playlist(self, playlist_name="", song_name=""):
-        """Remove a song from a playlist.
-
-        Args:
-            playlist_name (str): Name of the playlist
-            song_name (str): Name of the song to remove
-        """
-        if playlist_name == "":
-            self.select_playlist_from_db()
-        else:
-            self.active_playlist = playlist_name
-
-        self.songs_from_active_playlist()
-
-        if song_name == "":
-            song_name = questionary.select(
-                "Select a song to remove", choices=self.songs_in_active_playlist
-            ).ask()
-
-        with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-            cursor = playlists.cursor()
-            cursor.execute(
-                f"DELETE FROM '{self.active_playlist}' WHERE playlists_songs = ?",
-                (song_name,),
+            console.print(
+                f"[bold {success_color}]Success:[/] Created playlist '{playlist_name}'"
             )
-            if cursor.rowcount > 0:
-                self.console.print(
-                    f"[green]Removed '{song_name}' from playlist '{self.active_playlist}'[/green]"
-                )
-                return True
-            else:
-                self.console.print(
-                    f"[yellow]Song '{song_name}' not found in playlist[/yellow]"
-                )
-                return False
 
-    def move_song_in_playlist(self, playlist_name="", song_name="", direction="up"):
-        """Move a song up or down within a playlist.
-
-        Args:
-            playlist_name (str): Name of the playlist
-            song_name (str): Name of the song to move
-            direction (str): Direction to move the song ('up' or 'down')
-        """
-        if playlist_name == "":
-            self.select_playlist_from_db()
-        else:
-            self.active_playlist = playlist_name
-
-        self.songs_from_active_playlist()
-
-        if song_name == "":
-            song_name = questionary.select(
-                "Select a song to move", choices=self.songs_in_active_playlist
-            ).ask()
-
-        if song_name not in self.songs_in_active_playlist:
-            self.console.print(
-                f"[yellow]Song '{song_name}' not found in playlist[/yellow]"
+        except Exception as e:
+            logger.error(f"Error creating playlist: {e}", exc_info=True)
+            console.print(
+                f"[bold {error_color}]Error:[/] Failed to create playlist: {str(e)}"
             )
-            return False
 
-        song_index = self.songs_in_active_playlist.index(song_name)
-
-        if direction == "up" and song_index > 0:
-            # Swap with the song above
-            with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-                cursor = playlists.cursor()
-                # Get IDs of both songs
-                cursor.execute(
-                    f"SELECT id FROM '{self.active_playlist}' WHERE playlists_songs = ?",
-                    (song_name,),
-                )
-                current_id = cursor.fetchone()[0]
-
-                cursor.execute(
-                    f"SELECT id FROM '{self.active_playlist}' WHERE playlists_songs = ?",
-                    (self.songs_in_active_playlist[song_index - 1],),
-                )
-                other_id = cursor.fetchone()[0]
-
-                # Swap their positions
-                cursor.execute(
-                    f"UPDATE '{self.active_playlist}' SET playlists_songs = ? WHERE id = ?",
-                    (self.songs_in_active_playlist[song_index - 1], current_id),
-                )
-                cursor.execute(
-                    f"UPDATE '{self.active_playlist}' SET playlists_songs = ? WHERE id = ?",
-                    (song_name, other_id),
-                )
-                self.console.print(f"[green]Moved '{song_name}' up in playlist[/green]")
-                return True
-
-        elif (
-            direction == "down" and song_index < len(self.songs_in_active_playlist) - 1
-        ):
-            # Swap with the song below
-            with sqlite3.connect(_path_manager.saved_playlists) as playlists:
-                cursor = playlists.cursor()
-                # Get IDs of both songs
-                cursor.execute(
-                    f"SELECT id FROM '{self.active_playlist}' WHERE playlists_songs = ?",
-                    (song_name,),
-                )
-                current_id = cursor.fetchone()[0]
-
-                cursor.execute(
-                    f"SELECT id FROM '{self.active_playlist}' WHERE playlists_songs = ?",
-                    (self.songs_in_active_playlist[song_index + 1],),
-                )
-                other_id = cursor.fetchone()[0]
-
-                # Swap their positions
-                cursor.execute(
-                    f"UPDATE '{self.active_playlist}' SET playlists_songs = ? WHERE id = ?",
-                    (self.songs_in_active_playlist[song_index + 1], current_id),
-                )
-                cursor.execute(
-                    f"UPDATE '{self.active_playlist}' SET playlists_songs = ? WHERE id = ?",
-                    (song_name, other_id),
-                )
-                self.console.print(
-                    f"[green]Moved '{song_name}' down in playlist[/green]"
-                )
-                return True
-        else:
-            self.console.print(
-                f"[yellow]Cannot move song {direction} any further[/yellow]"
-            )
-            return False
-
-    def display_playlist_contents(self, playlist_name=""):
-        """Display the contents of a playlist in a formatted table.
-
-        Args:
-            playlist_name (str): Name of the playlist to display
+    def delete_playlist(self, playlist_name: List[str]) -> bool:
         """
-        if playlist_name == "":
-            self.select_playlist_from_db()
-        else:
-            self.active_playlist = playlist_name
-
-        self.songs_from_active_playlist()
-
-        table = Table(
-            title=f"🎵 Playlist: {self.active_playlist.capitalize()}",
-            box=ROUNDED,
-            border_style="#D09CFA",
-        )
-        table.add_column("#", style="dim")
-        table.add_column("Song", style="#D7C3F1")
-
-        for i, song in enumerate(self.songs_in_active_playlist, 1):
-            table.add_row(str(i), song)
-
-        self.console.print(table)
-
-    def shuffle_playlist(self, playlist_name=""):
-        """Get a shuffled version of the playlist songs.
+        Delete a playlist.
 
         Args:
-            playlist_name (str): Name of the playlist to shuffle
+            playlist_name: Name of the playlist to delete. If empty, will prompt for selection.
 
         Returns:
-            list: Shuffled song list
+            True if successful, False otherwise
         """
-        if playlist_name == "":
-            self.select_playlist_from_db()
-        else:
-            self.active_playlist = playlist_name
+        success_color = self.get_theme_color("success", "green")
+        error_color = self.get_theme_color("error", "red")
+        info_color = self.get_theme_color("info", "blue")
 
-        self.songs_from_active_playlist()
+        try:
+            if not playlist_name:
+                console.print(
+                    f"[bold {info_color}]Warning:[/] No playlist name provided. Selecting from available playlists."
+                )
+                return False
 
-        shuffled_songs = self.songs_in_active_playlist.copy()
-        random.shuffle(shuffled_songs)
+            self.db_updater.remove_playlist(playlist_names=playlist_name)
 
-        return shuffled_songs
+            console.print(
+                f"[bold {success_color}]Success:[/] Deleted playlist '{', '.join(playlist_name)}'"
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error deleting playlist: {e}", exc_info=True)
+            console.print(
+                f"[bold {error_color}]Error:[/] Failed to delete playlist: {str(e)}"
+            )
+            return False
+
+    def download_playlist(
+        self,
+        playlist_names: Optional[List[str]] = None,
+        format: Optional[str] = None,
+        bitrate: Optional[str] = None,
+    ) -> bool:
+        """
+        Download one or more playlists.
+
+        Args:
+            playlist_names: List of playlist names to download
+            format: Optional format for downloaded songs
+            bitrate: Optional bitrate for downloaded songs
+
+        Returns:
+            True if successful, False otherwise
+        """
+        error_color = self.get_theme_color("error", "red")
+        info_color = self.get_theme_color("info", "blue")
+
+        if not playlist_names:
+            console.print(
+                f"[bold {info_color}]Warning:[/] No playlist names provided. Selecting from available playlists."
+            )
+            return False
+
+        try:
+            playlist_downloader = DownloadPlaylist(playlist_names)
+            success = playlist_downloader.download(format, bitrate)
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error downloading playlist(s): {e}", exc_info=True)
+            console.print(
+                f"[bold {error_color}]Error:[/] Failed to download playlist(s): {str(e)}"
+            )
+            return False
+
+    def get_all_playlists(self) -> Dict[str, List[str]]:
+        """
+        Get all playlists from the database.
+
+        Returns:
+            dict: Dictionary with playlist name as key and list of song names as value
+        """
+        playlists = self.db_searcher.initialize_playlist_dict()
+
+        if not playlists:
+            return {}
+
+        return playlists
+
+    def get_playlist_songs(self, playlist_name: str) -> List[str]:
+        """
+        Get all songs from a playlist.
+
+        Args:
+            playlist_name: Name of the playlist
+
+        Returns:
+            List of songs in the playlist
+        """
+        songs = self.db_searcher.initialize_playlist_songs_dict(playlist_name).get(playlist_name, "")
+
+        if not songs:
+            warning_color = self.get_theme_color("warning", "yellow")
+            console.print(
+                f"[{warning_color}]No songs found in playlist '{playlist_name}'[/]"
+            )
+            return []
+
+        return songs
+
+    def get_playlist_songs_with_complete_metadata(
+        self, playlist_name: str
+    ) -> Dict[str, List[Dict[str, str]]]:
+        """
+        Get all songs from a playlist with metadata.
+
+        Args:
+            playlist_name: Name of the playlist
+
+        Returns:
+            dict: Dictionary with song metadata
+        """
+        songs = self.db_searcher.initialize_playlist_songs_dict_with_metadata(
+            playlist_name
+        )
+
+        if not songs:
+            warning_color = self.get_theme_color("warning", "yellow")
+            console.print(
+                f"[{warning_color}]No songs found in playlist '{playlist_name}'[/]"
+            )
+            return {}
+
+        return songs
+
+    def search_by_song_or_artist(self, query: str) -> Dict[str, List[Dict[str, str]]]:
+        """
+        Search for playlists by song name or artist name.
+
+        Args:
+            query: Search query (song name, artist name)
+
+        Returns:
+            dict: Dictionary with playlist name as key and list of song metadata as value
+        """
+        playlists_with_metadata = (
+            self.db_searcher.search_for_playlists_by_name_or_artist(query)
+        )
+
+        if not playlists_with_metadata:
+            warning_color = self.get_theme_color("warning", "yellow")
+            console.print(f"[{warning_color}]No playlists found matching '{query}'[/]")
+            return {}
+
+        return playlists_with_metadata
