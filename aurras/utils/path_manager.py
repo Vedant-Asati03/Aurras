@@ -165,3 +165,8 @@ class PathManager:
     def downloads_db(self):
         """Path to the downloaded songs database."""
         return self._database_dir / "downloads.db"
+
+    @property
+    def playlists_db(self):
+        """Path to the saved playlists database."""
+        return self._database_dir / "playlists.db"
