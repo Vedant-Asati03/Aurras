@@ -4,15 +4,11 @@ Online Player Module
 This module provides functionality for playing songs online by streaming.
 """
 
-import random
-import sqlite3
 import logging
 from typing import List, Union
 
-from rich.table import Table
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.box import ROUNDED
 
 from ..core.downloader import DownloadsDatabase
 from ..services.youtube.search import SearchSong
@@ -21,7 +17,6 @@ from ..utils.exceptions import (
     AurrasError,
     PlaybackError,
     StreamingError,
-    PlaylistError,
     PlaylistNotFoundError,
     SongsNotFoundError,
     DatabaseError,
@@ -31,7 +26,6 @@ from ..utils.exceptions import (
 
 from .mpv.core import MPVPlayer
 from .mpv.state import PlaybackState
-from ..playlist.manager import Select
 from .mpv.history_integration import integrate_history_with_playback
 
 console = Console()
@@ -102,7 +96,7 @@ class SongStreamHandler(InitializeOnlinePlayer):
             logger.error(f"Error during song search: {e}")
             raise NetworkError(f"Failed to search for song: {e}")
 
-    def listen_song_online(self, show_lyrics=True, playlist_name=None, shuffle=False):
+    def listen_song_online(self, show_lyrics=True, shuffle=False):
         """
         Play the song(s) online by streaming.
 
@@ -112,12 +106,6 @@ class SongStreamHandler(InitializeOnlinePlayer):
             shuffle: Whether to shuffle the playback order
         """
         try:
-            # If we're playing a playlist, extract the songs first
-            if playlist_name:
-                self._prepare_playlist(playlist_name, shuffle)
-                return
-
-            # Regular song search
             self._get_song_info()
 
             if not self.search.song_name_searched:
@@ -206,101 +194,6 @@ class SongStreamHandler(InitializeOnlinePlayer):
         except Exception as e:
             logger.error(f"Error in playback with history: {e}")
             raise StreamingError(f"Error during streaming playback with history: {e}")
-
-    def _prepare_playlist(self, playlist_name: str, shuffle: bool = False):
-        """
-        Prepare and play songs from a playlist.
-
-        Args:
-            playlist_name: Name of the playlist to play
-            shuffle: Whether to shuffle the playlist
-        """
-        playlist_select = Select()
-
-        try:
-            # Verify the playlist exists
-            with sqlite3.connect(self.path_manager.saved_playlists) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (playlist_name.lower(),),
-                )
-                if not cursor.fetchone():
-                    raise PlaylistNotFoundError(
-                        f"Playlist '{playlist_name}' doesn't exist."
-                    )
-
-                # Set the active playlist
-                playlist_select.active_playlist = playlist_name.lower()
-
-                # Get all songs from the playlist
-                cursor.execute(f"SELECT playlists_songs FROM '{playlist_name.lower()}'")
-                playlist_songs = [row[0] for row in cursor.fetchall()]
-        except sqlite3.Error as e:
-            logger.error(f"SQLite error with playlist {playlist_name}: {e}")
-            raise DatabaseError(
-                f"Database error accessing playlist '{playlist_name}': {e}"
-            )
-
-        if not playlist_songs:
-            raise PlaylistError(f"Playlist '{playlist_name}' is empty.")
-
-        # Shuffle if requested
-        if shuffle:
-            random.shuffle(playlist_songs)
-            # Create a nice table to show the shuffled playlist
-            shuffle_table = Table(
-                title="🎲 Shuffled Playlist", box=ROUNDED, border_style="#D09CFA"
-            )
-            shuffle_table.add_column("#", style="dim")
-            shuffle_table.add_column("Song", style="#D7C3F1")
-
-            for i, song in enumerate(playlist_songs, 1):
-                shuffle_table.add_row(str(i), song)
-
-            console.print(shuffle_table)
-        else:
-            # Create a nice table to show the playlist
-            playlist_table = Table(
-                title=f"🎵 Playlist: {playlist_name}", box=ROUNDED, border_style="cyan"
-            )
-            playlist_table.add_column("#", style="dim")
-            playlist_table.add_column("Song", style="green")
-
-            for i, song in enumerate(playlist_songs, 1):
-                playlist_table.add_row(str(i), song)
-
-            console.print(playlist_table)
-
-        # Play each song in the playlist
-        for i, song in enumerate(playlist_songs):
-            try:
-                console.rule(
-                    f"[bold green]Playing {i + 1}/{len(playlist_songs)}: {song}"
-                )
-
-                # Create a new search for each song
-                song_player = SongStreamHandler(song)
-                song_player.listen_song_online(show_lyrics=True)
-
-                # Add to history
-                if hasattr(self, "history_manager") and self.history_manager:
-                    self.history_manager.add_to_history(
-                        song, f"playlist:{playlist_name}"
-                    )
-            except KeyboardInterrupt:
-                console.print("[yellow]Playback stopped by user[/yellow]")
-                break
-            except PlaybackError as e:
-                console.print(f"[bold red]Playback error for '{song}': {e}[/bold red]")
-                logger.error(f"Error playing playlist song: {e}", exc_info=True)
-                # Continue with next song
-                continue
-            except Exception as e:
-                console.print(f"[bold red]Error playing '{song}': {e}[/bold red]")
-                logger.error(f"Error playing playlist song: {e}", exc_info=True)
-                # Continue with next song
-                continue
 
     def _cleanup_player(self):
         """Clean up the player instance to avoid resource leaks."""
