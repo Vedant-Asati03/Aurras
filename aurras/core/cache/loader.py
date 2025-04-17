@@ -4,6 +4,8 @@ Cache Loading Module
 This module provides a class for loading data from the cache database.
 """
 
+from .initialize import InitializeSearchHistoryDatabase
+
 import sqlite3
 from typing import List, Dict, Tuple, Optional, Any
 
@@ -11,8 +13,6 @@ from typing import List, Dict, Tuple, Optional, Any
 from ...utils.path_manager import PathManager
 
 _path_manager = PathManager()
-
-from .initialize import InitializeSearchHistoryDatabase
 
 
 class LoadSongHistoryData:
