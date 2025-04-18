@@ -2,190 +2,262 @@
 Lyrics manager module.
 
 This module provides the main manager class for handling lyrics operations.
+It serves as the primary interface between the lyrics service and the rest of the application.
 """
 
-import os
-import re
-import json
-from typing import Optional, Dict, Any
-from rich.console import Console
-from rich.panel import Panel
-from rich.box import ROUNDED
-from rich.text import Text
+import logging
+from typing import List
 
-from ...utils.path_manager import PathManager
+from .cache import LyricsCache
+from .parser import LyricsParser
 from .fetcher import LyricsFetcher
+from .formatter import LyricsFormatter
+from ...core.settings import load_settings
+from ...utils.exceptions import LyricsError
 
-# Check if syncedlyrics is available rather than importing from __init__
-try:
-    import syncedlyrics
+logger = logging.getLogger(__name__)
 
-    LYRICS_AVAILABLE = True
-except ImportError:
-    LYRICS_AVAILABLE = False
-
-_path_manager = PathManager()
-console = Console()
-
+SETTINGS = load_settings()
 
 class LyricsManager:
     """
-    LyricsManager class to handle fetching and displaying lyrics.
+    LyricsManager class to coordinate all lyrics-related operations.
+
+    This class serves as the main interface for lyrics functionality, coordinating
+    between cache, fetcher, parser, and formatter components.
     """
 
-    def __init__(
-        self,
-        settings: Optional[Dict[str, str]] = None,
-    ):
+    def __init__(self):
         """
-        Initialize the LyricsManager.
+        Initialize the LyricsManager with all necessary components.
+        """
+        self.lyrics_cache = LyricsCache()
+        self.lyrics_parser = LyricsParser()
+        self.lyrics_formatter = LyricsFormatter()
 
-        Args:
-            settings: Optional settings dictionary
-        """
-        self.console = Console()
-        self.settings = settings or self._load_default_settings()
-        self.lyrics_fetcher = None
-        self.lyrics_data = {"synced_lyrics": "", "plain_lyrics": ""}
+    @property
+    def settings(self):
+        """Get the current settings."""
+        return SETTINGS.appearance_settings
 
-    def _load_default_settings(self) -> Dict[str, str]:
+    def has_lyrics_support(self) -> bool:
         """
-        Load default settings or from config file if available.
+        Check if lyrics support is available based on settings.
 
         Returns:
-            Dictionary of settings
+            True if lyrics support is available, False otherwise
         """
-        default_settings = {"show-lyrics": "yes"}
-
-        config_path = str(_path_manager.config_file)
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r") as f:
-                    loaded_settings = json.load(f)
-                    default_settings.update(loaded_settings)
-            except (json.JSONDecodeError, IOError):
-                pass
-
-        return default_settings
-
-    def obtain_lyrics_info(
-        self,
-        track_name: str,
-        artist_name: str,
-        album_name: str,
-        duration: int,
-    ) -> Dict[str, list]:
-        """
-        Fetch lyrics using LyricsFetcher.
-
-        Args:
-            track_name: Name of the track
-            artist_name: Name of the artist
-            album_name: Name of the album
-            duration: Duration of the track in seconds
-
-        Returns:
-            Dictionary with 'synced_lyrics' and 'plain_lyrics' keys
-        """
-        if not self._should_show_lyrics():
-            # return {"synced_lyrics": "", "plain_lyrics": ""}
-            return None
-
-        if not LYRICS_AVAILABLE:
-            # return {"synced_lyrics": "", "plain_lyrics": ""}
-            return None
-
         try:
-            self.lyrics_fetcher = LyricsFetcher(
-                track_name, artist_name, album_name, duration
-            )
-            return self.lyrics_fetcher.fetch_lyrics()
+            return self._should_show_lyrics()
         except Exception as e:
-            console.print(f"[red]Error in lyrics manager: {e}[/red]")
-            return {"synced_lyrics": "", "plain_lyrics": ""}
+            logger.error(f"Error checking lyrics support: {e}")
+            return False
 
     def _should_show_lyrics(self) -> bool:
         """
-        Check if lyrics should be shown based on settings and available modules.
+        Check if lyrics should be shown based on settings.
 
         Returns:
             True if lyrics should be shown, False otherwise
         """
-        if not LYRICS_AVAILABLE:
-            return False
+        return self.settings.display_lyrics.lower() == "yes"
 
-        return self.settings.get("show-lyrics", "yes").lower() == "yes"
+    # --- Public API Methods ---
 
-    def display_lyrics(self, current_time: float) -> None:
+    def fetch_lyrics(
+        self, song: str, artist: str, album: str, duration: int
+    ) -> List[str]:
         """
-        Display the lyrics for the current time in the song.
+        Fetch lyrics for a song, checking cache first before using the lyrics service.
 
         Args:
-            current_time: Current playback time in seconds
-        """
-        if not self._should_show_lyrics() or not self.lyrics_data["synced_lyrics"]:
-            return
-
-        synced_lyrics = self.lyrics_data["synced_lyrics"].split("\n")
-
-        # Find the current line based on timestamps (basic LRC format parsing)
-        current_line = ""
-        next_line = ""
-        for i, line in enumerate(synced_lyrics):
-            timestamp_match = re.match(r"\[(\d+):(\d+\.\d+)\](.*)", line)
-            if timestamp_match:
-                mins, secs, text = timestamp_match.groups()
-                line_time = int(mins) * 60 + float(secs)
-
-                if line_time <= current_time:
-                    current_line = text.strip()
-
-                    # Look for next line
-                    if i < len(synced_lyrics) - 1:
-                        next_match = re.match(
-                            r"\[(\d+):(\d+\.\d+)\](.*)", synced_lyrics[i + 1]
-                        )
-                        if next_match:
-                            next_line = next_match.group(3).strip()
-                    break
-
-        # Display the current lyrics
-        if current_line:
-            styled_text = Text()
-            styled_text.append(current_line, style="bold green")
-            if next_line:
-                styled_text.append("\n" + next_line, style="dim white")
-
-            self.console.print(
-                Panel(
-                    styled_text,
-                    title="[bold]Lyrics[/bold]",
-                    box=ROUNDED,
-                    border_style="green",
-                )
-            )
-
-    def format_lyrics(self, lyrics_data: Dict[str, Any]) -> str:
-        """
-        Format lyrics for display.
-
-        Args:
-            lyrics_data: Dictionary with lyrics data
+            song: Song name
+            artist: Artist name
+            album: Album name
+            duration: Song duration in seconds
 
         Returns:
-            Formatted lyrics text
+            List of lyrics lines
         """
-        if not lyrics_data:
-            return "No lyrics available."
+        try:
+            # Skip if lyrics are disabled or song title is missing
+            if not self._should_show_lyrics():
+                logger.debug("Lyrics display is disabled in settings")
+                return []
 
-        # Prefer synced lyrics if available
-        lyrics = lyrics_data.get("synced_lyrics", "")
+            if not song or song == "Unknown" or not song.strip():
+                logger.warning("Cannot fetch lyrics: missing song title")
+                return []
 
-        if not lyrics:
+            # Try to get from cache first
+            cached_lyrics = self.lyrics_cache.get_from_cache(song, artist, album)
+            if cached_lyrics:
+                return cached_lyrics
+
+            # Log what we're searching for
+            logger.info(
+                f"Fetching lyrics for: Song='{song}', Artist='{artist}', Album='{album}'"
+            )
+
+            # Create a fetcher for this request
+            lyrics_fetcher = LyricsFetcher(song, artist, album, duration)
+            lyrics_data = lyrics_fetcher.fetch_lyrics()
+
+            if not lyrics_data:
+                logger.info(f"No lyrics found for '{song}'")
+                return []
+
+            # Extract synced lyrics if available, otherwise use plain lyrics
+            lyrics_lines = []
+
+            if synced_lyrics := lyrics_data.get("synced_lyrics"):
+                lyrics_lines = (
+                    synced_lyrics
+                    if isinstance(synced_lyrics, list)
+                    else synced_lyrics.splitlines()
+                )
+                if lyrics_lines:
+                    # Store in cache for future use
+                    self.lyrics_cache.store_in_cache(
+                        lyrics_lines, song, artist, album, duration
+                    )
+                    logger.info(f"Found synced lyrics for '{song}'")
+                    return lyrics_lines
+
             # Fall back to plain lyrics
-            lyrics = lyrics_data.get("plain_lyrics", "")
+            if plain_lyrics := lyrics_data.get("plain_lyrics"):
+                lyrics_lines = (
+                    plain_lyrics
+                    if isinstance(plain_lyrics, list)
+                    else plain_lyrics.splitlines()
+                )
+                if lyrics_lines:
+                    # Store in cache for future use
+                    self.lyrics_cache.store_in_cache(
+                        lyrics_lines, song, artist, album, duration
+                    )
+                    logger.info(f"Found plain lyrics for '{song}'")
+                    return lyrics_lines
 
-        if isinstance(lyrics, list):
-            return "\n".join(lyrics)
+            # No usable lyrics found
+            logger.info(f"No usable lyrics found for '{song}'")
+            return []
 
-        return str(lyrics)
+        except Exception as e:
+            logger.error(f"Error fetching lyrics: {e}")
+            raise LyricsError(f"Failed to fetch lyrics: {e}")
+
+    def store_in_cache(
+        self, lyrics: List[str], song: str, artist: str, album: str
+    ) -> None:
+        """
+        Store lyrics in cache.
+
+        Args:
+            lyrics: List of lyrics lines
+            song: Song name
+            artist: Artist name
+            album: Album name
+        """
+        self.lyrics_cache.store_in_cache(lyrics, song, artist, album)
+
+    def get_no_lyrics_message(self) -> str:
+        """
+        Get a themed "no lyrics available" message.
+
+        Returns:
+            A formatted message indicating no lyrics are available
+        """
+        return self.lyrics_formatter.get_no_lyrics_message()
+
+    def get_waiting_message(self) -> str:
+        """
+        Get a themed "waiting for lyrics" message.
+
+        Returns:
+            A formatted message indicating lyrics are being fetched
+        """
+        return self.lyrics_formatter.get_waiting_message()
+
+    def get_error_message(self, error_text: str) -> str:
+        """
+        Get a themed error message.
+
+        Args:
+            error_text: The error text to display
+
+        Returns:
+            A formatted error message
+        """
+        return self.lyrics_formatter.get_error_message(error_text)
+
+    def create_focused_lyrics_view(
+        self,
+        lyrics_lines: List[str],
+        current_time: float,
+        song: str = "",
+        artist: str = "",
+        album: str = "",
+        context_lines: int = 6,
+        plain_mode: bool = False,
+    ) -> str:
+        """
+        Create a focused view of lyrics with the current line highlighted with gradient effect.
+
+        Args:
+            lyrics_lines: List of lyrics lines
+            current_time: Current playback position in seconds
+            song: Song name (for logging)
+            artist: Artist name (for logging)
+            album: Album name
+            context_lines: Number of context lines to show
+            plain_mode: If True, display plain lyrics without timestamps
+
+        Returns:
+            Formatted lyrics text with gradient highlighting
+        """
+        return self.lyrics_formatter.create_focused_lyrics_view(
+            lyrics_lines, current_time, song, artist, album, context_lines, plain_mode
+        )
+
+    def apply_gradient_to_text(
+        self, text: str, gradient_key: str, bold: bool = False
+    ) -> str:
+        """
+        Apply a gradient effect to text based on the current theme.
+
+        Args:
+            text: The text to apply gradient to
+            gradient_key: Which gradient to use ('title', 'artist', etc.)
+            bold: Whether to make the text bold
+
+        Returns:
+            str: Rich-formatted text with gradient applied
+        """
+        return self.lyrics_formatter.apply_gradient_to_text(text, gradient_key, bold)
+
+    # --- Additional access to internal components ---
+
+    def _is_synced_lyrics(self, lyrics_lines: List[str]) -> bool:
+        """
+        Check if lyrics are synced (contain timestamps).
+
+        Args:
+            lyrics_lines: Lyrics lines to check
+
+        Returns:
+            True if lyrics appear to be synced
+        """
+        return LyricsParser.is_synced_lyrics(lyrics_lines)
+
+    def _get_plain_lyrics(self, lyrics_lines: List[str]) -> List[str]:
+        """
+        Extract plain text from any type of lyrics format.
+
+        Args:
+            lyrics_lines: List of lyrics lines (can be synced, enhanced LRC, or plain)
+
+        Returns:
+            List of plain lyrics lines without timestamps
+        """
+        return LyricsParser.get_plain_lyrics(lyrics_lines)
