@@ -6,12 +6,11 @@ This module provides functionality for fetching lyrics from APIs and services.
 
 import threading
 import requests
-from typing import Dict
-from rich.console import Console
+import logging
+from typing import Dict, Any
 
 from .cache import LyricsCache
 
-# Check if syncedlyrics is available rather than importing from __init__
 try:
     import syncedlyrics
 
@@ -19,7 +18,7 @@ try:
 except ImportError:
     LYRICS_AVAILABLE = False
 
-console = Console()
+logger = logging.getLogger(__name__)
 
 
 class LyricsFetcher:
@@ -45,9 +44,12 @@ class LyricsFetcher:
         self.duration = duration
         self.cache = LyricsCache()
 
-    def fetch_lyrics(self) -> Dict[str, list]:
+    def fetch_lyrics(self) -> Dict[str, Any]:
         """
-        Fetch lyrics, first checking cache then the API.
+        Fetch lyrics from the API.
+
+        This method focuses solely on fetching lyrics from external sources,
+        delegating all caching operations to the LyricsCache class.
 
         Returns:
             Dictionary with 'synced_lyrics' and 'plain_lyrics' keys
@@ -87,23 +89,23 @@ class LyricsFetcher:
                 synced_lyrics_list = synced_lyrics.split("\n") if synced_lyrics else []
                 plain_lyrics_list = plain_lyrics.split("\n") if plain_lyrics else []
 
-                # Save to cache
-                self.cache.save_lyrics(
-                    self.track_name,
-                    self.artist_name,
-                    self.album_name,
-                    self.duration,
-                    synced_lyrics_list,
-                    plain_lyrics_list,
-                )
+                # Store fetched lyrics in the cache
+                if synced_lyrics_list or plain_lyrics_list:
+                    self.cache.store_in_cache(
+                        synced_lyrics_list if synced_lyrics_list else plain_lyrics_list,
+                        self.track_name,
+                        self.artist_name,
+                        self.album_name,
+                        self.duration,
+                    )
 
                 return {
                     "synced_lyrics": synced_lyrics_list,
                     "plain_lyrics": plain_lyrics_list,
                 }
             except requests.RequestException as e:
-                console.print(f"[red]Error fetching lyrics: {e}[/red]")
+                logger.error(f"Error fetching lyrics: {e}")
                 return {"synced_lyrics": "", "plain_lyrics": ""}
             except Exception as e:
-                console.print(f"[red]Error in lyrics fetcher: {e}[/red]")
+                logger.error(f"Error in lyrics fetcher: {e}")
                 return {"synced_lyrics": "", "plain_lyrics": ""}
