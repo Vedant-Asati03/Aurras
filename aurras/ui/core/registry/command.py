@@ -75,7 +75,7 @@ class CommandRegistry:
 
         args = [] if args is None else args
 
-        if command not in self._commands:
+        if not self.has_command(command):
             return False
 
         command_info = self._commands[command]
@@ -167,9 +167,9 @@ class CommandRegistry:
             Dictionary of commands in the requested category
         """
         return {
-            name: cmd_info
-            for name, cmd_info in self._commands.items()
-            if cmd_info.get("category", "General") == category
+            name: command_info
+            for name, command_info in self._commands.items()
+            if command_info.get("category", "General") == category
         }
 
     def get_all_categories(self) -> List[str]:
@@ -181,8 +181,8 @@ class CommandRegistry:
         """
         categories = set()
 
-        for cmd_info in self._commands.values():
-            categories.add(cmd_info.get("category", "General"))
+        for command_info in self._commands.values():
+            categories.add(command_info.get("category", "General"))
 
         return sorted(list(categories))
 
@@ -195,13 +195,13 @@ class CommandRegistry:
         """
         commands = []
 
-        for cmd_name, cmd_info in self._commands.items():
+        for command_name, cmd_info in self._commands.items():
             param_help = cmd_info["parameter_help"] or ""
-            usage = f"{cmd_name} {param_help}".strip()
+            usage = f"{command_name} {param_help}".strip()
 
             commands.append(
                 {
-                    "name": cmd_name,
+                    "name": command_name,
                     "description": cmd_info["description"],
                     "usage": usage,
                     "category": cmd_info.get("category", "General"),
