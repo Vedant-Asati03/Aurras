@@ -10,13 +10,12 @@ from ....utils.command.processors.history import HistoryProcessor
 
 logger = logging.getLogger(__name__)
 
-command_registry = CommandRegistry()
 history_processor = HistoryProcessor()
 
 
-def register_history_commands():
+def register_history_commands(registry: CommandRegistry):
     """Register all history-related commands to the central registry."""
-    command_registry.register_command(
+    registry.register_command(
         name="history",
         function=history_processor.display_history,
         description="Show play history",
@@ -25,7 +24,7 @@ def register_history_commands():
         category="History",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="previous",
         function=history_processor.play_previous_song,
         description="Play the previous song",
@@ -34,7 +33,7 @@ def register_history_commands():
         category="Playback",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="clear_history",
         function=history_processor.clear_history,
         description="Clear play history",

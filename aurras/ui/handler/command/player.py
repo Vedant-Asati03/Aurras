@@ -11,12 +11,11 @@ from ....player.offline import LocalPlaybackHandler
 from ....utils.command.processors.player import processor
 
 logger = logging.getLogger(__name__)
-command_registry = CommandRegistry()
 
 
-def register_player_commands():
+def register_player_commands(registry: CommandRegistry):
     """Register all player-related commands to the central registry."""
-    command_registry.register_command(
+    registry.register_command(
         name="play",
         function=processor.play_song,
         description="Play a song",
@@ -25,7 +24,7 @@ def register_player_commands():
         category="Playback",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="download_song",
         function=processor.download_song,
         description="Download a song",
@@ -34,7 +33,7 @@ def register_player_commands():
         category="Download",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="offline",
         function=lambda: LocalPlaybackHandler().listen_song_offline(),
         description="Play downloaded songs",

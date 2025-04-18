@@ -10,13 +10,12 @@ from ...command_handler import InputCases
 
 logger = logging.getLogger(__name__)
 
-command_registry = CommandRegistry()
 input_cases = InputCases()
 
 
-def register_spotify_commands():
+def register_spotify_commands(registry: CommandRegistry):
     """Register all Spotify-related commands to the central registry."""
-    command_registry.register_command(
+    registry.register_command(
         name="setup_spotify",
         function=input_cases.setup_spotify,
         description="Set up Spotify integration",

@@ -14,12 +14,13 @@ from .system import register_system_commands
 from .history import register_history_commands
 from .spotify import register_spotify_commands
 from .playlist import register_playlist_commands
+from aurras.ui.core.registry.command import CommandRegistry
 
 
-def register_all_commands():
+def register_all_commands(registry: CommandRegistry):
     """Register all commands from all command modules."""
-    register_player_commands()
-    register_system_commands()
-    register_history_commands()
-    register_spotify_commands()
-    register_playlist_commands()
+    register_player_commands(registry)
+    register_system_commands(registry)
+    register_history_commands(registry)
+    register_spotify_commands(registry)
+    register_playlist_commands(registry)

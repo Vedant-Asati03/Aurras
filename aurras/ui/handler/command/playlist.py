@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 command_registry = CommandRegistry()
 
 
-def register_playlist_commands():
+def register_playlist_commands(registry: CommandRegistry):
     """Register all playlist-related commands to the central registry."""
-    command_registry.register_command(
+    registry.register_command(
         name="play_playlist",
         function=processor.play_playlist,
         description="Play a playlist",
@@ -23,7 +23,7 @@ def register_playlist_commands():
         category="Playlist",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="download_playlist",
         function=processor.download_playlist,
         description="Download a playlist",
@@ -32,7 +32,7 @@ def register_playlist_commands():
         category="Download",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="view_playlist",
         function=processor.view_playlist,
         description="View playlist contents",
@@ -41,7 +41,7 @@ def register_playlist_commands():
         category="Playlist",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="delete_playlist",
         function=processor.delete_playlist,
         description="Delete a playlist",
@@ -50,7 +50,7 @@ def register_playlist_commands():
         category="Playlist",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="import_playlist",
         function=processor.import_playlist,
         description="Import a playlist from Spotify",
@@ -59,7 +59,7 @@ def register_playlist_commands():
         category="Playlist",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="Search_by_song",
         function=processor.search_playlists,
         description="Search for a playlist",

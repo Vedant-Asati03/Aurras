@@ -12,12 +12,11 @@ from ...core.registry.command import CommandRegistry
 logger = logging.getLogger(__name__)
 
 input_cases = InputCases()
-command_registry = CommandRegistry()
 
 
-def register_system_commands():
+def register_system_commands(registry: CommandRegistry):
     """Register all system-related commands to the central registry."""
-    command_registry.register_command(
+    registry.register_command(
         name="cache",
         function=input_cases.show_cache_info,
         description="Show cache information",
@@ -26,7 +25,7 @@ def register_system_commands():
         category="System",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="cleanup",
         function=input_cases.cleanup_cache,
         description="Clean up cache",
@@ -35,7 +34,7 @@ def register_system_commands():
         category="System",
     )
 
-    command_registry.register_command(
+    registry.register_command(
         name="lyrics",
         function=input_cases.toggle_lyrics,
         description="Toggle lyrics display",
