@@ -185,15 +185,15 @@ class InputLexer(Lexer):
                     line, ">", self.command_palette_style
                 )
 
-            shorthands = self.get_shorthands()
-            for prefix, command in shorthands.items():
-                if line.startswith(prefix):
-                    return self._process_shorthand(line, prefix)
-
             commands = self.get_commands()
             command_result = self._process_direct_command(line, commands)
             if command_result:
                 return command_result
+
+            shorthands = self.get_shorthands()
+            for prefix, command in shorthands.items():
+                if line.startswith(prefix):
+                    return self._process_shorthand(line, prefix)
 
             return [(self.default_style, line)]
 
