@@ -73,16 +73,19 @@ class LyricsFetcher:
                     syncedlyrics.search(
                         f"{self.track_name} - {self.artist_name}",
                         synced_only=True,
-                    ).split("\n")
-                    or []
+                    )
+                    or ""
                 )
                 plain_lyrics = (
                     syncedlyrics.search(
                         f"{self.track_name} - {self.artist_name}",
                         plain_only=True,
-                    ).split("\n")
-                    or []
+                    )
+                    or ""
                 )
+
+                synced_lyrics_list = synced_lyrics.split("\n") if synced_lyrics else []
+                plain_lyrics_list = plain_lyrics.split("\n") if plain_lyrics else []
 
                 # Save to cache
                 self.cache.save_lyrics(
@@ -90,11 +93,14 @@ class LyricsFetcher:
                     self.artist_name,
                     self.album_name,
                     self.duration,
-                    synced_lyrics,
-                    plain_lyrics,
+                    synced_lyrics_list,
+                    plain_lyrics_list,
                 )
 
-                return {"synced_lyrics": synced_lyrics, "plain_lyrics": plain_lyrics}
+                return {
+                    "synced_lyrics": synced_lyrics_list,
+                    "plain_lyrics": plain_lyrics_list,
+                }
             except requests.RequestException as e:
                 console.print(f"[red]Error fetching lyrics: {e}[/red]")
                 return {"synced_lyrics": "", "plain_lyrics": ""}
