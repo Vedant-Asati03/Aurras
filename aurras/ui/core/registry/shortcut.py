@@ -8,8 +8,6 @@ in the application. It allows registering, executing, and retrieving information
 import logging
 from typing import Dict, List
 
-from ..registry.command import CommandRegistry
-
 logger = logging.getLogger(__name__)
 
 
@@ -21,10 +19,15 @@ class ShortcutRegistry:
     providing a unified interface for all shortcut operations.
     """
 
-    def __init__(self):
-        """Initialize the shortcut registry."""
+    def __init__(self, command_registry=None):
+        """
+        Initialize the shortcut registry.
+
+        Args:
+            command_registry: The CommandRegistry instance to use for executing commands
+        """
         self._shorthands = []
-        self._command_registry = CommandRegistry()
+        self.command_registry = command_registry
 
     def register_shorthand(
         self, prefix: str, command: str, description: str, strip_prefix: bool = True
@@ -33,10 +36,10 @@ class ShortcutRegistry:
         Register a new shorthand command.
 
         Args:
-            prefix: The shorthand prefix
-            command: The actual command to execute
+            prefix: The shorthand prefix (e.g., '/p' for play)
+            command: The actual command to execute when the shorthand is triggered
             description: Short description of what the shorthand does
-            strip_prefix: Whether to strip the prefix when passing args
+            strip_prefix: Whether to strip the prefix when passing arguments to command
         """
         self._shorthands.append(
             {
@@ -109,6 +112,17 @@ class ShortcutRegistry:
 
         # Sort by prefix
         return sorted(shorthands, key=lambda x: x["prefix"])
+
+    def get_shorthand_dict(self) -> Dict[str, str]:
+        """
+        Get a dictionary of all shorthand prefixes and their command names.
+
+        Returns:
+            Dictionary mapping prefixes to command names
+        """
+        return {
+            shorthand["prefix"]: shorthand["command"] for shorthand in self._shorthands
+        }
 
     def clear(self):
         """Clear all registered shorthands."""
