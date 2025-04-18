@@ -211,6 +211,15 @@ class CommandRegistry:
 
         return sorted(commands, key=lambda x: x["name"])
 
+    def get_command_list(self) -> List[str]:
+        """
+        Get a list of all registered command names.
+
+        Returns:
+            List of command names
+        """
+        return sorted(list(self._commands.keys()))
+
     def clear(self):
         """Clear all registered commands."""
         self._commands = {}
