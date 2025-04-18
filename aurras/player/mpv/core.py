@@ -13,6 +13,10 @@ from collections import deque
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 
+from .ui import PlayerLayout
+from .keyboard import setup_key_bindings
+from .events import create_property_observers
+from .lyrics_integration import prefetch_lyrics, get_lyrics_display
 from .state import (
     PlaybackState,
     LyricsStatus,
@@ -24,15 +28,11 @@ from .state import (
     HistoryData,
     LyricsState,
 )
-from .keyboard import setup_key_bindings
-from .events import create_property_observers
-from .lyrics_integration import prefetch_lyrics, get_lyrics_display
-from .ui import PlayerLayout
 from ..cache import LRUCache
 from ..python_mpv import MPV, ShutdownError
-from ..memory import memory_stats_decorator, optimize_memory_usage
 from ..history import RecentlyPlayedManager
-from ..lyrics_handler import LyricsHandler
+from ..memory import memory_stats_decorator, optimize_memory_usage
+from ...services.lyrics import LyricsManager
 from ...utils.exceptions import DisplayError
 from ...utils.console.manager import get_console
 from ...core.settings import load_settings
@@ -55,7 +55,7 @@ class MPVPlayer(MPV):
 
     Attributes:
         console: Rich console for UI rendering
-        lyrics_handler: Handler for lyrics operations
+        lyrics_manager: Manager for lyrics operations
         volume: Current volume level (0-130)
     """
 
@@ -89,7 +89,7 @@ class MPVPlayer(MPV):
         )
 
         self.console = get_console()
-        self.lyrics_handler = LyricsHandler()
+        self.lyrics_manager = LyricsManager()  # Updated to LyricsManager
         # Use a smaller thread pool and make it context-managed
         self._thread_pool = ThreadPoolExecutor(max_workers=2).__enter__()
         self.history_manager = RecentlyPlayedManager()
@@ -418,7 +418,7 @@ class MPVPlayer(MPV):
                                 duration,
                                 metadata_ready,
                                 self._lyrics,
-                                self.lyrics_handler,
+                                self.lyrics_manager,  # Updated to LyricsManager
                             )
 
                         if not self._history.loaded:
@@ -481,7 +481,9 @@ class MPVPlayer(MPV):
 
             album = self._metadata.album
 
-            if self._state.show_lyrics and self.lyrics_handler.has_lyrics_support():
+            if (
+                self._state.show_lyrics and self.lyrics_manager.has_lyrics_support()
+            ):  # Updated to LyricsManager
                 logger.debug(f"Starting async lyrics lookup for '{song}'")
                 self._prefetch_lyrics(song, artist, album, int(duration))
 
@@ -510,7 +512,7 @@ class MPVPlayer(MPV):
             artist,
             album,
             duration,
-            self.lyrics_handler,
+            self.lyrics_manager,  # Updated to LyricsManager
             self._thread_pool,
             self._active_futures,
         )
