@@ -42,7 +42,7 @@ def validate_theme(v):
     if not isinstance(v, str):
         return "galaxy"  # Default theme
 
-    theme = v.lower()
+    theme = v.lower().strip(" ")
 
     # Import here to avoid circular imports
     try:
