@@ -19,9 +19,9 @@ class AppearanceSettings(BaseModel):
     )
 
     # Display settings
-    display_album_art: str = "yes"
-    display_video: str = "yes"
-    display_lyrics: str = "no"
+    # display_album_art: str = "no"
+    display_video: str = "no"
+    display_lyrics: str = "yes"
     user_feedback_visible: str = "yes"
 
     # Format settings
