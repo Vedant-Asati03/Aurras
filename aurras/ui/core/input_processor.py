@@ -79,6 +79,10 @@ class InputProcessor:
                 "command": f"bold {theme.secondary.hex}",
                 "argument": f"{theme.text.hex}",
                 "text": f"{theme.text.hex}",
+                "scrollbar.button": f"bg:{theme.text.hex}",
+                "scrollbar.background": f"bg:{theme.background.hex}",
+                "completion-menu": f"bg:{theme.background.hex} {theme.text.hex}",
+                "completion-menu.meta.completion": f"bg:{theme.background.hex} {theme.text_muted.hex}",
             }
         )
 
