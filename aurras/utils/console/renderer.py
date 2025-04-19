@@ -378,7 +378,7 @@ class ProgressIndicator(UIComponent):
         if len(progress_colors) > 0:
             color = progress_colors[0]
 
-        bar = f"[{color}]{'▓' * filled_width}[/][dim]{'░' * unfilled_width}[/]"
+        bar = f"[{color}]{'█' * filled_width}[/][dim]{'█' * unfilled_width}[/]"
 
         if self.unit == "s":
             from .formatting import format_time_values
