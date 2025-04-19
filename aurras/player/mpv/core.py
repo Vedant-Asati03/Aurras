@@ -440,6 +440,8 @@ class MPVPlayer(MPV):
                             "lyrics_lines": lyrics_section
                             if self._lyrics.status == LyricsStatus.AVAILABLE
                             else [],
+                            # Add song_names to player_state for the queue display
+                            "song_names": self._current_song_names,
                         }
 
                         # Toggle lyrics display in layout if needed
@@ -465,7 +467,8 @@ class MPVPlayer(MPV):
 
         except Exception as e:
             logger.error(f"Display thread error: {e}")
-            raise DisplayError(f"Display error: {e}")
+            # Don't crash the playback just because the display had an error
+            pass
 
     def _check_metadata_complete(self) -> None:
         """Check if we have complete metadata and start lyrics lookup if needed."""
