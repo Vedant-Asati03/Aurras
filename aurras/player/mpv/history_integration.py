@@ -226,7 +226,7 @@ def integrate_history_with_playback(
         searched_songs, searched_urls
     )
 
-    integration.display_history_info(all_songs[:start_index])
+    # integration.display_history_info(all_songs[:start_index])
 
     integration.add_songs_to_history(searched_songs)
 
