@@ -1424,6 +1424,9 @@ class MPV(object):
 
         This method will detach the main libmpv handle and wait for mpv to shut down and the event thread to finish.
         """
+        if not self.handle:
+            return  # Already terminated
+
         self.handle, handle = None, self.handle
         if threading.current_thread() is self._event_thread:
             raise UserWarning(
@@ -1434,9 +1437,40 @@ class MPV(object):
             )
             self.quit()
         else:
-            _mpv_terminate_destroy(handle)
-            if self._event_thread:
-                self._event_thread.join()
+            try:
+                # Unregister all key bindings and message handlers to prevent callbacks during shutdown
+                for binding_name in list(self._key_binding_handlers.keys()):
+                    try:
+                        self.command("disable-section", binding_name)
+                        self.command("define-section", binding_name, "")
+                    except:
+                        pass
+
+                if self._event_callbacks:
+                    # Make a copy of the list before clearing
+                    callbacks_copy = self._event_callbacks.copy()
+                    self._event_callbacks = []
+
+                    # Try to unregister each callback
+                    for callback in callbacks_copy:
+                        try:
+                            if hasattr(callback, "unregister_mpv_events"):
+                                callback.unregister_mpv_events()
+                        except:
+                            pass
+
+                # Safely call the terminate function
+                _mpv_terminate_destroy(handle)
+
+                # Wait for event thread with timeout
+                if self._event_thread and self._event_thread.is_alive():
+                    self._event_thread.join(timeout=0.5)
+
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).error(f"Error during MPV termination: {e}")
+                # If terminate_destroy fails, still clear references to prevent memory leaks
 
     def set_loglevel(self, level):
         """Set MPV's log level. This adjusts which output will be sent to this object's log handlers. If you just want
