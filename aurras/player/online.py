@@ -7,12 +7,14 @@ This module provides functionality for playing songs online by streaming.
 import logging
 from typing import List, Union
 
-from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from .mpv.core import MPVPlayer
+from .mpv.state import PlaybackState
+from .mpv.history_integration import integrate_history_with_playback
+from ..utils.path_manager import PathManager
 from ..core.downloader import DownloadsDatabase
 from ..services.youtube.search import SearchSong
-from ..utils.path_manager import PathManager
 from ..utils.exceptions import (
     AurrasError,
     PlaybackError,
@@ -23,12 +25,11 @@ from ..utils.exceptions import (
     NetworkError,
     PlayerError,
 )
+from ..themes import get_theme, get_current_theme
+from ..utils.theme_helper import get_console
 
-from .mpv.core import MPVPlayer
-from .mpv.state import PlaybackState
-from .mpv.history_integration import integrate_history_with_playback
 
-console = Console()
+console = get_console()
 logger = logging.getLogger(__name__)
 
 
@@ -80,15 +81,21 @@ class SongStreamHandler(InitializeOnlinePlayer):
 
     def _get_song_info(self):
         """Search for the song(s) and get metadata."""
+        theme_name = get_current_theme()
+        theme = get_theme(theme_name)
+
+        text_color = theme.text.hex
+        accent_color = theme.accent.hex
+
         try:
             with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold green]Searching...[/bold green] {task.description}"),
+                SpinnerColumn(style=theme.primary.hex),
+                TextColumn(f"[bold {accent_color}]Searching...[/bold {accent_color}]"),
                 console=console,
                 transient=True,
             ) as progress:
                 task = progress.add_task(
-                    f"[cyan]{', '.join(_song_name.capitalize() for _song_name in self.search_queries)}[/cyan]"
+                    f"[{text_color}]{', '.join(_song_name.capitalize() for _song_name in self.search_queries)}[/{text_color}]"
                 )
                 self.search.search_song()
                 progress.update(task, advance=1)
@@ -105,6 +112,12 @@ class SongStreamHandler(InitializeOnlinePlayer):
             playlist_name: Optional name of playlist these songs belong to
             shuffle: Whether to shuffle the playback order
         """
+        theme_name = get_current_theme()
+        theme = get_theme(theme_name)
+
+        warning_color = theme.warning.hex
+        error_color = theme.error.hex
+
         try:
             self._get_song_info()
 
@@ -113,8 +126,6 @@ class SongStreamHandler(InitializeOnlinePlayer):
                 logger.warning(msg)
                 raise SongsNotFoundError(msg)
 
-            # Get history songs
-            # Default playback (searched songs only)
             if (
                 not hasattr(self.search, "include_history")
                 or not self.search.include_history
@@ -122,36 +133,40 @@ class SongStreamHandler(InitializeOnlinePlayer):
                 self._play_without_history(show_lyrics)
                 return
 
-            # Play with history integration
             self._play_with_history(show_lyrics)
 
         except KeyboardInterrupt:
-            console.print("[yellow]Playback stopped by user[/yellow]")
+            console.print(
+                f"[{warning_color}]Playback interrupted by user. Exiting...[/]"
+            )
+            logger.info("Playback interrupted by user")
         except SongsNotFoundError as e:
-            console.print(f"[bold red]{str(e)}[/bold red]")
+            console.print(f"[{error_color}]Error: {str(e)}. No songs found.[/]")
+            logger.error(f"Playback error: {e}")
         except PlaylistNotFoundError as e:
-            console.print(f"[bold red]{str(e)}[/bold red]")
+            console.print(f"[{error_color}]Error: {str(e)}. Playlist not found.[/]")
+            logger.error(f"Playback error: {e}")
         except DatabaseError as e:
-            console.print(f"[bold red]Database error: {str(e)}[/bold red]")
-            logger.error(f"Database error during playback: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Database error.[/]")
+            logger.error(f"Playback error: {e}")
         except NetworkError as e:
-            console.print(f"[bold red]Network error: {str(e)}[/bold red]")
-            logger.error(f"Network error during playback: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Network error.[/]")
+            logger.error(f"Playback error: {e}")
         except StreamingError as e:
-            console.print(f"[bold red]Streaming error: {str(e)}[/bold red]")
-            logger.error(f"Streaming error: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Streaming error.[/]")
+            logger.error(f"Playback error: {e}")
         except PlayerError as e:
-            console.print(f"[bold red]Player error: {str(e)}[/bold red]")
-            logger.error(f"Player error: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Player error.[/]")
+            logger.error(f"Playback error: {e}")
         except PlaybackError as e:
-            console.print(f"[bold red]Playback error: {str(e)}[/bold red]")
-            logger.error(f"Online Playback error: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Playback error.[/]")
+            logger.error(f"Playback error: {e}")
         except AurrasError as e:
-            console.print(f"[bold red]Error: {str(e)}[/bold red]")
-            logger.error(f"Aurras error during playback: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Aurras error.[/]")
+            logger.error(f"Playback error: {e}")
         except Exception as e:
-            console.print(f"[bold red]Unexpected error: {str(e)}[/bold red]")
-            logger.error(f"Unexpected error during playback: {e}", exc_info=True)
+            console.print(f"[{error_color}]Error: {str(e)}. Unexpected error.[/]")
+            logger.error(f"Playback error: {e}")
         finally:
             # Important: ensure player is terminated when done
             self._cleanup_player()
