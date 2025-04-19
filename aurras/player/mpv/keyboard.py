@@ -25,10 +25,34 @@ def setup_key_bindings(player) -> None:
     # Quit handler
     @player.on_key_press(SETTINGS.keyboard_shortcuts.quit_playback)
     def _quit() -> None:
+        # Let user know we're quitting
         player._show_user_feedback("Quit", "Exiting player", FeedbackType.SYSTEM)
-        player._state.stop_requested = True
-        player._state.playback_state = PlaybackState.STOPPED
-        player.quit()
+
+        try:
+            # Mark the player as stopping FIRST to prevent new operations
+            player._state.stop_requested = True
+            player._state.playback_state = PlaybackState.STOPPED
+
+            # Unregister all observers to prevent callback race conditions
+            if hasattr(player, "_observers"):
+                for observer in player._observers:
+                    try:
+                        observer.unregister()
+                    except Exception as e:
+                        logger.debug(f"Error unregistering observer: {e}")
+                player._observers = []
+
+            # Cancel any pending operations
+            if (
+                hasattr(player, "_lyrics")
+                and player._lyrics.future
+                and not player._lyrics.future.done()
+            ):
+                player._lyrics.future.cancel()
+
+            player.terminate()
+        except Exception as e:
+            logger.error(f"Error during player shutdown: {e}")
 
     # Volume control
     @player.on_key_press(SETTINGS.keyboard_shortcuts.volume_up)
