@@ -135,7 +135,9 @@ class SongInfoComponent(UIComponent):
 
     def render(self) -> str:
         """Render song information with gradient styling."""
-        active_theme_gradients, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+        active_theme_gradients, active_theme_styles = (
+            ThemeHelper.retrieve_theme_gradients_and_styles()
+        )
 
         info_text = ""
 
@@ -255,7 +257,6 @@ class StatusDisplay(UIComponent):
         Args:
             playback_state: Current playback state enum
             volume: Current volume level
-            current_theme: Current theme name
         """
         self.playback_state = playback_state
         self.volume = volume
@@ -263,18 +264,13 @@ class StatusDisplay(UIComponent):
     def render(self) -> str:
         """Render the status text."""
         active_theme_name = get_current_theme()
-        active_theme_gradients, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-
-        if self.playback_state == PlaybackState.PAUSED:
-            status = "Paused"
-        elif self.playback_state == PlaybackState.PLAYING:
-            status = "Playing"
-        else:
-            status = "Stopped"
+        active_theme_gradients, active_theme_styles = (
+            ThemeHelper.retrieve_theme_gradients_and_styles()
+        )
 
         theme_info = f" · Theme: {active_theme_name}" if active_theme_name else ""
 
-        status_text = f"Status: {status} · Volume: {self.volume}%{theme_info}"
+        status_text = f"Volume: {self.volume}%{theme_info}"
 
         if "status" in active_theme_gradients and active_theme_gradients["status"]:
             dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
@@ -282,6 +278,56 @@ class StatusDisplay(UIComponent):
         else:
             dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
             return f"[{dim_color}]{status_text}[/{dim_color}]"
+
+
+class QueueDisplay(UIComponent):
+    """Component to display upcoming songs in the queue."""
+
+    def __init__(
+        self,
+        upcoming_songs: List[str],
+        current_position: int,
+        max_songs: int = 3,
+    ):
+        """
+        Initialize queue display component.
+
+        Args:
+            upcoming_songs: List of all song names in the queue
+            current_position: Current position in the queue
+            max_songs: Maximum number of upcoming songs to show
+        """
+        self.all_songs = upcoming_songs
+        self.current_position = current_position
+        self.max_songs = max_songs
+
+    def render(self) -> Optional[str]:
+        """Render upcoming songs in the queue with styled formatting."""
+        if not self.all_songs or self.current_position >= len(self.all_songs) - 1:
+            return None
+
+        active_theme_gradients, active_theme_styles = (
+            ThemeHelper.retrieve_theme_gradients_and_styles()
+        )
+        dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
+
+        # Get upcoming songs
+        upcoming = self.all_songs[self.current_position + 1 :]
+        if not upcoming:
+            return None
+
+        # Limit to max_songs or 2
+        upcoming = upcoming[: min(self.max_songs, 2)]
+
+        # Format the queue display with song numbers
+        queue_text = f"Upcoming: {', '.join(upcoming)}"
+
+        if "status" in active_theme_gradients and active_theme_gradients["status"]:
+            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
+            return f"[{dim_color}]{ThemeHelper.apply_gradient_to_text(queue_text, active_theme_gradients['status'])}[/{dim_color}]"
+        else:
+            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
+            return f"[{dim_color}]{queue_text}[/{dim_color}]"
 
 
 class UserFeedbackDisplay(UIComponent):
@@ -307,11 +353,30 @@ class UserFeedbackDisplay(UIComponent):
         elif self.feedback.feedback_type == FeedbackType.SYSTEM:
             style_key = "system"
 
+        timeout = self.feedback.timeout
+
+        if self.feedback.feedback_type == FeedbackType.SYSTEM:
+            timeout = (
+                self.feedback.timeout if hasattr(self.feedback, "timeout") else 3.0
+            )
+        elif self.feedback.feedback_type == FeedbackType.ERROR:
+            timeout = (
+                self.feedback.timeout if hasattr(self.feedback, "timeout") else 8.0
+            )
+
         feedback_message = FeedbackMessage(
             message=self.feedback.description,
             action=self.feedback.action,
             style=style_key,
+            timeout=timeout,
+            created_at=self.feedback.timestamp
+            if hasattr(self.feedback, "timestamp")
+            else None,
         )
+
+        # Don't display if the message has expired
+        if feedback_message.is_expired():
+            return None
 
         return feedback_message.render()
 
@@ -413,6 +478,7 @@ class PlayerLayout:
         playlist_count = player_state.get("playlist_count", 0)
         user_feedback = player_state.get("feedback", None)
         lyrics_content = player_state.get("lyrics_lines", [])
+        song_list = player_state.get("song_names", [])
 
         self.renderer.components.clear()
 
@@ -434,6 +500,11 @@ class PlayerLayout:
         # Create status display
         status = StatusDisplay(playback_state, volume)
         self.renderer.add_component("status", status)
+
+        # Add queue display if songs are in queue
+        if song_list and len(song_list) > 1 and playlist_position < len(song_list) - 1:
+            queue = QueueDisplay(song_list, playlist_position)
+            self.renderer.add_component("queue", queue)
 
         # Add user feedback if available
         if user_feedback:
