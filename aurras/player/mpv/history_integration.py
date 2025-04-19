@@ -10,13 +10,13 @@ import logging
 from collections import deque
 from typing import List, Dict, Tuple
 
-from rich.console import Console
-
 from ..history import RecentlyPlayedManager
+from ...utils.theme_helper import get_console
 from ...services.youtube.search import SearchSong
+from ...themes import get_theme, get_current_theme
 
 logger = logging.getLogger(__name__)
-console = Console()
+console = get_console()
 
 
 class HistoryIntegration:
@@ -152,13 +152,15 @@ class HistoryIntegration:
         """
         if not history_songs:
             return
-
-        console.rule("[bold green]Queue with History")
+        theme_name = get_current_theme()
+        theme = get_theme(theme_name)
+        
+        console.rule(f"[bold {theme.primary.hex}]Queue with History[/]", style=theme.secondary.hex)
 
         # Display info about history songs
         history_str = ", ".join(history_songs[: min(3, len(history_songs))])
         console.print(
-            f"[dim]History songs in queue ({len(history_songs)}): {history_str}...[/dim]"
+            f"[{theme.dim}]Songs from history in queue ({len(history_songs)}): {history_str}...[/]"
         )
 
     def add_songs_to_history(self, songs: List[str], source: str = "online") -> None:
