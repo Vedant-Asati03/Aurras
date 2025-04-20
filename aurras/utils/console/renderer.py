@@ -132,6 +132,7 @@ class UIRenderer:
             self._live = Live(
                 self._generate_live_render(),
                 console=self.console,
+                transient=True,
                 refresh_per_second=refresh_per_second,
             )
 
@@ -385,7 +386,7 @@ class ProgressIndicator(UIComponent):
 
             completed_fmt = format_time_values(self.completed)
             total_fmt = format_time_values(self.total)
-            values_text = f"[dim {values_color}]{completed_fmt}[/] / [dim {values_color}]{total_fmt}[/]"
+            values_text = f"[dim {values_color}]{completed_fmt} / [dim {values_color}]{total_fmt}[/]"
         else:
             values_text = f"[dim {values_color}]{self.completed:.1f}[/] / [dim {values_color}]{self.total:.1f}{self.unit}[/]"
 
@@ -405,6 +406,8 @@ class FeedbackMessage(UIComponent):
         message: str,
         action: str = "",
         style: str = "feedback",
+        timeout: float = 1.5,  # Default timeout of 5 seconds
+        created_at: float = None,
     ):
         """
         Initialize feedback message.
@@ -413,10 +416,31 @@ class FeedbackMessage(UIComponent):
             message: Main message text
             action: Optional action text
             style: Style key (feedback, error, system)
+            timeout: Number of seconds to display the message (0 = never expire)
+            created_at: Timestamp when the message was created (default: current time)
         """
+        import time
+
         self.message = message
         self.action = action
         self.style = style
+        self.timeout = timeout
+        self.created_at = created_at or time.time()
+
+    def is_expired(self) -> bool:
+        """
+        Check if the feedback message has expired based on timeout.
+
+        Returns:
+            True if message should no longer be displayed, False otherwise
+        """
+        if self.timeout <= 0:
+            return False  # Messages with timeout <= 0 never expire
+
+        import time
+
+        current_time = time.time()
+        return (current_time - self.created_at) > self.timeout
 
     def render(self) -> str:
         """Render the feedback message with appropriate styling."""
