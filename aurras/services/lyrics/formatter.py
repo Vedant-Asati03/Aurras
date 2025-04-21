@@ -77,9 +77,7 @@ class LyricsFormatter:
         self,
         lyrics_lines: List[str],
         current_time: float,
-        song: str = "",
-        artist: str = "",
-        album: str = "",
+        duration: float,
         context_lines: int = 6,
         plain_mode: bool = False,
     ) -> str:
@@ -103,22 +101,55 @@ class LyricsFormatter:
         if not lyrics_lines:
             return self.get_no_lyrics_message()
 
-        # Different display modes based on lyrics type and requested mode
-        if plain_mode:
-            return self._display_plain_lyrics(lyrics_lines)
-        elif not LyricsParser.is_synced_lyrics(lyrics_lines):
-            return self._display_plain_lyrics(lyrics_lines)
-        else:
-            return self._display_synced_lyrics(
-                lyrics_lines, current_time, context_lines
-            )
+        if not LyricsParser.is_synced_lyrics(lyrics_lines) or plain_mode:
+            return self._display_plain_lyrics(lyrics_lines, current_time, duration)
 
-    def _display_plain_lyrics(self, lyrics_lines: List[str]) -> str:
-        """Display plain lyrics with simple gradient formatting."""
+        return self._display_synced_lyrics(lyrics_lines, current_time, context_lines)
+
+    def _display_plain_lyrics(
+        self, lyrics_lines: List[str], current_time: float, duration: float
+    ) -> str:
+        """
+        Display plain lyrics with simple gradient formatting based on current playback time.
+
+        Args:
+            lyrics_lines: List of lyrics lines
+            current_time: Current playback position in seconds
+
+        Returns:
+            Formatted lyrics text with the appropriate chunk visible
+        """
         from .parser import LyricsParser
 
         plain_lyrics = LyricsParser.get_plain_lyrics(lyrics_lines)
-        return self._create_simple_gradient_view(plain_lyrics[:15])
+
+        if not plain_lyrics:
+            return self.get_no_lyrics_message()
+
+        CHUNK_SIZE = 15  # Number of lines to show at once
+
+        # Calculate which chunk of lyrics to show
+        total_chunks = max(1, len(plain_lyrics) // CHUNK_SIZE)
+        current_chunk = min(
+            int((current_time / duration) * total_chunks), total_chunks - 1
+        )
+
+        # Calculate the start and end indices
+        start_index = current_chunk * CHUNK_SIZE
+        end_index = min(start_index + CHUNK_SIZE, len(plain_lyrics))
+
+        # Get the current lyrics chunk
+        current_chunk_lyrics = plain_lyrics[start_index:end_index]
+
+        theme_style = self._get_theme_gradient_style()
+        theme_color = self._get_theme_color(theme_style)
+
+        result_lines = []
+
+        for line in current_chunk_lyrics:
+            result_lines.append(f"[{theme_color}]{line}[/{theme_color}]")
+
+        return self._create_simple_gradient_view(result_lines)
 
     def _display_synced_lyrics(
         self, lyrics_lines: List[str], current_time: float, context_lines: int
