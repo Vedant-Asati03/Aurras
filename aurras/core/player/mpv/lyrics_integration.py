@@ -6,6 +6,7 @@ lyrics in the MPV player interface with theme-consistent styling.
 """
 
 import logging
+from typing import List
 from concurrent.futures import Future
 
 from .state import LyricsStatus, LyricsState
@@ -103,13 +104,10 @@ def get_lyrics_display(
     if not metadata_ready:
         return f"{_format_feedback_message('Waiting for song metadata...')}"
 
-    if lyrics_state.status == LyricsStatus.AVAILABLE and lyrics_state.cached_lyrics:
-        return (
-            f"{_format_cached_lyrics(elapsed, duration, lyrics_state, lyrics_manager)}"
-        )
-
     if lyrics_state.future and lyrics_state.future.done():
-        return f"{_handle_completed_lyrics_fetch(elapsed, lyrics_state, lyrics_manager)}"
+        return (
+            f"{_handle_completed_lyrics_fetch(elapsed, duration, lyrics_state, lyrics_manager)}"
+        )
 
     if (
         lyrics_state.status == LyricsStatus.LOADING
@@ -169,6 +167,7 @@ def _format_cached_lyrics(
 
 def _handle_completed_lyrics_fetch(
     elapsed: float,
+    duration: float,
     lyrics_state: LyricsState,
     lyrics_manager: LyricsManager,
 ) -> str:
@@ -187,17 +186,17 @@ def _handle_completed_lyrics_fetch(
         Formatted lyrics display
     """
     try:
-        lyrics = lyrics_state.future.result()
+        lyrics: List[str] = lyrics_state.future.result()
 
         if lyrics:
             lyrics_state.cached_lyrics = lyrics
             lyrics_state.status = LyricsStatus.AVAILABLE
-            return _format_cached_lyrics(elapsed, lyrics_state, lyrics_manager)
-        else:
-            lyrics_state.status = LyricsStatus.NOT_FOUND
-            if lyrics_state.no_lyrics_message is None:
-                lyrics_state.no_lyrics_message = lyrics_manager.get_no_lyrics_message()
-            return lyrics_state.no_lyrics_message
+            return _format_cached_lyrics(elapsed, duration, lyrics_state, lyrics_manager)
+
+        lyrics_state.status = LyricsStatus.NOT_FOUND
+        if lyrics_state.no_lyrics_message is None:
+            lyrics_state.no_lyrics_message = lyrics_manager.get_no_lyrics_message()
+        return lyrics_state.no_lyrics_message
 
     except Exception as e:
         logger.error(f"Error retrieving lyrics: {e}")
