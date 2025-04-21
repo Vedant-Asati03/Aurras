@@ -10,9 +10,9 @@ import logging
 from ytmusicapi import YTMusic
 
 from ...core.downloader import DownloadsDatabase
+from ...core.player.history import RecentlyPlayedManager
 from ...core.cache.search_db import SearchFromSongDataBase
 from ...core.cache.updater import UpdateSearchHistoryDatabase
-from ...player.history import RecentlyPlayedManager
 from ...utils.handle_fuzzy_search import FuzzySearcher, FuzzyDictMatcher
 
 # Set up logging
