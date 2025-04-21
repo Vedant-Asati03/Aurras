@@ -9,8 +9,8 @@ import logging
 from concurrent.futures import Future
 
 from .state import LyricsStatus, LyricsState
-from ....services.lyrics import LyricsManager
 from ..memory import optimize_memory_usage
+from ....services.lyrics import LyricsManager
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +71,6 @@ def prefetch_lyrics(
 
 
 def get_lyrics_display(
-    song: str,
-    artist: str,
-    album: str,
     elapsed: float,
     duration: float,
     metadata_ready: bool,
@@ -101,16 +98,18 @@ def get_lyrics_display(
         lyrics_state.status == LyricsStatus.DISABLED
         or not lyrics_manager.has_lyrics_support()
     ):
-        return f"{format_feedback_message('Lyrics feature not available')}"
+        return f"{_format_feedback_message('Lyrics feature not available')}"
 
     if not metadata_ready:
-        return f"{format_feedback_message('Waiting for song metadata...')}"
+        return f"{_format_feedback_message('Waiting for song metadata...')}"
 
     if lyrics_state.status == LyricsStatus.AVAILABLE and lyrics_state.cached_lyrics:
-        return f"{format_cached_lyrics(song, artist, album, elapsed, lyrics_state, lyrics_manager)}"
+        return (
+            f"{_format_cached_lyrics(elapsed, duration, lyrics_state, lyrics_manager)}"
+        )
 
     if lyrics_state.future and lyrics_state.future.done():
-        return f"{handle_completed_lyrics_fetch(song, artist, album, elapsed, lyrics_state, lyrics_manager)}"
+        return f"{_handle_completed_lyrics_fetch(elapsed, lyrics_state, lyrics_manager)}"
 
     if (
         lyrics_state.status == LyricsStatus.LOADING
@@ -129,7 +128,7 @@ def get_lyrics_display(
     return f"{lyrics_state.no_lyrics_message or 'No lyrics available'}"
 
 
-def format_feedback_message(message: str) -> str:
+def _format_feedback_message(message: str) -> str:
     """Format a feedback message with theme-consistent styling."""
     from ....services.lyrics import LyricsManager
 
@@ -138,11 +137,9 @@ def format_feedback_message(message: str) -> str:
     return f"[italic]{feedback_text}[/italic]"
 
 
-def format_cached_lyrics(
-    song: str,
-    artist: str,
-    album: str,
+def _format_cached_lyrics(
     elapsed: float,
+    duration: float,
     lyrics_state: LyricsState,
     lyrics_manager: LyricsManager,
 ) -> str:
@@ -163,25 +160,14 @@ def format_cached_lyrics(
     if not lyrics_state.cached_lyrics:
         return lyrics_manager.get_no_lyrics_message()
 
-    # Determine lyrics type and display accordingly
-    is_synced = lyrics_manager._is_synced_lyrics(lyrics_state.cached_lyrics)
-
-    if is_synced:
-        return lyrics_manager.create_focused_lyrics_view(
-            lyrics_state.cached_lyrics, elapsed, song, artist, album
-        )
-    else:
-        # For plain lyrics, use the simple display
-        plain_lyrics = lyrics_manager._get_plain_lyrics(lyrics_state.cached_lyrics)
-        return lyrics_manager.lyrics_formatter._create_simple_gradient_view(
-            plain_lyrics[:15]
-        )
+    return lyrics_manager.create_focused_lyrics_view(
+        lyrics_state.cached_lyrics,
+        elapsed,
+        duration,
+    )
 
 
-def handle_completed_lyrics_fetch(
-    song: str,
-    artist: str,
-    album: str,
+def _handle_completed_lyrics_fetch(
     elapsed: float,
     lyrics_state: LyricsState,
     lyrics_manager: LyricsManager,
@@ -206,9 +192,7 @@ def handle_completed_lyrics_fetch(
         if lyrics:
             lyrics_state.cached_lyrics = lyrics
             lyrics_state.status = LyricsStatus.AVAILABLE
-            return format_cached_lyrics(
-                song, artist, album, elapsed, lyrics_state, lyrics_manager
-            )
+            return _format_cached_lyrics(elapsed, lyrics_state, lyrics_manager)
         else:
             lyrics_state.status = LyricsStatus.NOT_FOUND
             if lyrics_state.no_lyrics_message is None:
