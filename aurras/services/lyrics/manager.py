@@ -195,9 +195,7 @@ class LyricsManager:
         self,
         lyrics_lines: List[str],
         current_time: float,
-        song: str = "",
-        artist: str = "",
-        album: str = "",
+        duration: float,
         context_lines: int = 6,
         plain_mode: bool = False,
     ) -> str:
@@ -217,7 +215,7 @@ class LyricsManager:
             Formatted lyrics text with gradient highlighting
         """
         return self.lyrics_formatter.create_focused_lyrics_view(
-            lyrics_lines, current_time, song, artist, album, context_lines, plain_mode
+            lyrics_lines, current_time, duration, context_lines, plain_mode
         )
 
     def apply_gradient_to_text(
