@@ -411,9 +411,6 @@ class MPVPlayer(MPV):
                         # Check for lyrics and history without storing unused variables
                         if self._state.show_lyrics:
                             lyrics_section = get_lyrics_display(
-                                current_song,
-                                artist,
-                                album,
                                 elapsed,
                                 duration,
                                 metadata_ready,
