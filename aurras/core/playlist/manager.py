@@ -12,8 +12,8 @@ from typing import List, Dict, Optional
 from .download import DownloadPlaylist
 from .cache.updater import UpdatePlaylistDatabase
 from .cache.search_db import SearchFromPlaylistDataBase
-from ..core.downloader import ThemeHelper
-from ..utils.console.manager import get_console
+from ..downloader import ThemeHelper
+from ...utils.console.manager import get_console
 
 logger = logging.getLogger(__name__)
 

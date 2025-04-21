@@ -6,7 +6,7 @@ This module contains keyboard bindings and handlers for the MPV player interface
 
 import logging
 
-from ...core.settings import load_settings
+from ...settings import load_settings
 from .state import FeedbackType, PlaybackState, LyricsStatus
 
 logger = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ def setup_key_bindings(player) -> None:
     # Cycle themes
     @player.on_key_press(SETTINGS.keyboard_shortcuts.switch_themes)
     def _cycle_theme() -> None:
-        from ...utils.console.manager import (
+        from ....utils.console.manager import (
             change_theme,
             get_available_themes,
             get_current_theme,

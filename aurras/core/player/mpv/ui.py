@@ -14,10 +14,10 @@ from rich.columns import Columns
 from rich.console import Console
 
 from .state import FeedbackType, PlaybackState, UserFeedback
-from ...themes import get_current_theme
-from ...core.settings import load_settings
-from ...utils.console.manager import get_console
-from ...utils.console.renderer import (
+from ....themes import get_current_theme
+from ...settings import load_settings
+from ....utils.console.manager import get_console
+from ....utils.console.renderer import (
     UIComponent,
     ProgressIndicator,
     FeedbackMessage,

@@ -12,10 +12,10 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from .mpv.core import MPVPlayer
 from .mpv.state import PlaybackState
 from .mpv.history_integration import integrate_history_with_playback
-from ..utils.path_manager import PathManager
-from ..core.downloader import DownloadsDatabase
-from ..services.youtube.search import SearchSong
-from ..utils.exceptions import (
+from ...utils.path_manager import PathManager
+from ..downloader import DownloadsDatabase
+from ...services.youtube.search import SearchSong
+from ...utils.exceptions import (
     AurrasError,
     PlaybackError,
     StreamingError,
@@ -25,8 +25,8 @@ from ..utils.exceptions import (
     NetworkError,
     PlayerError,
 )
-from ..themes import get_theme, get_current_theme
-from ..utils.theme_helper import get_console
+from ...themes import get_theme, get_current_theme
+from ...utils.theme_helper import get_console
 
 
 console = get_console()

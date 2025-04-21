@@ -7,9 +7,9 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from ..core.settings import load_settings
-from ..utils.console.manager import get_console
-from ..core.downloader import SongDownloader, ThemeHelper
+from ..settings import load_settings
+from ...utils.console.manager import get_console
+from ..downloader import SongDownloader, ThemeHelper
 from ..playlist.cache.search_db import SearchFromPlaylistDataBase
 
 logger = logging.getLogger(__name__)

@@ -11,9 +11,9 @@ from collections import deque
 from typing import List, Dict, Tuple
 
 from ..history import RecentlyPlayedManager
-from ...utils.theme_helper import get_console
-from ...services.youtube.search import SearchSong
-from ...themes import get_theme, get_current_theme
+from ....utils.theme_helper import get_console
+from ....services.youtube.search import SearchSong
+from ....themes import get_theme, get_current_theme
 
 logger = logging.getLogger(__name__)
 console = get_console()

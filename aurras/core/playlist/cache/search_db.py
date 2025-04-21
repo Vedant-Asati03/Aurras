@@ -6,7 +6,7 @@ This module provides a class for searching songs in the playlist database.
 
 from typing import Dict, List
 from .loader import LoadPlaylistData
-from ...utils.handle_fuzzy_search import FuzzySearcher
+from ....utils.handle_fuzzy_search import FuzzySearcher
 
 
 class SearchFromPlaylistDataBase:

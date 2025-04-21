@@ -17,9 +17,9 @@ from rich.console import Console
 from rich import print as rprint
 from rich.logging import RichHandler
 
-from ..utils.path_manager import PathManager
-from ..themes import get_theme, get_current_theme
-from ..themes.adapters import theme_to_rich_theme, get_gradient_styles
+from ...utils.path_manager import PathManager
+from ...themes import get_theme, get_current_theme
+from ...themes.adapters import theme_to_rich_theme, get_gradient_styles
 
 _path_manager = PathManager()
 

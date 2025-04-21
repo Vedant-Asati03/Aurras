@@ -9,7 +9,7 @@ import sqlite3
 from typing import List
 
 from .initialize import InitializePlaylistDatabase
-from ...utils.path_manager import PathManager
+from ....utils.path_manager import PathManager
 
 _path_manager = PathManager()
 playlist_db_path = _path_manager.playlists_db

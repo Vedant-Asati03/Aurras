@@ -32,10 +32,10 @@ from ..cache import LRUCache
 from ..python_mpv import MPV, ShutdownError
 from ..history import RecentlyPlayedManager
 from ..memory import memory_stats_decorator, optimize_memory_usage
-from ...services.lyrics import LyricsManager
-from ...utils.exceptions import DisplayError
-from ...utils.console.manager import get_console
-from ...core.settings import load_settings
+from ....services.lyrics import LyricsManager
+from ....utils.exceptions import DisplayError
+from ....utils.console.manager import get_console
+from ....core.settings import load_settings
 
 logger = logging.getLogger(__name__)
 

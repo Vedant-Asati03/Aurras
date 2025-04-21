@@ -9,7 +9,7 @@ import logging
 from concurrent.futures import Future
 
 from .state import LyricsStatus, LyricsState
-from ...services.lyrics import LyricsManager
+from ....services.lyrics import LyricsManager
 from ..memory import optimize_memory_usage
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ def get_lyrics_display(
 
 def format_feedback_message(message: str) -> str:
     """Format a feedback message with theme-consistent styling."""
-    from ...services.lyrics import LyricsManager
+    from ....services.lyrics import LyricsManager
 
     temp_manager = LyricsManager()
     feedback_text = temp_manager.apply_gradient_to_text(message, "feedback")

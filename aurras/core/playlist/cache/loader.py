@@ -4,7 +4,7 @@ Cache Loading Module
 This module provides a class for loading data from the playlist database.
 """
 
-from ...utils.path_manager import PathManager
+from ....utils.path_manager import PathManager
 from .initialize import InitializePlaylistDatabase
 
 import sqlite3

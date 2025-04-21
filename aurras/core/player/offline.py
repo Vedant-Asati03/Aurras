@@ -8,8 +8,8 @@ import logging
 from typing import List, Tuple
 from rich.console import Console
 
-from ..core.downloader import DownloadsDatabase
-from ..utils.exceptions import (
+from ..downloader import DownloadsDatabase
+from ...utils.exceptions import (
     AurrasError,
     PlaybackError,
     DatabaseError,

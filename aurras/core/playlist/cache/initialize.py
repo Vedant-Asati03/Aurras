@@ -6,7 +6,7 @@ This module provides a class for initializing the playlist database.
 
 import sqlite3
 
-from ...utils.path_manager import PathManager
+from ....utils.path_manager import PathManager
 
 _path_manager = PathManager()
 playlist_db_path = _path_manager.playlists_db
