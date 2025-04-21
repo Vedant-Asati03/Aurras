@@ -550,9 +550,10 @@ class SongDownloader:
     def __init__(
         self,
         song_list_to_download: List[str],
-        download_path=None,
-        format=None,
-        bitrate=None,
+        playlist_path: str = None,
+        download_path: str = None,
+        format: str = None,
+        bitrate: str = None,
     ):
         """
         Initialize the SongDownloader.
@@ -566,13 +567,37 @@ class SongDownloader:
         """
         self._path_manager = _path_manager
         self.song_list_to_download = song_list_to_download
-        self.download_path = Path(
-            download_path if download_path is not None else SETTINGS.download_path
-        ).expanduser()
+        self.download_path = self._setup_download_path(playlist_path, download_path)
         self.format = format if format is not None else SETTINGS.download_format
         self.bitrate = bitrate if bitrate is not None else SETTINGS.download_bitrate
 
         self.metadata_extractor = ExtractMetadata(self.download_path)
+
+    def _get_playlist_path(self, playlist_path: str = None) -> Optional[Path | None]:
+        """
+        Generate a download path if a playlist is provided.
+        """
+        if not playlist_path:
+            return None
+
+        playlist_dir = _path_manager.construct_path(
+            _path_manager.playlists_dir, playlist_path
+        )
+        return playlist_dir
+
+    def _setup_download_path(
+        self, playlist_path: str = None, download_path: str = None
+    ) -> Path:
+        """
+        Set up the download path for the songs.
+        """
+        if playlist_path := self._get_playlist_path(playlist_path):
+            return Path(playlist_path)
+
+        # If no playlist, use the default download path
+        return Path(
+            download_path if download_path is not None else SETTINGS.download_path
+        ).expanduser()
 
     def download_songs(self):
         """
@@ -685,4 +710,4 @@ class SongDownloader:
             )
             raise
 
-        return False  # In case we somehow exit the try/except without returning
+        return False  # In case we somehow exit the try/except without returning_
