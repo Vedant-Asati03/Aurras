@@ -210,6 +210,11 @@ def create_parser() -> Tuple[
         "song", help="Song name or comma-separated list of songs to download"
     )
     subparsers_dict["download"].add_argument(
+        "--playlist",
+        metavar="PLAYLIST",
+        help="N|Download the specified song[s] as a playlist, if playlist already exists it will be updated\nImportant: This takes priority over the --output-dir argument.",
+    )
+    subparsers_dict["download"].add_argument(
         "--output-dir",
         metavar="DIR",
         help="N|Specify output directory for downloading songs.\nThis does not change the default output dir, to change that update the settings.",
@@ -416,6 +421,7 @@ def main():
             case "download":
                 return player_processor.download_song(
                     args.song,
+                    getattr(args, "playlist", None),
                     getattr(args, "output_dir", None),
                     getattr(args, "format", "mp3"),
                     getattr(args, "bitrate", "auto"),
