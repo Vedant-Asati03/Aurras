@@ -544,6 +544,7 @@ class ListDisplay(UIComponent):
         description: str = None,
         selected_index: int = -1,
         show_indices: bool = False,
+        show_header: bool = True,
         max_height: int = None,
         style_key: str = "list",
         use_table: bool = True,
@@ -568,6 +569,7 @@ class ListDisplay(UIComponent):
         self.description = description
         self.selected_index = selected_index
         self.show_indices = show_indices
+        self.show_header = show_header
         self.max_height = max_height
         self.style_key = style_key
         self.use_table = use_table
@@ -639,6 +641,7 @@ class ListDisplay(UIComponent):
                 border_style=border_style,
                 title=self.title if self.title else None,
                 caption=self._get_pagination_text() if self.page_count > 1 else None,
+                show_header=self.show_header,
             )
 
             # Configure columns
