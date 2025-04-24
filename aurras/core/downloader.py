@@ -592,7 +592,7 @@ class SongDownloader:
         Set up the download path for the songs.
         """
         if playlist_path := self._get_playlist_path(playlist_path):
-            return Path(playlist_path)
+            return Path(playlist_path).expanduser()
 
         # If no playlist, use the default download path
         return Path(
