@@ -127,6 +127,7 @@ class DownloadsDatabase:
         self.db_path = _path_manager.downloads_db
         self.db_conn = DatabaseConnection(self.db_path)
         self._initialize_database()
+        self.playlist_db = None  # Lazy initialization
 
     def _initialize_database(self):
         """Create the downloads database with proper schema and indexes."""
@@ -148,16 +149,6 @@ class DownloadsDatabase:
                 )
             """)
 
-            # Create lyrics table - Fixed the missing song_id foreign key
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS song_lyrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    song_id INTEGER NOT NULL,
-                    fetch_time INTEGER,
-                    FOREIGN KEY(song_id) REFERENCES downloaded_songs(id)
-                )
-            """)
-
             # Create indexes for faster searching
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_track_name ON downloaded_songs(track_name)"
@@ -174,7 +165,15 @@ class DownloadsDatabase:
 
             conn.commit()
 
-    def save_downloaded_song(self, song_data: Dict[str, Any]) -> int:
+    def _get_playlist_db(self):
+        """Lazy initialization of the playlist database connection."""
+        if self.playlist_db is None:
+            from .playlist.cache.updater import UpdatePlaylistDatabase
+
+            self.playlist_db = UpdatePlaylistDatabase()
+        return self.playlist_db
+
+    def save_downloaded_song(self, batch_data: List[tuple]) -> int:
         """
         Save a downloaded song to the database.
 
@@ -188,83 +187,68 @@ class DownloadsDatabase:
             with self.db_conn.get_connection() as conn:
                 cursor = conn.cursor()
 
-                # Insert song data with correct placeholders
-                cursor.execute(
+                cursor.executemany(
                     """
                     INSERT OR REPLACE INTO downloaded_songs
                     (track_name, artist_name, album_name, duration, download_date, 
                      file_path, cover_url)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                    (
-                        song_data.get("name", ""),
-                        song_data.get("artists", ""),
-                        song_data.get("album_name", ""),
-                        song_data.get("duration", 0),
-                        int(time.time()),
-                        song_data.get("file_path", ""),
-                        song_data.get("cover_url", ""),
-                    ),
+                    batch_data,
                 )
 
-                # Get the ID of the inserted/updated record
-                if cursor.lastrowid:
-                    song_id = cursor.lastrowid
-                else:
-                    # If it was an update, get the ID by querying
-                    cursor.execute(
-                        """
-                        SELECT id FROM downloaded_songs
-                        WHERE track_name = ? AND artist_name = ? AND album_name = ?
-                    """,
-                        (
-                            song_data.get("name", ""),
-                            song_data.get("artists", ""),
-                            song_data.get("album_name", ""),
-                        ),
-                    )
-                    result = cursor.fetchone()
-                    song_id = result[0] if result else 0
-
-                # Save lyrics if available
-                if song_data.get("synced_lyrics") or song_data.get("plain_lyrics"):
-                    cursor.execute(
-                        """
-                        INSERT OR REPLACE INTO song_lyrics
-                        (song_id, synced_lyrics, plain_lyrics, fetch_time)
-                        VALUES (?, ?, ?, ?)
-                    """,
-                        (
-                            song_id,
-                            song_data.get("synced_lyrics", ""),
-                            song_data.get("plain_lyrics", ""),
-                            int(time.time()),
-                        ),
-                    )
-
                 conn.commit()
-                logger.info(f"Saved song to database: {song_data.get('name', '')}")
-                return song_id
+
         except sqlite3.Error as e:
             logger.error(f"Database error when saving song: {e}", exc_info=True)
             return 0
 
-    def batch_save_songs(self, songs_data: List[Dict[str, Any]]) -> List[int]:
+    def _flush_data_in_batch(self, songs_data: List[Dict[str, Any]]) -> List[tuple]:
         """
-        Save multiple songs to the database in a batch.
+        Convert a list of dictionaries to a list of tuples for batch insertion.
 
         Args:
             songs_data: List of dictionaries containing song metadata
 
         Returns:
-            List of inserted/updated record IDs
+            List of tuples for batch insertion
         """
-        ids = []
-        for song_data in songs_data:
-            song_id = self.save_downloaded_song(song_data)
-            if song_id:
-                ids.append(song_id)
-        return ids
+        download_time = int(time.time())
+
+        songs_metadata_batch = [
+            (
+                data.get("name", ""),
+                data.get("artists", ""),
+                data.get("album_name", ""),
+                data.get("duration", 0),
+                download_time,
+                data.get("file_path", ""),
+                data.get("cover_url", ""),
+            )
+            for data in songs_data
+        ]
+        return songs_metadata_batch
+
+    def batch_save_songs(
+        self, songs_data: List[Dict[str, Any]], playlist: Optional[str]
+    ):
+        """
+        Save multiple songs to the database in a batch.
+
+        Args:
+            songs_data: List of dictionaries containing song metadata
+            playlist: Optional playlist name to add the songs to
+        """
+        if not songs_data:
+            raise ValueError("No song data provided for batch saving")
+
+        songs_metadata_batch = self._flush_data_in_batch(songs_data)
+
+        self.save_downloaded_song(songs_metadata_batch)
+
+        if playlist and songs_data:
+            playlist_db = self._get_playlist_db()
+            playlist_db.batch_save_songs_to_playlist(playlist, songs_metadata_batch)
 
     def get_downloaded_songs(
         self,
@@ -353,6 +337,7 @@ class ExtractMetadata:
         self,
         output_dir: Path,
         database: Optional[DownloadsDatabase] = None,
+        playlist: Optional[str] = None,
     ):
         """
         Initialize the metadata extractor.
@@ -363,6 +348,7 @@ class ExtractMetadata:
         self.database = database or DownloadsDatabase()
         self.output_dir = output_dir
         self._file_path_cache: Dict[Tuple[str, str], Optional[Path]] = {}
+        self.playlist = playlist
 
     def extract_metadata_from_spotdl_saved(self, batch_size: int = DEFAULT_BATCH_SIZE):
         """
@@ -487,30 +473,21 @@ class ExtractMetadata:
         data.update({"file_path": file_path})
         return data
 
-    def _update_database(self, data: Dict[str, Any]) -> None:
-        """Calls save_download_song method to update the database with metadata.
-
-        Args:
-            data: metadata to update
-        """
-        if data:
-            self.database.save_downloaded_song(data)
-        else:
-            console.print(
-                "[red]No metadata found for the song. [orange]Database not updated![/orange][/red]"
-            )
-
-    def _update_database_batch(self, data_batch: List[Dict[str, Any]]) -> None:
+    def _update_database_batch(self, data_batch: List[Dict[str, Any]]):
         """Updates database with a batch of metadata records.
 
         Args:
             data_batch: List of metadata records to update
         """
         if data_batch:
-            song_ids = self.database.batch_save_songs(data_batch)
-            logger.info(f"Batch processed {len(song_ids)} songs")
+            self.database.batch_save_songs(data_batch, self.playlist)
+
         else:
-            console.print("[yellow]No metadata to update in batch[/yellow]")
+            theme_style = get_theme_styles(get_current_theme_instance())
+            info_color = ThemeHelper.get_theme_color(theme_style, "info", "blue")
+            console.print(
+                f"[{info_color}]No metadata to update in batch[/{info_color}]"
+            )
 
     def _find_downloaded_file(
         self, artist: str, title: str, output_dir: Path
@@ -571,7 +548,9 @@ class SongDownloader:
         self.format = format if format is not None else SETTINGS.download_format
         self.bitrate = bitrate if bitrate is not None else SETTINGS.download_bitrate
 
-        self.metadata_extractor = ExtractMetadata(self.download_path)
+        self.metadata_extractor = ExtractMetadata(
+            output_dir=self.download_path, playlist=playlist_path
+        )
 
     def _get_playlist_path(self, playlist_path: str = None) -> Optional[Path | None]:
         """
