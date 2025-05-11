@@ -4,15 +4,7 @@ Cache Loading Module
 This module provides a class for loading data from the cache database.
 """
 
-from .initialize import InitializeSearchHistoryDatabase
-
-import sqlite3
-from typing import List, Dict, Tuple, Optional, Any
-
-# Replace absolute import
-from ...utils.path_manager import PathManager
-
-_path_manager = PathManager()
+from aurras.core.cache.connection import CacheDatabaseConnection
 
 
 class LoadSongHistoryData:
@@ -21,8 +13,8 @@ class LoadSongHistoryData:
     """
 
     def __init__(self) -> None:
-        """Initialize the cache if needed."""
-        InitializeSearchHistoryDatabase().initialize_cache()
+        """Initialize the cache database connection."""
+        self.db_connection = CacheDatabaseConnection()
 
     def load_song_metadata_from_db(self):
         """
@@ -31,8 +23,8 @@ class LoadSongHistoryData:
         Returns:
             list: A list of tuples containing (query, name, url)
         """
-        with sqlite3.connect(_path_manager.cache_db) as cache_db:
-            cursor = cache_db.cursor()
+        with self.db_connection as conn:
+            cursor = conn.cursor()
             cursor.execute("SELECT song_user_searched, track_name, url FROM cache")
             return cursor.fetchall()
 
@@ -43,8 +35,8 @@ class LoadSongHistoryData:
         Returns:
             list: A list of tuples containing complete song metadata
         """
-        with sqlite3.connect(_path_manager.cache_db) as cache_db:
-            cursor = cache_db.cursor()
+        with self.db_connection as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """SELECT 
                     song_user_searched, track_name, url,
@@ -64,8 +56,8 @@ class LoadSongHistoryData:
         Returns:
             Dictionary with song metadata and lyrics
         """
-        with sqlite3.connect(_path_manager.cache_db) as cache_db:
-            cursor = cache_db.cursor()
+        with self.db_connection as conn:
+            cursor = conn.cursor()
 
             query = """
                 SELECT 
