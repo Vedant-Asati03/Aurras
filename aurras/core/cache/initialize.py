@@ -6,9 +6,7 @@ This module provides a class for initializing the search history database.
 
 import sqlite3
 
-from ...utils.path_manager import PathManager
-
-_path_manager = PathManager()
+from aurras.utils.path_manager import _path_manager
 
 
 class InitializeSearchHistoryDatabase:
@@ -22,8 +20,6 @@ class InitializeSearchHistoryDatabase:
         """
         with sqlite3.connect(_path_manager.cache_db) as db:
             cursor = db.cursor()
-
-            # Create enhanced cache table with consistent field names matching lyrics_cache_db
             cursor.execute(
                 """CREATE TABLE IF NOT EXISTS cache (
                     id INTEGER PRIMARY KEY,
