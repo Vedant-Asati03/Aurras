@@ -4,15 +4,9 @@ Cache Update Module
 This module provides a class for updating the search history database.
 """
 
-import sqlite3
 import time
 
-# Replace absolute import
-from ...utils.path_manager import PathManager
-
-_path_manager = PathManager()
-
-from .initialize import InitializeSearchHistoryDatabase
+from aurras.core.cache.connection import CacheDatabaseConnection
 
 
 class UpdateSearchHistoryDatabase:
@@ -21,8 +15,8 @@ class UpdateSearchHistoryDatabase:
     """
 
     def __init__(self) -> None:
-        """Initialize the cache if needed."""
-        InitializeSearchHistoryDatabase().initialize_cache()
+        """Initialize the cache database connection."""
+        self.db_connection = CacheDatabaseConnection()
 
     def save_to_cache(
         self,
@@ -46,8 +40,8 @@ class UpdateSearchHistoryDatabase:
             thumbnail_url (str): URL to the song's thumbnail image
             duration (int): Duration of the song in seconds
         """
-        with sqlite3.connect(_path_manager.cache_db) as cache_db:
-            cursor = cache_db.cursor()
+        with self.db_connection as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO cache 
@@ -80,8 +74,8 @@ class UpdateSearchHistoryDatabase:
         if not cache_id:
             return
 
-        with sqlite3.connect(_path_manager.cache_db) as cache_db:
-            cursor = cache_db.cursor()
+        with self.db_connection as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO lyrics
@@ -117,28 +111,28 @@ class UpdateSearchHistoryDatabase:
             synced_lyrics (str): Timed/synced lyrics
             plain_lyrics (str): Plain text lyrics
         """
-        with sqlite3.connect(_path_manager.cache_db) as cache_db:
-            # Start a transaction
-            cache_db.execute("BEGIN TRANSACTION")
-            try:
-                # Save metadata
-                cache_id = self.save_to_cache(
-                    song_user_searched,
-                    track_name,
-                    url,
-                    artist_name,
-                    album_name,
-                    thumbnail_url,
-                    duration,
-                )
+        conn = self.db_connection.connection
+        # Start a transaction
+        conn.execute("BEGIN TRANSACTION")
+        try:
+            # Save metadata
+            cache_id = self.save_to_cache(
+                song_user_searched,
+                track_name,
+                url,
+                artist_name,
+                album_name,
+                thumbnail_url,
+                duration,
+            )
 
-                # Save lyrics if provided
-                if (synced_lyrics or plain_lyrics) and cache_id:
-                    self.save_lyrics(cache_id, synced_lyrics, plain_lyrics)
+            # Save lyrics if provided
+            if (synced_lyrics or plain_lyrics) and cache_id:
+                self.save_lyrics(cache_id, synced_lyrics, plain_lyrics)
 
-                # Commit the transaction
-                cache_db.execute("COMMIT")
-            except Exception as e:
-                # Rollback on error
-                cache_db.execute("ROLLBACK")
-                raise e
+            # Commit the transaction
+            conn.execute("COMMIT")
+        except Exception as e:
+            # Rollback on error
+            conn.execute("ROLLBACK")
+            raise e
