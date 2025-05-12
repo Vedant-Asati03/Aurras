@@ -1,10 +1,8 @@
 from sqlitedict import SqliteDict
 from prompt_toolkit.history import History
 
-from ...utils.logger import exception_log
-from ...utils.path_manager import PathManager
-
-_path_manager = PathManager()
+from aurras.utils.logger import exception_log
+from aurras.utils.path_manager import _path_manager
 
 
 class SongHistoryManager(History):

@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from .base import BaseCompleter
+from aurras.ui.completer.base import BaseCompleter
 
 
 class FeatureCompleter(BaseCompleter):

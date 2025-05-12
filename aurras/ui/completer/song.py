@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
-from .base import BaseCompleter
-from ...services.youtube.search import SearchFromYoutube
+from aurras.ui.completer.base import BaseCompleter
+from aurras.services.youtube.search import SearchFromYoutube
 
 
 class SongCompleter(BaseCompleter):

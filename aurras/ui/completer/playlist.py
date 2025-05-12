@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
-from .base import BaseCompleter
-from ...playlist.manager import PlaylistManager
+from aurras.ui.completer.base import BaseCompleter
+from aurras.core.playlist.manager import PlaylistManager
 
 
 class PlaylistCompleter(BaseCompleter):
