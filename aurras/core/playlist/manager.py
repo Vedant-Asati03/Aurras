@@ -7,17 +7,13 @@ downloading, deleting, and modifying playlists, as well as adding and removing s
 
 import time
 import logging
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 
-from .download import DownloadPlaylist
-from .cache.updater import UpdatePlaylistDatabase
-from .cache.search_db import SearchFromPlaylistDataBase
-from ..downloader import ThemeHelper
-from ...utils.console.manager import get_console
+from aurras.utils.console import console
+from aurras.core.playlist.cache.updater import UpdatePlaylistDatabase
+from aurras.core.playlist.cache.search_db import SearchFromPlaylistDataBase
 
 logger = logging.getLogger(__name__)
-
-console = get_console()
 
 
 class PlaylistManager:
@@ -35,12 +31,6 @@ class PlaylistManager:
         self.active_playlist = None
         self.active_song = None
 
-        _, self.theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-
-    def get_theme_color(self, key: str, default: str) -> str:
-        """Get a color from the current theme."""
-        return ThemeHelper.get_theme_color(self.theme_styles, key, default)
-
     def create_playlist(self, playlist_name: str, description: str = "") -> None:
         """
         Create a new playlist.
@@ -49,9 +39,6 @@ class PlaylistManager:
             playlist_name: Name of the playlist to create
             description: Optional description of the playlist
         """
-        success_color = self.get_theme_color("success", "green")
-        error_color = self.get_theme_color("error", "red")
-
         try:
             current_time = int(time.time())
 
@@ -62,14 +49,12 @@ class PlaylistManager:
                 updated_at=current_time,
             )
 
-            console.print(
-                f"[bold {success_color}]Success:[/] Created playlist '{playlist_name}'"
-            )
+            console.print_success(f"Created playlist '{playlist_name}'")
 
         except Exception as e:
             logger.error(f"Error creating playlist: {e}", exc_info=True)
-            console.print(
-                f"[bold {error_color}]Error:[/] Failed to create playlist: {str(e)}"
+            console.print_error(
+                f"Error: Failed to create playlist '{playlist_name}': {str(e)}"
             )
 
     def delete_playlist(self, playlist_name: List[str]) -> bool:
@@ -82,29 +67,18 @@ class PlaylistManager:
         Returns:
             True if successful, False otherwise
         """
-        success_color = self.get_theme_color("success", "green")
-        error_color = self.get_theme_color("error", "red")
-        info_color = self.get_theme_color("info", "blue")
-
         try:
             if not playlist_name:
-                console.print(
-                    f"[bold {info_color}]Warning:[/] No playlist name provided. Selecting from available playlists."
-                )
+                console.print_warning("Warning: No playlist name provided.")
                 return False
 
             self.db_updater.remove_playlist(playlist_names=playlist_name)
-
-            console.print(
-                f"[bold {success_color}]Success:[/] Deleted playlist '{', '.join(playlist_name)}'"
-            )
-
             return True
 
         except Exception as e:
             logger.error(f"Error deleting playlist: {e}", exc_info=True)
-            console.print(
-                f"[bold {error_color}]Error:[/] Failed to delete playlist: {str(e)}"
+            console.print_error(
+                f"Error: Failed to delete playlist '{playlist_name}': {str(e)}"
             )
             return False
 
@@ -125,43 +99,52 @@ class PlaylistManager:
         Returns:
             True if successful, False otherwise
         """
-        error_color = self.get_theme_color("error", "red")
-        info_color = self.get_theme_color("info", "blue")
-
         if not playlist_names:
-            console.print(
-                f"[bold {info_color}]Warning:[/] No playlist names provided. Selecting from available playlists."
+            console.print_warning(
+                "Warning: No playlist names provided. Selecting from available playlists."
             )
             return False
 
         try:
-            playlist_downloader = DownloadPlaylist(playlist_names)
-            success = playlist_downloader.download(format, bitrate)
+            from aurras.core.playlist.download import DownloadPlaylist
+
+            playlist_downloader = DownloadPlaylist()
+            success = playlist_downloader.download(playlist_names, format, bitrate)
 
             return success
 
         except Exception as e:
             logger.error(f"Error downloading playlist(s): {e}", exc_info=True)
-            console.print(
-                f"[bold {error_color}]Error:[/] Failed to download playlist(s): {str(e)}"
-            )
+            console.print_error(f"Error: Failed to download playlist(s): {str(e)}")
             return False
 
-    def get_all_playlists(self) -> Dict[str, List[str]]:
+    def import_playlist(self):
+        """Import playlist from spotify."""
+        try:
+            from aurras.services.spotify.connection import SetupSpotifyConnection
+
+            client = SetupSpotifyConnection()
+
+            if available_playlists := client.get_user_playlists():
+                return available_playlists
+
+            console.print_success("Imported playlist from Spotify")
+
+        except Exception as e:
+            logger.error(f"Error importing playlist: {e}", exc_info=True)
+            console.print_error(f"Error: Failed to import playlist: {str(e)}")
+
+    def get_all_playlists(self) -> Dict[str, Any]:
         """
         Get all playlists from the database.
 
         Returns:
             dict: Dictionary with playlist name as key and list of song names as value
         """
-        playlists = self.db_searcher.initialize_playlist_dict()
+        if playlists := self.db_searcher.initialize_playlist_metadata():
+            return playlists
 
-        if not playlists:
-            return {}
-
-        return playlists
-
-    def get_playlist_songs(self, playlist_name: str) -> List[str]:
+    def get_playlist_songs(self, playlist_name: str) -> Dict[str, List[str]]:
         """
         Get all songs from a playlist.
 
@@ -169,16 +152,15 @@ class PlaylistManager:
             playlist_name: Name of the playlist
 
         Returns:
-            List of songs in the playlist
+            Dict: Dictionary with song names
         """
-        songs = self.db_searcher.initialize_playlist_songs_dict(playlist_name).get(playlist_name, "")
+        songs = self.db_searcher.initialize_playlist_songs_dict(playlist_name)
 
         if not songs:
-            warning_color = self.get_theme_color("warning", "yellow")
-            console.print(
-                f"[{warning_color}]No songs found in playlist '{playlist_name}'[/]"
+            console.print_warning(
+                f"Warning: No songs found in playlist '{playlist_name}'"
             )
-            return []
+            return {}
 
         return songs
 
@@ -199,15 +181,14 @@ class PlaylistManager:
         )
 
         if not songs:
-            warning_color = self.get_theme_color("warning", "yellow")
-            console.print(
-                f"[{warning_color}]No songs found in playlist '{playlist_name}'[/]"
+            console.print_warning(
+                f"Warning: No songs found in playlist '{playlist_name}'"
             )
             return {}
 
         return songs
 
-    def search_by_song_or_artist(self, query: str) -> Dict[str, List[Dict[str, str]]]:
+    def search_by_song_or_artist(self, query: str) -> List[str]:
         """
         Search for playlists by song name or artist name.
 
@@ -215,15 +196,12 @@ class PlaylistManager:
             query: Search query (song name, artist name)
 
         Returns:
-            dict: Dictionary with playlist name as key and list of song metadata as value
+            list: List of playlists matching the query
         """
-        playlists_with_metadata = (
-            self.db_searcher.search_for_playlists_by_name_or_artist(query)
-        )
+        playlists = self.db_searcher.search_for_playlists_by_name_or_artist(query)
 
-        if not playlists_with_metadata:
-            warning_color = self.get_theme_color("warning", "yellow")
-            console.print(f"[{warning_color}]No playlists found matching '{query}'[/]")
-            return {}
+        if not playlists:
+            console.print_warning(f"Warning: No playlists found matching '{query}'")
+            return []
 
-        return playlists_with_metadata
+        return playlists
