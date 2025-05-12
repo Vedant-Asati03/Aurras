@@ -12,17 +12,15 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
 
-from .input_lexer import InputLexer
-from .registry import CommandRegistry, ShortcutRegistry
-from ..completer.history import SongHistoryManager
-from ..adaptive_completer import AdaptiveCompleter
-from ..handler import register_all_commands, register_default_shorthands
-from ...utils.exceptions import InvalidInputError
-from ...themes import get_theme, get_current_theme
-from ...utils.theme_helper import ThemeHelper, get_console
+from aurras.utils.console import console
+from aurras.ui.core.input_lexer import InputLexer
+from aurras.utils.exceptions import InvalidInputError
+from aurras.ui.completer.history import SongHistoryManager
+from aurras.ui.adaptive_completer import AdaptiveCompleter
+from aurras.ui.core.registry import CommandRegistry, ShortcutRegistry
+from aurras.ui.handler import register_all_commands, register_default_shorthands
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 
 class InputProcessor:
@@ -54,10 +52,7 @@ class InputProcessor:
         Returns:
             Style object for prompt_toolkit with theme-consistent colors
         """
-        theme_name = get_current_theme()
-        theme = get_theme(theme_name)
-
-        style = HTML(f"<style color='{theme.text_muted.hex}'>Search...</style>")
+        style = HTML(f"<style color='{console.text_muted}'>Search...</style>")
 
         return style
 
@@ -68,21 +63,18 @@ class InputProcessor:
         Returns:
             Style object for prompt_toolkit with theme-consistent colors
         """
-        theme_name = get_current_theme()
-        theme = get_theme(theme_name)
-
         style = Style.from_dict(
             {
-                "prompt": f"bold {theme.accent.hex}",
-                "command-palette": f"bold {theme.accent.hex}",
-                "shorthand": f"bold {theme.primary.hex}",
-                "command": f"bold {theme.secondary.hex}",
-                "argument": f"{theme.text.hex}",
-                "text": f"{theme.text.hex}",
-                "scrollbar.button": f"bg:{theme.text.hex}",
-                "scrollbar.background": f"bg:{theme.background.hex}",
-                "completion-menu": f"bg:{theme.background.hex} {theme.text.hex}",
-                "completion-menu.meta.completion": f"bg:{theme.background.hex} {theme.text_muted.hex}",
+                "prompt": f"bold {console.accent}",
+                "command-palette": f"bold {console.accent}",
+                "shorthand": f"bold {console.primary}",
+                "command": f"bold {console.secondary}",
+                "argument": f"{console.text}",
+                "text": f"{console.text}",
+                "scrollbar.button": f"bg:{console.text}",
+                "scrollbar.background": f"bg:{console.background}",
+                "completion-menu": f"bg:{console.background} {console.text}",
+                "completion-menu.meta.completion": f"bg:{console.background} {console.text_muted}",
             }
         )
 
@@ -130,15 +122,10 @@ class InputProcessor:
             raise
 
         except Exception as e:
-            theme_styles = ThemeHelper.get_theme_colors()
-            error_color = theme_styles.get("error", "red")
-
             error_msg = f"Error while getting user input: {str(e)}"
             logger.error(error_msg, exc_info=True)
+            console.print_error("An error occurred while processing your input.")
 
-            console.print(
-                f"[bold {error_color}]An error occurred while processing your input.[/bold {error_color}]"
-            )
             raise InvalidInputError(error_msg)
 
     def process_input(self) -> bool:
@@ -153,18 +140,18 @@ class InputProcessor:
         """
         input_text: str = self.get_user_input()
 
-        if self.process_command_palette_input(input_text):
+        if self._process_command_palette_input(input_text):
             return True
 
-        if self.process_direct_commands(input_text):
+        if self._process_direct_commands(input_text):
             return True
 
-        if self.process_shorthand_commands(input_text):
+        if self._process_shorthand_commands(input_text):
             return True
 
-        return self.handle_default_input(input_text)
+        return self._handle_default_input(input_text)
 
-    def process_command_palette_input(self, input_text: str) -> bool:
+    def _process_command_palette_input(self, input_text: str) -> bool:
         """
         Process input from command palette (commands starting with ">").
 
@@ -185,35 +172,27 @@ class InputProcessor:
         # Parse the command palette selection
         if ":" in command_action:
             try:
-                # Use the correct import path to the command palette
-                from ..command_palette import CommandPalette
+                from aurras.ui.renderers.command_palette import CommandPalette
 
                 # Get the command name from the input
                 command_name = command_action.split(":", 1)[0].strip()
 
-                # Execute the command using the CommandPalette class
                 cmd_palette = CommandPalette()
                 return cmd_palette.execute_command(command_name)
+
             except ImportError:
                 logger.error("Command palette module not found", exc_info=True)
-                theme_styles = ThemeHelper.get_theme_colors()
-                error_color = theme_styles.get("error", "red")
-                console.print(
-                    f"[bold {error_color}]Command palette not available.[/bold {error_color}]"
-                )
+                console.print_error("Command palette not available.")
+
             except Exception as e:
                 logger.error(
                     f"Error executing command palette action: {e}", exc_info=True
                 )
-                theme_styles = ThemeHelper.get_theme_colors()
-                error_color = theme_styles.get("error", "red")
-                console.print(
-                    f"[bold {error_color}]Error executing command: {str(e)}[/bold {error_color}]"
-                )
+                console.print_error("Error executing command palette action.")
 
         return False
 
-    def process_direct_commands(self, input_text: str) -> bool:
+    def _process_direct_commands(self, input_text: str) -> bool:
         """
         Process direct command execution.
 
@@ -230,7 +209,7 @@ class InputProcessor:
 
         return False
 
-    def process_shorthand_commands(self, input_text: str) -> bool:
+    def _process_shorthand_commands(self, input_text: str) -> bool:
         """
         Process shorthand commands.
 
@@ -242,7 +221,7 @@ class InputProcessor:
         """
         return self.shorthand_registry.check_shorthand_commands(input_text)
 
-    def handle_default_input(self, input_text: str) -> bool:
+    def _handle_default_input(self, input_text: str) -> bool:
         """
         Handle input that doesn't match any command patterns.
         Assumes the input is a song search query.
@@ -257,27 +236,17 @@ class InputProcessor:
             return False
 
         try:
-            from ...utils.command.processors.player import processor
+            from aurras.utils.command.processors import player_processor
 
-            processor.play_song(input_text)
-
+            player_processor.play_song(input_text)
             return True
+
         except ImportError:
             logger.error("Could not import InputCases", exc_info=True)
-            theme_styles = ThemeHelper.get_theme_colors()
-            error_color = theme_styles.get("error", "red")
-            console.print(
-                f"[bold {error_color}]Error: Command handler not available[/bold {error_color}]"
-            )
+            console.print_error("Command handler not available.")
             return False
+
         except Exception as e:
             logger.error(f"Error handling input: {e}", exc_info=True)
-            theme_styles = ThemeHelper.get_theme_colors()
-            error_color = theme_styles.get("error", "red")
-            console.print(
-                f"[bold {error_color}]Error handling input: {str(e)}[/bold {error_color}]"
-            )
+            console.print_error(f"Error handling input: {str(e)}")
             return False
-
-
-input_processor = InputProcessor()
