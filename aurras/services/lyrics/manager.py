@@ -8,16 +8,14 @@ It serves as the primary interface between the lyrics service and the rest of th
 import logging
 from typing import List
 
-from .cache import LyricsCache
-from .parser import LyricsParser
-from .fetcher import LyricsFetcher
-from .formatter import LyricsFormatter
-from ...core.settings import load_settings
-from ...utils.exceptions import LyricsError
+from aurras.core.settings import SETTINGS
+from aurras.services.lyrics.cache import LyricsCache
+from aurras.services.lyrics.parser import LyricsParser
+from aurras.services.lyrics.fetcher import LyricsFetcher
+from aurras.services.lyrics.formatter import LyricsFormatter
 
 logger = logging.getLogger(__name__)
 
-SETTINGS = load_settings()
 
 class LyricsManager:
     """
@@ -145,6 +143,8 @@ class LyricsManager:
 
         except Exception as e:
             logger.error(f"Error fetching lyrics: {e}")
+            from aurras.utils.exceptions import LyricsError
+
             raise LyricsError(f"Failed to fetch lyrics: {e}")
 
     def store_in_cache(
@@ -217,22 +217,6 @@ class LyricsManager:
         return self.lyrics_formatter.create_focused_lyrics_view(
             lyrics_lines, current_time, duration, context_lines, plain_mode
         )
-
-    def apply_gradient_to_text(
-        self, text: str, gradient_key: str, bold: bool = False
-    ) -> str:
-        """
-        Apply a gradient effect to text based on the current theme.
-
-        Args:
-            text: The text to apply gradient to
-            gradient_key: Which gradient to use ('title', 'artist', etc.)
-            bold: Whether to make the text bold
-
-        Returns:
-            str: Rich-formatted text with gradient applied
-        """
-        return self.lyrics_formatter.apply_gradient_to_text(text, gradient_key, bold)
 
     # --- Additional access to internal components ---
 
