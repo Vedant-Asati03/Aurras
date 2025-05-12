@@ -8,7 +8,7 @@ from typing import Callable
 from textual.command import Provider, Hit, DiscoveryHit
 from rich.text import Text
 
-from ...player.online import ListenSongOnline
+from ...player.online import SongStreamHandler
 from ...services.youtube.search import SearchSong
 from ...core.cache.search_db import SearchFromSongDataBase
 
@@ -207,7 +207,7 @@ class SongSearchProvider(Provider):
                 try:
                     # Play the song in a background thread
                     await asyncio.to_thread(
-                        lambda: ListenSongOnline(song_name).listen_song_online()
+                        lambda: SongStreamHandler(song_name).listen_song_online()
                     )
                 except Exception as e:
                     self.app.notify(f"Playback error: {str(e)}")
