@@ -4,17 +4,15 @@ Cache management module for Aurras.
 This package handles caching of song data and search history.
 """
 
+from aurras.utils.db_connection import DatabaseConnectionManager
 from aurras.core.cache.initialize import InitializeSearchHistoryDatabase
-from aurras.core.cache.connection import CacheDatabaseConnection
-from aurras.core.cache.loader import LoadSongHistoryData
-from aurras.core.cache.updater import UpdateSearchHistoryDatabase
+from aurras.utils.path_manager import _path_manager
 
-db_connection = CacheDatabaseConnection()
-InitializeSearchHistoryDatabase().initialize_cache(db_connection.connection)
+cache_db_connection = DatabaseConnectionManager(_path_manager.cache_db)
+
+# Initialize the cache database when the module is imported
+InitializeSearchHistoryDatabase().initialize_cache(cache_db_connection.connection)
 
 __all__ = [
-    "CacheDatabaseConnection",
-    "LoadSongHistoryData",
-    "UpdateSearchHistoryDatabase",
-    "InitializeSearchHistoryDatabase",
+    "cache_db_connection",
 ]
