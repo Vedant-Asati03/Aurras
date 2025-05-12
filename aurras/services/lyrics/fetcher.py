@@ -4,19 +4,15 @@ Lyrics fetching module.
 This module provides functionality for fetching lyrics from APIs and services.
 """
 
-import threading
-import requests
 import logging
+import requests
+import threading
+import syncedlyrics
 from typing import Dict, Any
 
-from .cache import LyricsCache
+from aurras.services.lyrics.cache import LyricsCache
 
-try:
-    import syncedlyrics
-
-    LYRICS_AVAILABLE = True
-except ImportError:
-    LYRICS_AVAILABLE = False
+LYRICS_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +34,11 @@ class LyricsFetcher:
         """
         self.lyrics = None
         self.lock = threading.Lock()
+        self.cache = LyricsCache()
         self.track_name = track_name
         self.artist_name = artist_name
         self.album_name = album_name
         self.duration = duration
-        self.cache = LyricsCache()
 
     def fetch_lyrics(self) -> Dict[str, Any]:
         """
@@ -54,9 +50,8 @@ class LyricsFetcher:
         Returns:
             Dictionary with 'synced_lyrics' and 'plain_lyrics' keys
         """
-        # First check the cache
         cached_lyrics = self.cache.load_lyrics_from_db(
-            self.track_name, self.artist_name, self.album_name, self.duration
+            self.track_name, self.artist_name, self.album_name
         )
 
         if cached_lyrics:
@@ -103,9 +98,11 @@ class LyricsFetcher:
                     "synced_lyrics": synced_lyrics_list,
                     "plain_lyrics": plain_lyrics_list,
                 }
+
             except requests.RequestException as e:
                 logger.error(f"Error fetching lyrics: {e}")
                 return {"synced_lyrics": "", "plain_lyrics": ""}
+
             except Exception as e:
                 logger.error(f"Error in lyrics fetcher: {e}")
                 return {"synced_lyrics": "", "plain_lyrics": ""}
