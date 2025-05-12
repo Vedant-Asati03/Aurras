@@ -7,7 +7,7 @@ including player visualization, themes, and display preferences.
 
 from pydantic import BaseModel, Field, field_validator
 
-from .validators import validate_theme
+from aurras.core.settings.models.validators import validate_theme
 
 
 class AppearanceSettings(BaseModel):
