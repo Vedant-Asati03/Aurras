@@ -7,15 +7,16 @@ This module is responsible for managing the cache of playlists, including loadin
 clearing cached search history.
 """
 
-from .loader import LoadPlaylistData
-from .updater import UpdatePlaylistDatabase
-from .search_db import SearchFromPlaylistDataBase
-from .initialize import InitializePlaylistDatabase
+from aurras.utils.db_connection import DatabaseConnectionManager
+from aurras.core.playlist.cache.initialize import InitializePlaylistDatabase
+from aurras.utils.path_manager import _path_manager
 
+playlist_db_connection = DatabaseConnectionManager(_path_manager.cache_db)
+
+# Initialize the playlist database when the module is imported
+InitializePlaylistDatabase().initialize_cache(playlist_db_connection.connection)
 
 __all__ = [
-    "LoadPlaylistData",
-    "UpdatePlaylistDatabase",
-    "SearchFromPlaylistDataBase",
     "InitializePlaylistDatabase",
+    "playlist_db_connection",
 ]
