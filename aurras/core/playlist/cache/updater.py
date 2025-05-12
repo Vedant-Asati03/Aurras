@@ -5,41 +5,9 @@ This module provides a class for updating the playlist database.
 """
 
 import time
-import sqlite3
-from typing import List, Dict, Any, Tuple
+from typing import List
 
-from .initialize import InitializePlaylistDatabase
-from ....utils.path_manager import PathManager
-
-_path_manager = PathManager()
-playlist_db_path = _path_manager.playlists_db
-
-
-class PlaylistDatabaseConnection:
-    """Singleton database connection manager for playlists."""
-
-    _instance = None
-    _connection = None
-
-    def __new__(cls, db_path=playlist_db_path):
-        if cls._instance is None:
-            cls._instance = super(PlaylistDatabaseConnection, cls).__new__(cls)
-            cls._instance.db_path = db_path
-        return cls._instance
-
-    def get_connection(self) -> sqlite3.Connection:
-        """Get or create a database connection."""
-        if self._connection is None:
-            self._connection = sqlite3.connect(self.db_path)
-            self._connection.row_factory = sqlite3.Row
-        return self._connection
-
-    def close(self) -> None:
-        """Close the database connection."""
-        if self._connection:
-            self._connection.close()
-            self._connection = None
-
+from aurras.core.playlist.cache import playlist_db_connection
 
 class UpdatePlaylistDatabase:
     """
@@ -48,38 +16,31 @@ class UpdatePlaylistDatabase:
 
     def __init__(self) -> None:
         """Initialize the playlist database if needed."""
-        InitializePlaylistDatabase().initialize_cache()
-        self.db_conn = PlaylistDatabaseConnection()
 
     def save_playlist(
         self,
         playlist_name: str,
         description: str = "",
         updated_at: int = 0,
+        is_downloaded: bool = False,
     ) -> None:
         """
-        Saves a new playlist to the database.
-
-        Args:
-            playlist_name (str): The name of the playlist
-            description (str): Description of the playlist
-            updated_at (int): Timestamp when the playlist was last updated
+        Saves or updates a playlist. If it already exists (by name), updates it.
         """
-        try:
-            with self.db_conn.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO playlists (name, description, updated_at)
-                    VALUES (?, ?, ?)
-                    """,
-                    (playlist_name, description, updated_at),
-                )
-                conn.commit()
-
-        except sqlite3.Error as e:
-            print(f"Error saving playlist '{playlist_name}': {e}")
-            raise
+        with playlist_db_connection as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO playlists (name, description, updated_at, is_downloaded)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    description = excluded.description,
+                    updated_at = excluded.updated_at,
+                    is_downloaded = excluded.is_downloaded
+                """,
+                (playlist_name, description, updated_at, is_downloaded),
+            )
+            conn.commit()
 
     def _get_playlist_id(self, playlist_name: str) -> int:
         """
@@ -91,7 +52,7 @@ class UpdatePlaylistDatabase:
         Returns:
             int: The ID of the playlist
         """
-        with self.db_conn.get_connection() as conn:
+        with playlist_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM playlists WHERE name = ?", (playlist_name,))
             result = cursor.fetchone()
@@ -105,25 +66,20 @@ class UpdatePlaylistDatabase:
         Saves a song to a specific playlist.
 
         Args:
-            batch_data (List[tuple]): List of tuples containing song metadata
+            songs_metadata (List[tuple]): List of tuples containing song metadata
                 (playlist_id, track_name, artist_name, album_name, added_at)
         """
-        try:
-            with self.db_conn.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.executemany(
-                    """
-                    INSERT OR REPLACE INTO playlist_songs 
-                    (playlist_id, track_name, artist_name, album_name, added_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    songs_metadata,
-                )
-                conn.commit()
-
-        except sqlite3.Error as e:
-            print(f"Error saving songs to playlist: {e}")
-            raise
+        with playlist_db_connection as conn:
+            cursor = conn.cursor()
+            cursor.executemany(
+                """
+                INSERT INTO playlist_songs 
+                (playlist_id, track_name, artist_name, album_name, added_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                songs_metadata,
+            )
+            conn.commit()
 
     def batch_save_songs_to_playlist(
         self, playlist_name: str, songs_metadata: List[tuple]
@@ -142,6 +98,7 @@ class UpdatePlaylistDatabase:
             playlist_name=playlist_name,
             description=f"Playlist {playlist_name}",
             updated_at=current_time,
+            is_downloaded=True,
         )
 
         playlist_id = self._get_playlist_id(playlist_name)
@@ -168,7 +125,7 @@ class UpdatePlaylistDatabase:
         Args:
             playlist_names (List[str]): List of playlist names to be removed
         """
-        with self.db_conn.get_connection() as conn:
+        with playlist_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -190,7 +147,7 @@ class UpdatePlaylistDatabase:
             playlist_name (str): The name of the playlist
             song_name (List[str]): List of song names to be removed
         """
-        with self.db_conn.get_connection() as conn:
+        with playlist_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
