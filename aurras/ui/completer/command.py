@@ -1,6 +1,7 @@
 from typing import List, Tuple
-from .base import BaseCompleter
-from ...ui.command_palette import CommandPalette
+
+from aurras.ui.completer.base import BaseCompleter
+from aurras.ui.renderers.command_palette import CommandPalette
 
 
 class CommandCompleter(BaseCompleter):
