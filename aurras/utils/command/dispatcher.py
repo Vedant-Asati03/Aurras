@@ -11,23 +11,10 @@ import argparse
 import textwrap
 from typing import List, Dict, Tuple
 
-from rich.panel import Panel
-
-from ..console import get_console
-from ..decorators import handle_exceptions
-from ..initialization import initialize_application
-from ...ui.core.input_processor import input_processor
-
-from .processors.theme import processor as theme_processor
-from .processors.player import processor as player_processor
-from .processors.backup import processor as backup_processor
-from .processors.history import processor as history_processor
-from .processors.library import processor as library_processor
-from .processors.playlist import processor as playlist_processor
-from .processors.settings import processor as settings_processor
+from aurras.utils.console import console
+from aurras.utils.decorators import handle_exceptions
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 # List of available bitrates for song downloads
 bitrates = [
@@ -92,12 +79,14 @@ class AurrasApp:
     @handle_exceptions
     def run(self):
         """Run the Aurras application in interactive mode."""
+        from aurras.ui.core import input_processor
+
         try:
             while True:
                 input_processor.process_input()
 
         except KeyboardInterrupt:
-            console.print("\n[bold green]Thanks for using Aurras![/bold green]")
+            console.print_success("Thanks for using Aurras!")
             sys.exit(0)
 
 
@@ -241,7 +230,7 @@ def create_parser() -> Tuple[
     subparsers_dict["playlist"].add_argument(
         "--download",
         action="store_true",
-        help="Download the playlist instead of playing it",
+        help="Download your playlist[s] for offline listening",
     )
     subparsers_dict["playlist"].add_argument(
         "--delete",
@@ -371,8 +360,6 @@ def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
     try:
-        initialize_application()
-
         # If no arguments were provided, start interactive mode
         if len(sys.argv) == 1:
             app = AurrasApp()
@@ -381,6 +368,7 @@ def main():
 
         # Create parser with subcommands
         parser, subparsers_dict = create_parser()
+        from aurras.utils.command.processors import player_processor
 
         # Handle special case for direct song playing without a command
         if (
@@ -428,6 +416,8 @@ def main():
                 )
 
             case "playlist":
+                from aurras.utils.command.processors import playlist_processor
+
                 if getattr(args, "download", False):
                     return playlist_processor.download_playlist(
                         args.name,
@@ -437,7 +427,9 @@ def main():
                 elif getattr(args, "delete", False):
                     return playlist_processor.delete_playlist(args.name)
                 elif getattr(args, "import", False):
-                    return playlist_processor.import_playlist(args.name)
+                    from aurras.utils.command.processors import spotify_processor
+
+                    return spotify_processor.import_user_playlists()
                 elif getattr(args, "search", False):
                     return playlist_processor.search_playlists(args.name)
                 elif getattr(args, "list", False):
@@ -450,14 +442,18 @@ def main():
                     )
 
             case "history":
+                from aurras.utils.command.processors import history_processor
+
                 if getattr(args, "clear", False):
                     return history_processor.clear_history()
                 elif getattr(args, "previous", False):
                     return history_processor.play_previous_song()
                 else:
-                    return history_processor.display_history(getattr(args, "limit", 30))
+                    return history_processor.show_history(getattr(args, "limit", 30))
 
             case "settings":
+                from aurras.utils.command.processors import settings_processor
+
                 if getattr(args, "list", False):
                     return settings_processor.list_settings()
                 elif getattr(args, "set", None):
@@ -469,6 +465,8 @@ def main():
                     return settings_processor.open_settings_ui()
 
             case "theme":
+                from aurras.utils.command.processors import theme_processor
+
                 if getattr(args, "list", False):
                     return theme_processor.list_themes()
                 elif args.name:
@@ -477,6 +475,8 @@ def main():
                     return theme_processor.list_themes()
 
             case "backup":
+                from aurras.utils.command.processors import backup_processor
+
                 if getattr(args, "create", False):
                     return backup_processor.create_backup()
                 elif getattr(args, "list", False):
@@ -487,6 +487,8 @@ def main():
                     return backup_processor.list_backups()
 
             case "library":
+                from aurras.utils.command.processors import library_processor
+
                 if getattr(args, "scan", False):
                     return library_processor.scan_library()
                 elif getattr(args, "list_playlists", False):
@@ -504,18 +506,12 @@ def main():
             return 0
 
     except KeyboardInterrupt:
-        console.print("\n[bold green]Thanks for using Aurras![/bold green]")
+        console.print_success("Thanks for using Aurras!")
         return 0
+
     except Exception as e:
         logger.exception("Unhandled exception in main")
-        console.print(
-            Panel(
-                f"[bold red]An error occurred:[/bold red] {str(e)}",
-                title="[bold red]Error[/bold red]",
-                border_style="red",
-                padding=(1, 2),
-            )
-        )
+        console.print_error(f"An error occurred: {str(e)}")
         return 1
 
     logger.info("Aurras CLI completed successfully")
