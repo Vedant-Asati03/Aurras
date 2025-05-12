@@ -5,7 +5,7 @@ This module provides a class for searching songs in the database.
 """
 
 from typing import Dict, List, Tuple
-from .loader import LoadSongHistoryData
+from aurras.core.cache.loader import LoadSongHistoryData
 
 
 class SearchFromSongDataBase:
