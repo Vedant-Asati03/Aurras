@@ -5,8 +5,8 @@ Provides an enhanced MPV player with rich UI, lyrics integration,
 and proper integration with the unified database structure.
 """
 
-from .core import MPVPlayer
-from .state import (
+from aurras.core.player.mpv.core import MPVPlayer
+from aurras.core.player.mpv.state import (
     PlaybackState,
     LyricsStatus,
     FeedbackType,
