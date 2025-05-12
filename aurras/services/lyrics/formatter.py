@@ -7,7 +7,8 @@ This module provides functionality for formatting lyrics for display with theme 
 import random
 from typing import List, Dict, Any, Tuple, Callable
 
-from ...utils.console.manager import get_console, get_theme, get_current_theme
+from aurras.utils.console import console
+from aurras.services.lyrics.parser import LyricsParser
 
 
 class LyricsFormatter:
@@ -15,11 +16,10 @@ class LyricsFormatter:
 
     def __init__(self):
         """Initialize the lyrics formatter."""
-        self._console = get_console()
-        # Optional simple gradient view method for subclasses to implement
         self._create_simple_gradient_view: Callable[[List[str]], str] = (
             lambda x: "\n".join(x)
         )
+        self.parser = LyricsParser()
 
     def get_no_lyrics_message(self) -> str:
         """
@@ -28,25 +28,24 @@ class LyricsFormatter:
         Returns:
             A formatted message indicating no lyrics are available
         """
-        # Get theme color with safe fallbacks
-        theme_style = self._get_theme_gradient_style()
-        theme_color = self._get_theme_color(theme_style)
-
-        # List of fun messages
         unavailable_lyrics_messages = [
-            f"[bold {theme_color}]No lyrics available[/bold {theme_color}]",
-            f"[bold {theme_color}]Wow! so empty[/bold {theme_color}]",
-            f"[bold {theme_color}]Seems like nothing came out[/bold {theme_color}]",
-            f"[bold {theme_color}]Lyrics? What lyrics?[/bold {theme_color}]",
-            f"[bold {theme_color}]Lyrics? I don't see any lyrics[/bold {theme_color}]",
-            f"[bold {theme_color}]Lyrics? What are those?[/bold {theme_color}]",
-            f"[bold {theme_color}]Lyrics? I don't think so[/bold {theme_color}]",
-            f"[bold {theme_color}]Lyrics? Not today[/bold {theme_color}]",
-            f"[bold {theme_color}]Uh-oh! No lyrics here[/bold {theme_color}]",
-            f"[bold {theme_color}]No luck today, huh?[/bold {theme_color}]",
+            "No lyrics available[/]",
+            "Wow! so empty[/]",
+            "Seems like nothing came out[/]",
+            "Lyrics? What lyrics?[/]",
+            "Lyrics? I don't see any lyrics[/]",
+            "Lyrics? What are those?[/]",
+            "Lyrics? I don't think so[/]",
+            "Lyrics? Not today[/]",
+            "Uh-oh! No lyrics here[/]",
+            "No luck today, huh?[/]",
+        ]
+        stlyed_messages = [
+            f"[bold {console.text_muted}]{message}"
+            for message in unavailable_lyrics_messages
         ]
 
-        return random.choice(unavailable_lyrics_messages)
+        return random.choice(stlyed_messages)
 
     def get_waiting_message(self) -> str:
         """
@@ -55,9 +54,7 @@ class LyricsFormatter:
         Returns:
             A formatted message indicating lyrics are being fetched
         """
-        theme_style = self._get_theme_gradient_style()
-        theme_color = self._get_theme_color(theme_style)
-        return f"[italic {theme_color}]Fetching lyrics[/italic {theme_color}]"
+        return f"[italic {console.info}]Fetching lyrics[/]"
 
     def get_error_message(self, error_text: str) -> str:
         """
@@ -69,7 +66,6 @@ class LyricsFormatter:
         Returns:
             A formatted error message
         """
-        # Use feedback colors for consistency with user feedback
         error_text = self.apply_gradient_to_text(f"Error: {error_text}", "feedback")
         return f"[italic]{error_text}[/italic]"
 
@@ -96,12 +92,10 @@ class LyricsFormatter:
         Returns:
             Formatted lyrics text with gradient highlighting
         """
-        from .parser import LyricsParser
-
         if not lyrics_lines:
             return self.get_no_lyrics_message()
 
-        if not LyricsParser.is_synced_lyrics(lyrics_lines) or plain_mode:
+        if not self.parser.is_synced_lyrics(lyrics_lines) or plain_mode:
             return self._display_plain_lyrics(lyrics_lines, current_time, duration)
 
         return self._display_synced_lyrics(lyrics_lines, current_time, context_lines)
@@ -119,9 +113,7 @@ class LyricsFormatter:
         Returns:
             Formatted lyrics text with the appropriate chunk visible
         """
-        from .parser import LyricsParser
-
-        plain_lyrics = LyricsParser.get_plain_lyrics(lyrics_lines)
+        plain_lyrics = self.parser.get_plain_lyrics(lyrics_lines)
 
         if not plain_lyrics:
             return self.get_no_lyrics_message()
@@ -141,13 +133,11 @@ class LyricsFormatter:
         # Get the current lyrics chunk
         current_chunk_lyrics = plain_lyrics[start_index:end_index]
 
-        theme_style = self._get_theme_gradient_style()
-        theme_color = self._get_theme_color(theme_style)
-
         result_lines = []
 
         for line in current_chunk_lyrics:
-            result_lines.append(f"[{theme_color}]{line}[/{theme_color}]")
+            styled_line = console.style_text(text=line, style_key="primary")
+            result_lines.append(styled_line)
 
         return self._create_simple_gradient_view(result_lines)
 
@@ -155,16 +145,14 @@ class LyricsFormatter:
         self, lyrics_lines: List[str], current_time: float, context_lines: int
     ) -> str:
         """Display synced lyrics with the current line highlighted."""
-        from .parser import LyricsParser
-
         # Parse timestamps and build a list of (timestamp, text) tuples
-        parsed_lyrics = LyricsParser.parse_synced_lyrics(lyrics_lines)
+        parsed_lyrics = self.parser.parse_synced_lyrics(lyrics_lines)
 
         if not parsed_lyrics:
             return "[italic]Could not parse lyrics timestamps[/italic]"
 
         # Find the current line based on timestamp
-        current_index = LyricsParser.find_current_lyric_index(
+        current_index = self.parser.find_current_lyric_index(
             parsed_lyrics, current_time
         )
 
@@ -196,15 +184,12 @@ class LyricsFormatter:
         start_index = max(0, current_index - context_lines)
         end_index = min(len(parsed_lyrics), current_index + context_lines + 1)
 
-        # Get the appropriate theme colors based on the current theme
-        theme_style = self._get_theme_gradient_style()
-
         # Build the focused lyrics display
         result_lines = []
 
         # Add a header showing current position if we're not at the beginning
         if start_index > 0:
-            result_lines.append(f"[{theme_style['dim']}][/{theme_style['dim']}]")
+            result_lines.append(f"[{console.dim}][/{console.dim}]")
 
         # Add the lines with proper highlighting
         for i in range(start_index, end_index):
@@ -213,18 +198,16 @@ class LyricsFormatter:
             if i == current_index:
                 # Current line - highlight with word-level animation
                 word_highlight = self._simulate_word_highlighting(
-                    text, timestamp, current_time, parsed_lyrics, i, theme_style
+                    text, timestamp, current_time, parsed_lyrics, i
                 )
                 result_lines.append(word_highlight)
             else:
                 # Other lines - use theme color but dimmed
-                result_lines.append(
-                    f"[{theme_style['dim']}]{text}[/{theme_style['dim']}]"
-                )
+                result_lines.append(console.style_text(text=text, style_key="dim"))
 
         # Add a footer if we're not at the end
         if end_index < len(parsed_lyrics):
-            result_lines.append(f"[{theme_style['dim']}][/{theme_style['dim']}]")
+            result_lines.append(console.style_text(text="", style_key="dim"))
 
         return "\n".join(result_lines)
 
@@ -235,7 +218,6 @@ class LyricsFormatter:
         current_time: float,
         parsed_lyrics: List[Tuple[float, str]],
         line_index: int,
-        theme_style: Dict[str, Any],
     ) -> str:
         """
         Simulate word-level highlighting for standard LRC format.
@@ -251,7 +233,6 @@ class LyricsFormatter:
         Returns:
             Formatted text with simulated word-level highlighting
         """
-        # Split the line into words
         words = text.split()
         if not words:
             return text
@@ -277,7 +258,8 @@ class LyricsFormatter:
 
         # If elapsed time is negative, we're still before this line starts
         if elapsed_in_line < 0:
-            return f"[{theme_style['dim']}]{text}[/{theme_style['dim']}]"
+            stlyed_text = console.style_text(text=text, style_key="dim")
+            return stlyed_text
 
         # Calculate which word should be highlighted based on elapsed time percentage
         total_chars = (
@@ -304,14 +286,13 @@ class LyricsFormatter:
 
         # Use our existing word highlighting function with the theme style
         return self._highlight_current_word(
-            [{"text": word} for word in words], current_word_index, theme_style
+            [{"text": word} for word in words], current_word_index
         )
 
     def _highlight_current_word(
         self,
         words: List[Dict[str, Any]],
         current_word_index: int,
-        theme_style: Dict[str, Any],
     ) -> str:
         """
         Create a string with the current word highlighted using a gradient effect.
@@ -324,22 +305,13 @@ class LyricsFormatter:
         Returns:
             Formatted string with prominent gradient word highlighting
         """
-        # Get theme colors with fallbacks
-        theme_color = self._get_theme_color(theme_style)
-        gradient_colors = theme_style.get("title", ["#00FF7F", "#00DD6E", "#00BB5C"])
-        dim_color = theme_style.get("dim", "#555555")
-
         # Format each word based on its distance from the current word
         formatted_words = []
         for i, word_data in enumerate(words):
             word_text = word_data["text"]
             distance = abs(i - current_word_index)
 
-            formatted_words.append(
-                self._format_word_with_gradient(
-                    word_text, distance, theme_color, gradient_colors, dim_color
-                )
-            )
+            formatted_words.append(self._format_word_with_gradient(word_text, distance))
 
         return " ".join(formatted_words)
 
@@ -347,75 +319,20 @@ class LyricsFormatter:
         self,
         word: str,
         distance: int,
-        theme_color: str,
-        gradient_colors: List[str],
-        dim_color: str,
     ) -> str:
         """Format a single word based on its distance from the current word."""
         # Current or adjacent word - use primary color and bold
         if distance <= 1:
-            return f"[bold {theme_color}]{word}[/bold {theme_color}]"
+            styled_word = console.style_text(text=word, style_key="primary")
+            return styled_word
 
         # Words within gradient range - use gradient colors
-        if distance <= len(gradient_colors) + 1:
+        if distance <= len(console.title_gradient) + 1:
             # Index into gradient colors, with bounds checking
-            color_index = min(distance - 2, len(gradient_colors) - 1)
+            color_index = min(distance - 2, len(console.title_gradient) - 1)
             color_index = max(0, color_index)  # Ensure non-negative
-            color = gradient_colors[color_index]
+            color = console.title_gradient[color_index]
             return f"[{color}]{word}[/{color}]"
 
         # Far words - use dim color
-        return f"[{dim_color}]{word}[/{dim_color}]"
-
-    def _get_theme_gradient_style(self) -> Dict[str, Any]:
-        """Get the gradient style based on the current theme."""
-        # Get theme from unified theme system
-        current_theme = get_current_theme()
-        theme = get_theme(current_theme)
-
-        # Use adapters to get theme styles instead of direct method call
-        from ...themes.adapters import get_gradient_styles
-
-        theme_gradients = get_gradient_styles(theme)
-        return theme_gradients
-
-    def _get_theme_color(self, theme_style: Dict[str, Any]) -> str:
-        """Get the primary theme color with appropriate fallbacks."""
-        return theme_style.get("primary", theme_style.get("title", ["#00FF7F"])[0])
-
-    def apply_gradient_to_text(
-        self, text: str, gradient_key: str, bold: bool = False
-    ) -> str:
-        """
-        Apply a gradient effect to text based on the current theme.
-
-        Args:
-            text: The text to apply gradient to
-            gradient_key: Which gradient to use ('title', 'artist', etc.)
-            bold: Whether to make the text bold
-
-        Returns:
-            str: Rich-formatted text with gradient applied
-        """
-        style = self._get_theme_gradient_style()
-        gradient = style.get(gradient_key, style["title"])  # Default to title gradient
-
-        if not text or len(gradient) == 0:
-            return text
-
-        # For very short text, just use the first color
-        if len(text) <= 3:
-            bold_prefix = "bold " if bold else ""
-            return f"[{bold_prefix}{gradient[0]}]{text}[/{bold_prefix}{gradient[0]}]"
-
-        # For longer text, create a gradient effect
-        chars_per_color = max(1, len(text) // len(gradient))
-        result = []
-
-        for i, char in enumerate(text):
-            color_index = min(i // chars_per_color, len(gradient) - 1)
-            color = gradient[color_index]
-            bold_prefix = "bold " if bold else ""
-            result.append(f"[{bold_prefix}{color}]{char}[/{bold_prefix}{color}]")
-
-        return "".join(result)
+        return console.style_text(text=word, style_key="dim")
