@@ -5,14 +5,14 @@ This module provides functionality to convert theme definitions
 to Rich library compatible formats with optimized caching.
 """
 
-from typing import Dict, List, Optional, Union, cast
 import logging
+from typing import Dict, List, Optional, Union, cast
 
-from rich.theme import Theme as RichTheme
 from rich.style import Style
+from rich.theme import Theme as RichTheme
 
-from ..definitions import ThemeDefinition
-from ..utils import get_fallback_value, ThemeValueCache
+from aurras.themes.definitions import ThemeDefinition
+from aurras.themes.utils import get_fallback_value, ThemeValueCache
 
 logger = logging.getLogger(__name__)
 
