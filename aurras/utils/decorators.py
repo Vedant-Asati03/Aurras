@@ -1,17 +1,10 @@
-from functools import wraps
-from pathlib import Path
+"""Decorators for error handling and logging."""
+
 import logging
+from functools import wraps
 
-# Fix the import to use relative paths
-from ..utils.path_manager import PathManager
+from aurras.utils.path_manager import _path_manager
 
-# Create a pathmanager instance
-_path_manager = PathManager()
-dir = Path.home() / ".aurras"
-
-dir.mkdir(parents=True, exist_ok=True)
-
-# Set up logging
 logging.basicConfig(filename=_path_manager.log_file, level=logging.ERROR)
 
 
@@ -29,5 +22,25 @@ def handle_exceptions(func):
             logging.error("Exception in %s : %s", func.__name__, e)
 
             return "An unexpected error occurred. Please check the logs for details."
+
+    return wrapper
+
+
+def with_error_handling(method):
+    """Decorator to standardize error handling in processor methods."""
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+
+        except Exception as e:
+            from aurras.utils.console import console
+
+            method_name = method.__name__
+
+            console.print_error(f"Error in {method_name}: {str(e)}")
+            logging.error(f"Error in {method_name}: {e}", exc_info=True)
+            return 1
 
     return wrapper
