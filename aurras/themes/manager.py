@@ -12,8 +12,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from .definitions import ThemeDefinition, ThemeCategory
-from .themes import AVAILABLE_THEMES, get_default_theme_from_settings
+from aurras.themes.definitions import ThemeDefinition, ThemeCategory
+from aurras.themes.themes import AVAILABLE_THEMES, get_default_theme_from_settings
 
 logger = logging.getLogger(__name__)
 
