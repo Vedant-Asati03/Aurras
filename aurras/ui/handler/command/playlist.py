@@ -6,7 +6,6 @@ This module contains all playlist-related commands such as create, delete, view,
 
 import logging
 from aurras.core.settings import SETTINGS
-from aurras.ui.core.registry.command import CommandRegistry
 from aurras.utils.command.processors import spotify_processor
 from aurras.utils.command.processors import playlist_processor
 
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 COMMAND_SETTINGS = SETTINGS.command
 
 
-def register_playlist_commands(registry: CommandRegistry):
+def register_playlist_commands(registry):
     """Register all playlist-related commands to the central registry."""
     registry.register_command(
         name=COMMAND_SETTINGS.play_playlist,

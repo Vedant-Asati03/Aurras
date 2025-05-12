@@ -6,14 +6,13 @@ This module contains all history-related commands such as viewing and managing p
 
 import logging
 from aurras.core.settings import SETTINGS
-from aurras.ui.core.registry.command import CommandRegistry
 from aurras.utils.command.processors import history_processor
 
 logger = logging.getLogger(__name__)
 COMMAND_SETTINGS = SETTINGS.command
 
 
-def register_history_commands(registry: CommandRegistry):
+def register_history_commands(registry):
     """Register all history-related commands to the central registry."""
     registry.register_command(
         name=COMMAND_SETTINGS.display_history,
