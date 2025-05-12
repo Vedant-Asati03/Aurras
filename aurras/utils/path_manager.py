@@ -4,7 +4,6 @@ Path Manager Module
 This module provides a centralized way to manage file paths in the Aurras application.
 """
 
-import os
 from pathlib import Path
 
 
@@ -22,47 +21,22 @@ class PathManager:
         self.app_dir.mkdir(parents=True, exist_ok=True)
 
         # Define instance attributes for critical directories
+        self._backup_dir = self.app_dir / "backups"
         self._config_dir = self.app_dir / "config"
+        self._credentials_dir = self.app_dir / "credentials"
         self._database_dir = self.app_dir / "database"
         self._downloaded_songs_dir = self.app_dir / "songs"
         self._playlists_dir = self.app_dir / "playlists"
         self._log_dir = self.app_dir / "logs"
 
         # Create directories
+        self._backup_dir.mkdir(parents=True, exist_ok=True)
         self._config_dir.mkdir(parents=True, exist_ok=True)
+        self._credentials_dir.mkdir(parents=True, exist_ok=True)
         self._database_dir.mkdir(parents=True, exist_ok=True)
         self._downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
         self._playlists_dir.mkdir(parents=True, exist_ok=True)
         self._log_dir.mkdir(parents=True, exist_ok=True)
-
-        # Define important file paths with improved documentation
-        self.config_file = self._config_dir / "config.yaml"
-        self.default_config = self._config_dir / "default_config.yaml"
-        self.history_db = self._database_dir / "play_history.db"
-        self.saved_playlists = self._database_dir / "saved_playlists.db"
-
-    def create_required_directories(self):
-        """
-        Create all required directories for the application.
-
-        This method ensures that all directories needed by the application
-        exist, creating them if necessary.
-        """
-        # Main application directory
-        self.app_dir.mkdir(parents=True, exist_ok=True)
-
-        # Critical subdirectories
-        self._config_dir.mkdir(parents=True, exist_ok=True)
-        self._database_dir.mkdir(parents=True, exist_ok=True)
-        self._downloaded_songs_dir.mkdir(parents=True, exist_ok=True)
-        self._playlists_dir.mkdir(parents=True, exist_ok=True)
-        self._log_dir.mkdir(parents=True, exist_ok=True)
-
-        # Additional directories that might be needed
-        (self.app_dir / "backups").mkdir(parents=True, exist_ok=True)
-        (self.app_dir / "credentials").mkdir(parents=True, exist_ok=True)
-
-        return True
 
     def construct_path(self, *path_parts):
         """
@@ -74,42 +48,25 @@ class PathManager:
         Returns:
             Path: The constructed path.
         """
-        return self.app_dir.joinpath(*path_parts)
-
-    def list_directory(self, directory_path):
-        """
-        List contents of a directory, filtering out hidden files.
-
-        Args:
-            directory_path (Path): Path to the directory to list
-
-        Returns:
-            list: List of filenames in the directory
-        """
-        try:
-            if not directory_path.exists():
-                return []
-
-            # Get all files/directories in the specified path
-            items = os.listdir(directory_path)
-
-            # Filter out hidden files (those starting with .)
-            items = [item for item in items if not item.startswith(".")]
-
-            # Sort alphabetically
-            items.sort()
-
-            return items
-
-        except (FileNotFoundError, PermissionError):
-            # Return empty list if directory doesn't exist or isn't accessible
-            return []
+        generated_path = self.app_dir.joinpath(*path_parts)
+        generated_path.mkdir(parents=True, exist_ok=True)
+        return generated_path
 
     # Define properties for all directories with consistent naming
+    @property
+    def backup_dir(self):
+        """Path to the backup directory."""
+        return self._backup_dir
+
     @property
     def config_dir(self):
         """Path to the configuration directory."""
         return self._config_dir
+
+    @property
+    def credentials_dir(self):
+        """Path to the credentials directory."""
+        return self._credentials_dir
 
     @property
     def database_dir(self):
@@ -142,9 +99,9 @@ class PathManager:
         return self._config_dir / "settings.yaml"
 
     @property
-    def custom_settings_file(self):
-        """Path to the custom settings file."""
-        return self._config_dir / "custom_settings.yaml"
+    def credentials_file(self):
+        """Path to the credentials file."""
+        return self._credentials_dir / "credentials.json"
 
     @property
     def cache_db(self):
@@ -157,11 +114,6 @@ class PathManager:
         return self._database_dir / "recommendation.db"
 
     @property
-    def spotify_auth_db(self):
-        """Path to the Spotify authentication cache."""
-        return self._database_dir / "spotify_auth.db"
-
-    @property
     def downloads_db(self):
         """Path to the downloaded songs database."""
         return self._database_dir / "downloads.db"
@@ -170,3 +122,11 @@ class PathManager:
     def playlists_db(self):
         """Path to the saved playlists database."""
         return self._database_dir / "playlists.db"
+
+    @property
+    def history_db(self):
+        """Path to the play history database."""
+        return self._database_dir / "play_history.db"
+
+
+_path_manager = PathManager()
