@@ -46,7 +46,7 @@ def validate_theme(v):
 
     # Import here to avoid circular imports
     try:
-        from ....themes import get_available_themes
+        from aurras.themes.manager import get_available_themes
 
         # Populate the global AVAILABLE_THEMES list
         global AVAILABLE_THEMES
