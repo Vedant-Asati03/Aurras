@@ -6,101 +6,20 @@ with consistent styling, animations, and theme integration.
 It uses the component-based architecture from the console renderer system.
 """
 
-import logging
 from typing import Optional, Dict, Any, List, Tuple
 
 from rich.console import Group
 from rich.columns import Columns
-from rich.console import Console
 
-from .state import FeedbackType, PlaybackState, UserFeedback
-from ....themes import get_current_theme
-from ...settings import load_settings
-from ....utils.console.manager import get_console
-from ....utils.console.renderer import (
+from aurras.core.player.mpv.state import FeedbackType, PlaybackState, UserFeedback
+from aurras.utils.console import console, apply_gradient_to_text
+from aurras.utils.console.renderer import (
     UIComponent,
     ProgressIndicator,
     FeedbackMessage,
     KeybindingHelp,
     UIRenderer,
-    get_current_theme_instance,
-    get_theme_styles,
-    get_theme_gradients,
 )
-
-logger = logging.getLogger(__name__)
-
-SETTINGS = load_settings()
-
-
-class ThemeHelper:
-    """Utility class for theme-related operations to reduce code duplication."""
-
-    @staticmethod
-    def retrieve_theme_gradients_and_styles():
-        """
-        Get the current theme instance and its gradients.
-
-        Returns:
-            Tuple of active theme gradients and styles.
-        """
-        active_theme_obj = get_current_theme_instance()
-        active_theme_gradients = get_theme_gradients(active_theme_obj)
-        active_theme_styles = get_theme_styles(active_theme_obj)
-        return active_theme_gradients, active_theme_styles
-
-    @staticmethod
-    def apply_gradient_to_text(text: str, gradient: list, bold: bool = False) -> str:
-        """
-        Apply a gradient effect to text using theme colors.
-
-        Args:
-            text: The text to apply gradient to
-            gradient: List of gradient colors
-            bold: Whether to make the text bold
-
-        Returns:
-            Rich-formatted text with gradient applied
-        """
-        if not text or not gradient:
-            return text
-
-        if len(text) <= 3:
-            bold_prefix = "bold " if bold else ""
-            return f"[{bold_prefix}{gradient[0]}]{text}[/{bold_prefix}{gradient[0]}]"
-
-        chars_per_color = max(1, len(text) // len(gradient))
-        result = []
-
-        for i, char in enumerate(text):
-            color_index = min(i // chars_per_color, len(gradient) - 1)
-            color = gradient[color_index]
-            bold_prefix = "bold " if bold else ""
-            result.append(f"[{bold_prefix}{color}]{char}[/{bold_prefix}{color}]")
-
-        return "".join(result)
-
-    @staticmethod
-    def get_theme_color(theme_styles, key: str, default: str) -> str:
-        """
-        Get a color from theme styles with fallback.
-
-        Args:
-            theme_styles: The theme styles dictionary
-            key: The color key to look up
-            default: Default color to use if key not found
-
-        Returns:
-            Color value as string
-        """
-        style = theme_styles.get(key)
-
-        if isinstance(style, str):
-            return style
-        elif hasattr(style, "color") and style.color:
-            return style.color.name if hasattr(style.color, "name") else default
-        else:
-            return default
 
 
 class SongInfoComponent(UIComponent):
@@ -135,71 +54,47 @@ class SongInfoComponent(UIComponent):
 
     def render(self) -> str:
         """Render song information with gradient styling."""
-        active_theme_gradients, active_theme_styles = (
-            ThemeHelper.retrieve_theme_gradients_and_styles()
-        )
-
         info_text = ""
 
         if self.song:
-            if "title" in active_theme_gradients:
-                title_gradient = active_theme_gradients.get("title")
-                song_text = ThemeHelper.apply_gradient_to_text(
-                    self.song, title_gradient, bold=True
-                )
-            else:
-                primary_color = ThemeHelper.get_theme_color(
-                    active_theme_styles, "primary", "cyan"
-                )
-                song_text = f"[bold {primary_color}]{self.song}[/bold {primary_color}]"
-
-            header_color = ThemeHelper.get_theme_color(
-                active_theme_styles, "header", "cyan"
+            song_text = apply_gradient_to_text(
+                self.song, console.title_gradient, bold=True
             )
-            info_text = f"[bold {header_color}]Now Playing:[/] {song_text}"
+
+            info_text = console.style_text(
+                text=f"Now Playing: {song_text}",
+                style_key="accent",
+                text_style="bold",
+            )
 
         if self.source:
             info_text += f" {self.source}"
 
         if self.artist and self.artist != "Unknown" and self.artist.strip():
-            if "artist" in active_theme_gradients:
-                artist_gradient = active_theme_gradients.get("artist")
-                album_text = ThemeHelper.apply_gradient_to_text(
-                    self.artist, artist_gradient
-                )
-            else:
-                album_color = ThemeHelper.get_theme_color(
-                    active_theme_styles, "artist", "magenta"
-                )
-                album_text = f"[{album_color}]{self.artist}[/{album_color}]"
+            album_text = apply_gradient_to_text(self.artist, console.artist_gradient)
 
-            album_label_color = ThemeHelper.get_theme_color(
-                active_theme_styles, "artist", "magenta"
+            artist_label_text = console.style_text(
+                text="Artist:",
+                style_key="accent",
+                text_style="bold",
             )
-            artist_label_text = f"[bold {album_label_color}]Artist:[/]"
             info_text += f"\n{artist_label_text} {album_text}"
 
         if self.album and self.album != "Unknown" and self.album.strip():
-            if "artist" in active_theme_gradients:
-                artist_gradient = active_theme_gradients.get("artist")
-                album_text = ThemeHelper.apply_gradient_to_text(
-                    self.album, artist_gradient
-                )
-            else:
-                album_color = ThemeHelper.get_theme_color(
-                    active_theme_styles, "artist", "magenta"
-                )
-                album_text = f"[{album_color}]{self.album}[/{album_color}]"
+            album_text = apply_gradient_to_text(self.album, console.artist_gradient)
 
-            album_label_color = ThemeHelper.get_theme_color(
-                active_theme_styles, "artist", "magenta"
+            artist_label_text = console.style_text(
+                text="Album:",
+                style_key="accent",
+                text_style="bold",
             )
-            artist_label_text = f"[bold {album_label_color}]Album:[/]"
             info_text += f" [dim]·[/] {artist_label_text} {album_text}"
 
         if self.playlist_count > 0:
-            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
-            position_info = f"[{dim_color}]Song {self.playlist_position + 1} of {self.playlist_count}[/{dim_color}]"
+            position_info = console.style_text(
+                text=f"Song {self.playlist_position + 1} of {self.playlist_count}",
+                style_key="dim",
+            )
             info_text += f"\n{position_info}"
 
         return info_text
@@ -263,21 +158,14 @@ class StatusDisplay(UIComponent):
 
     def render(self) -> str:
         """Render the status text."""
-        active_theme_name = get_current_theme()
-        active_theme_gradients, active_theme_styles = (
-            ThemeHelper.retrieve_theme_gradients_and_styles()
-        )
-
-        theme_info = f" · Theme: {active_theme_name}" if active_theme_name else ""
+        theme_info = f" · Theme: {console.theme_obj.name}" if console.theme_obj else ""
 
         status_text = f"Volume: {self.volume}%{theme_info}"
 
-        if "status" in active_theme_gradients and active_theme_gradients["status"]:
-            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
-            return f"[{dim_color}]{ThemeHelper.apply_gradient_to_text(status_text, active_theme_gradients['status'])}[/{dim_color}]"
-        else:
-            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
-            return f"[{dim_color}]{status_text}[/{dim_color}]"
+        return console.style_text(
+            text=apply_gradient_to_text(status_text, console.status_gradient),
+            style_key="dim",
+        )
 
 
 class QueueDisplay(UIComponent):
@@ -306,11 +194,6 @@ class QueueDisplay(UIComponent):
         if not self.all_songs or self.current_position >= len(self.all_songs) - 1:
             return None
 
-        active_theme_gradients, active_theme_styles = (
-            ThemeHelper.retrieve_theme_gradients_and_styles()
-        )
-        dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
-
         # Get upcoming songs
         upcoming = self.all_songs[self.current_position + 1 :]
         if not upcoming:
@@ -322,12 +205,10 @@ class QueueDisplay(UIComponent):
         # Format the queue display with song numbers
         queue_text = f"Upcoming: {', '.join(upcoming)}"
 
-        if "status" in active_theme_gradients and active_theme_gradients["status"]:
-            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
-            return f"[{dim_color}]{ThemeHelper.apply_gradient_to_text(queue_text, active_theme_gradients['status'])}[/{dim_color}]"
-        else:
-            dim_color = ThemeHelper.get_theme_color(active_theme_styles, "dim", "dim")
-            return f"[{dim_color}]{queue_text}[/{dim_color}]"
+        return console.style_text(
+            text=apply_gradient_to_text(queue_text, console.status_gradient),
+            style_key="dim",
+        )
 
 
 class UserFeedbackDisplay(UIComponent):
@@ -406,7 +287,7 @@ class PlayerControls(UIComponent):
 
     def render(self) -> Any:
         """Render the keyboard controls help."""
-        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
+        # _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
 
         keybindings = {
             "󱁐": "Pause",
@@ -432,8 +313,8 @@ class PlayerControls(UIComponent):
         return KeybindingHelp(
             keybindings,
             columns=3 if self.detailed else 2,
-            key_style=active_theme_styles.get("accent", "bold cyan"),
-            value_style=active_theme_styles.get("text", "white"),
+            key_style="accent",
+            value_style="text_muted",
         ).render()
 
 
@@ -443,15 +324,14 @@ class PlayerLayout:
     Uses component-based architecture for a flexible, themed UI.
     """
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self):
         """
         Initialize the player UI layout manager.
 
         Args:
             console: Optional rich console instance
         """
-        self.console = console or get_console()
-        self.renderer = UIRenderer(self.console)
+        self.renderer = UIRenderer()
         self.live = None
         self._running = False
 
