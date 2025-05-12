@@ -10,10 +10,9 @@ import shlex
 import logging
 from typing import Dict, Callable, Optional, List, Tuple
 
-from ....utils.theme_helper import ThemeHelper, get_console
+from aurras.utils.console import console
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 COMMAND_PATTERN = re.compile(r"^(\w+)(?:\s+(.*))?$")
 
@@ -70,9 +69,6 @@ class CommandRegistry:
         Returns:
             True if command was handled, False otherwise
         """
-        theme_styles = ThemeHelper.get_theme_colors()
-        error_color = theme_styles.get("error", "red")
-
         args = [] if args is None else args
 
         if not self.has_command(command):
@@ -83,10 +79,8 @@ class CommandRegistry:
         param_help = command_info["parameter_help"] or "<arguments>"
 
         if require_args and not args:
-            console.print(
-                f"[bold {error_color}]Error:[/bold {error_color}] "
-                f"[bold]'{command}'[/bold] requires parameters: {param_help}"
-            )
+            console.print_error(f"'{command}' requires parameters: {param_help}")
+
             logger.debug(f"Command '{command}' requires parameters: {param_help}")
             return True
 
@@ -102,9 +96,7 @@ class CommandRegistry:
 
         except Exception as e:
             logger.error(f"Error executing command '{command}': {e}", exc_info=True)
-            console.print(
-                f"[bold {error_color}]Error executing '{command}':[/bold {error_color}] {str(e)}"
-            )
+            console.print_error(f"Error executing '{command}': {str(e)}")
             return True
 
     def parse_command(self, input_text: str) -> Tuple[str, List[str]]:
