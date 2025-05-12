@@ -21,12 +21,11 @@ except ImportError:
 from ..player.queue import QueueManager
 from ..player.history import RecentlyPlayedManager
 from ..playlist.manager import Select as PlaylistManager
-from ..player.online import ListenSongOnline
+from ..player.online import SongStreamHandler
 from ..utils.path_manager import PathManager
 
 from .screens.home import HomeScreen
 from .screens.playlist import PlaylistScreen
-from .screens.lyrics import LyricsScreen
 from .screens.downloads import DownloadsScreen
 from .screens.settings import SettingsScreen
 from .commands import SongSearchProvider, CommandProvider, HelpProvider
@@ -61,14 +60,12 @@ class AurrasTUI(App):
         Binding("space", "toggle_play", "Play/Pause", id="binding", show=True),
         Binding("b", "next_song", "Next Song", id="binding", show=True),
         Binding("n", "previous_song", "Previous Song", id="binding", show=True),
-        Binding("l", "open_lyrics_screen", "Lyrics", id="binding", show=True),
         Binding("d", "push_screen('downloads')", "Downloads", id="binding", show=True),
     ]
 
     SCREENS = {
         "home": HomeScreen,
         "playlists": PlaylistScreen,
-        "lyrics": LyricsScreen,
         "downloads": DownloadsScreen,
         "settings": SettingsScreen,
     }
@@ -174,11 +171,6 @@ class AurrasTUI(App):
         if self.volume_level > 0:
             self.volume_level -= 5
 
-    def action_open_lyrics_screen(self, song_name: str) -> None:
-        """Open the lyrics screen for a specific song."""
-        lyrics_screen = LyricsScreen(song_name)
-        self.push_screen(lyrics_screen)
-
     def _close_existing_palette(self) -> None:
         """Close any existing search palette."""
         if self.active_palette:
@@ -200,7 +192,7 @@ class AurrasTUI(App):
             ):
                 self.screen._update_song_info(song_name)
 
-            player = ListenSongOnline(song_name)
+            player = SongStreamHandler(song_name)
             player.listen_song_online()
 
         except Exception as e:
