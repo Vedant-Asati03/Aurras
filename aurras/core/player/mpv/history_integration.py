@@ -10,13 +10,10 @@ import logging
 from collections import deque
 from typing import List, Dict, Tuple
 
-from ..history import RecentlyPlayedManager
-from ....utils.theme_helper import get_console
-from ....services.youtube.search import SearchSong
-from ....themes import get_theme, get_current_theme
+from aurras.services.youtube.search import SearchSong
+from aurras.core.player.history import RecentlyPlayedManager
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 
 class HistoryIntegration:
@@ -143,25 +140,25 @@ class HistoryIntegration:
         )
         return all_songs, all_urls, start_index
 
-    def display_history_info(self, history_songs: List[str]) -> None:
-        """
-        Display information about history songs in the console.
+    # def display_history_info(self, history_songs: List[str]) -> None:
+    #     """
+    #     Display information about history songs in the console.
 
-        Args:
-            history_songs: List of history song names
-        """
-        if not history_songs:
-            return
-        theme_name = get_current_theme()
-        theme = get_theme(theme_name)
-        
-        console.rule(f"[bold {theme.primary.hex}]Queue with History[/]", style=theme.secondary.hex)
+    #     Args:
+    #         history_songs: List of history song names
+    #     """
+    #     if not history_songs:
+    #         return
 
-        # Display info about history songs
-        history_str = ", ".join(history_songs[: min(3, len(history_songs))])
-        console.print(
-            f"[{theme.dim}]Songs from history in queue ({len(history_songs)}): {history_str}...[/]"
-        )
+    # from aurras.utils.console.manager import console
+
+    #     console.rule(f"[bold {theme.primary.hex}]Queue with History[/]", style=theme.secondary.hex)
+
+    #     # Display info about history songs
+    #     history_str = ", ".join(history_songs[: min(3, len(history_songs))])
+    #     console.print(
+    #         f"[{theme.dim}]Songs from history in queue ({len(history_songs)}): {history_str}...[/]"
+    #     )
 
     def add_songs_to_history(self, songs: List[str], source: str = "online") -> None:
         """
