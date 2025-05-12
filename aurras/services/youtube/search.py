@@ -9,17 +9,15 @@ from typing import List, Dict, Optional, Any, Protocol, NamedTuple, Tuple
 import logging
 from ytmusicapi import YTMusic
 
-from ...core.downloader import DownloadsDatabase
-from ...core.player.history import RecentlyPlayedManager
-from ...core.cache.search_db import SearchFromSongDataBase
-from ...core.cache.updater import UpdateSearchHistoryDatabase
-from ...utils.handle_fuzzy_search import FuzzySearcher, FuzzyDictMatcher
+from aurras.core.downloader import DownloadsDatabase
+from aurras.core.player.history import RecentlyPlayedManager
+from aurras.core.cache.search_db import SearchFromSongDataBase
+from aurras.core.cache.updater import UpdateSearchHistoryDatabase
+from aurras.utils.handle_fuzzy_search import FuzzySearcher, FuzzyDictMatcher
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 
-# Define clear data structures
 class SongResult(NamedTuple):
     """Represents a single song search result."""
 
