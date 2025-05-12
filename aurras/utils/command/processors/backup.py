@@ -1,106 +1,252 @@
 """
-Backup command processor for Aurras CLI.
+Backup processor for Aurras CLI.
 
-This module handles backup and restore operations for settings and data.
+This module handles backup-related commands and operations such as
+creating, restoring, and managing backups of user data.
 """
 
 import logging
-from rich.table import Table
-from rich.box import ROUNDED
+from typing import Optional
+from datetime import datetime
 
-from ...backup_manager import BackupManager
-from ...console import get_console
+from aurras.utils.console import console
+from aurras.utils.backup_manager import BackupManager
+from aurras.utils.decorators import with_error_handling
 
-# Get logger
 logger = logging.getLogger(__name__)
-
-# Get rich console for output
-console = get_console()
 
 
 class BackupProcessor:
-    """Handle backup and restore operations."""
+    """Handle backup-related commands and operations."""
 
     def __init__(self):
         """Initialize the backup processor."""
         self.backup_manager = BackupManager()
 
-    def create_backup(self):
-        """Create a manual backup of user settings and data."""
-        result = self.backup_manager.create_backup(manual=True)
-        if result:
-            console.print("[green]Backup created successfully[/green]")
-        else:
-            console.print("[yellow]Failed to create backup[/yellow]")
-        return 0 if result else 1
+    @with_error_handling
+    def create_backup(self, backup_name: Optional[str] = None) -> int:
+        """
+        Create a new backup of user data.
 
-    def list_backups(self):
-        """List all available backups with their details."""
-        backups = self.backup_manager.list_available_backups()
+        Args:
+            backup_name: Optional name for the backup
 
-        if not backups:
-            console.print("[yellow]No backups found[/yellow]")
-            return 0
-
-        table = Table(title="Available Backups", box=ROUNDED, border_style="cyan")
-        table.add_column("#", style="dim")
-        table.add_column("Date", style="green")
-        table.add_column("Type", style="cyan")
-        table.add_column("Content", style="cyan")
-        table.add_column("Size", style="cyan")
-
-        for i, backup in enumerate(backups, 1):
-            table.add_row(
-                str(i),
-                backup.get("date", "Unknown"),
-                "Manual" if backup.get("manual", False) else "Auto",
-                ", ".join(backup.get("items", {}).keys()),
-                backup.get("size", "Unknown"),
-            )
-
-        console.print(table)
-        return 0
-
-    def restore_backup(self, backup_id=None):
-        """Restore from a specified backup or prompt user to select one."""
-        backups = self.backup_manager.list_available_backups()
-
-        if not backups:
-            console.print("[yellow]No backups found[/yellow]")
-            return 1
-
-        if backup_id is None:
-            # Display backups and ask which one to restore
-            self.list_backups()
-            backup_id = console.input("[cyan]Enter backup number to restore: [/cyan]")
-
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
         try:
-            index = int(backup_id) - 1
-            if 0 <= index < len(backups):
-                # Confirm restoration
-                confirm = console.input(
-                    "[yellow]This will overwrite your current settings and data. Continue? (y/n): [/yellow]"
+            # Generate a default name if none provided
+            if not backup_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_name = f"backup_{timestamp}"
+
+            # Create a progress display using themed console
+            progress = console.create_progress()
+
+            with progress:
+                task = progress.add_task("Creating backup...", total=100)
+
+                # Update progress callback
+                def update_progress(percent: int):
+                    progress.update(task, completed=percent)
+
+                # Create the backup
+                backup_path = self.backup_manager.create_backup(
+                    backup_name, progress_callback=update_progress
                 )
 
-                if confirm.lower() == "y":
-                    backup_file = backups[index]["file"]
-                    result = self.backup_manager.restore_from_backup(backup_file)
-                    if result:
-                        console.print("[green]Backup restored successfully[/green]")
-                        return 0
-                    else:
-                        console.print("[red]Failed to restore backup[/red]")
-                        return 1
-                else:
-                    console.print("[yellow]Restoration cancelled[/yellow]")
-                    return 0
-            else:
-                console.print("[red]Invalid backup number[/red]")
+            if not backup_path:
+                console.print_error("Failed to create backup")
                 return 1
-        except ValueError:
-            console.print("[red]Invalid input. Please enter a number.[/red]")
+
+            # Show success message in a panel
+            panel = console.create_panel(
+                f"Backup saved to: {backup_path}",
+                title="Backup Created Successfully",
+                style="success",
+            )
+            console.print(panel)
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error creating backup: {e}")
+            console.print_error(f"Error creating backup: {e}")
             return 1
 
+    @with_error_handling
+    def list_backups(self) -> int:
+        """
+        List all available backups.
 
-# Instantiate processor for direct import
-processor = BackupProcessor()
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        try:
+            backups = self.backup_manager.get_available_backups()
+
+            if not backups:
+                console.print_info("No backups found")
+                return 0
+
+            # Create a table to display backups
+            table = console.create_table(
+                title="Available Backups", caption=f"Total: {len(backups)} backup(s)"
+            )
+
+            table.add_column("Name")
+            table.add_column("Created")
+            table.add_column("Size")
+            table.add_column("Type")
+
+            for backup in backups:
+                # Format timestamp
+                created = datetime.fromtimestamp(backup["timestamp"]).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+                # Format size
+                size = backup["size"]
+                if size < 1024:
+                    size_str = f"{size} B"
+                elif size < 1024 * 1024:
+                    size_str = f"{size / 1024:.1f} KB"
+                else:
+                    size_str = f"{size / (1024 * 1024):.1f} MB"
+
+                table.add_row(backup["name"], created, size_str, backup["type"])
+
+            console.print(table)
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error listing backups: {e}")
+            console.print_error(f"Error listing backups: {e}")
+            return 1
+
+    @with_error_handling
+    def restore_backup(self, backup_name: str) -> int:
+        """
+        Restore a backup.
+
+        Args:
+            backup_name: Name of the backup to restore
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        if not backup_name:
+            console.print_error("Backup name cannot be empty")
+            return 1
+
+        try:
+            # Check if backup exists
+            backups = self.backup_manager.get_available_backups()
+            backup = next((b for b in backups if b["name"] == backup_name), None)
+
+            if not backup:
+                console.print_error(f"Backup '{backup_name}' not found")
+                self.list_backups()  # Show available backups
+                return 1
+
+            # Get confirmation with themed prompt
+            confirm = console.confirm(
+                f"Are you sure you want to restore backup '{backup_name}'? "
+                f"This will overwrite your current data.",
+                style_key="warning",
+            )
+
+            if not confirm:
+                console.print_info("Restore operation cancelled")
+                return 0
+
+            # Create a progress bar for restore operation
+            progress = console.create_progress(
+                description_style="bold red",  # Use red to indicate caution
+                completed_style="red",
+            )
+
+            with progress:
+                task = progress.add_task("Restoring backup...", total=100)
+
+                # Update progress callback
+                def update_progress(percent: int):
+                    progress.update(task, completed=percent)
+
+                # Restore the backup
+                success = self.backup_manager.restore_backup(
+                    backup_name, progress_callback=update_progress
+                )
+
+            if not success:
+                console.print_error(f"Failed to restore backup '{backup_name}'")
+                return 1
+
+            # Show success message in a panel
+            panel = console.create_panel(
+                "Your data has been restored to the selected backup state.\n"
+                "You may need to restart the application for all changes to take effect.",
+                title="Backup Restored Successfully",
+                style="success",
+            )
+            console.print(panel)
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error restoring backup: {e}")
+            console.print_error(f"Error restoring backup: {e}")
+            return 1
+
+    @with_error_handling
+    def delete_backup(self, backup_name: str) -> int:
+        """
+        Delete a backup.
+
+        Args:
+            backup_name: Name of the backup to delete
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        if not backup_name:
+            console.print_error("Backup name cannot be empty")
+            return 1
+
+        try:
+            # Check if backup exists
+            backups = self.backup_manager.get_available_backups()
+            backup = next((b for b in backups if b["name"] == backup_name), None)
+
+            if not backup:
+                console.print_error(f"Backup '{backup_name}' not found")
+                self.list_backups()  # Show available backups
+                return 1
+
+            # Get confirmation
+            confirm = console.confirm(
+                f"Are you sure you want to delete backup '{backup_name}'? "
+                f"This cannot be undone.",
+                style_key="error",  # Use error style for destructive action
+            )
+
+            if not confirm:
+                console.print_info("Delete operation cancelled")
+                return 0
+
+            # Show status while deleting
+            with console.status(
+                console.style_text(f"Deleting backup '{backup_name}'...", "warning"),
+                spinner="dots",
+            ):
+                success = self.backup_manager.delete_backup(backup_name)
+
+            if not success:
+                console.print_error(f"Failed to delete backup '{backup_name}'")
+                return 1
+
+            console.print_success(f"Backup '{backup_name}' deleted successfully")
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error deleting backup: {e}")
+            console.print_error(f"Error deleting backup: {e}")
+            return 1

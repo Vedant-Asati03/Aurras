@@ -5,16 +5,14 @@ This module handles playlist management and playback operations.
 """
 
 import logging
-from typing import List, Optional
+from typing import List
 
-from ...console.renderer import ListDisplay, get_console
-from ...theme_helper import ThemeHelper, with_error_handling
-from ....player.online import SongStreamHandler
-from ....playlist.manager import PlaylistManager
-from ....utils.handle_fuzzy_search import FuzzySearcher
+from aurras.utils.console import console
+from aurras.utils.decorators import with_error_handling
+from aurras.core.playlist.manager import PlaylistManager
+from aurras.utils.handle_fuzzy_search import FuzzySearcher
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 
 class PlaylistProcessor:
@@ -28,25 +26,6 @@ class PlaylistProcessor:
     def _parse_args(self, arg: str) -> List[str]:
         """Returns a list of songs from a comma-separated string."""
         return arg.strip("'\"").split(", ") if arg else []
-
-    def _get_corrected_playlist_name(self, playlist_name: str) -> Optional[str | None]:
-        """Returns the actual playlist name from the user query."""
-        theme_styles = ThemeHelper.get_theme_colors()
-        warning_color = theme_styles.get("warning", "yellow")
-
-        available_playlists = list(self.playlist_manager.get_all_playlists().keys())
-
-        corrected_playlist_name = self.fuzzy_search.find_best_match(
-            playlist_name, available_playlists
-        )
-
-        if not corrected_playlist_name:
-            console.print(
-                f"[{warning_color}]Please specify a playlist to play[/{warning_color}]"
-            )
-            return None
-
-        return corrected_playlist_name
 
     @with_error_handling
     def play_playlist(self, playlist_name: str, show_lyrics=True, shuffle=False):
@@ -62,43 +41,29 @@ class PlaylistProcessor:
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        theme_styles = ThemeHelper.get_theme_colors()
-
-        success_color = theme_styles.get("success", "green")
-        warning_color = theme_styles.get("warning", "yellow")
-
         if not playlist_name:
-            console.print(
-                f"[{warning_color}]Please specify a playlist to play[/{warning_color}]"
-            )
+            console.print_error("Please specify a playlist to play.")
             return 1
 
-        playlist_name = self._get_corrected_playlist_name(playlist_name)
-
-        console.print(
-            f"[{success_color}]Playing playlist: {playlist_name}[/{success_color}]"
-        )
+        console.print_success(f"Playing playlist: {playlist_name}")
 
         try:
-            song_name_list = self.playlist_manager.get_playlist_songs(playlist_name)
+            playlist_songs = self.playlist_manager.get_playlist_songs(playlist_name)
 
-            if not song_name_list:
-                console.print(
-                    f"[{warning_color}]Playlist '{playlist_name}' not found or empty[/{warning_color}]"
-                )
+            if not playlist_songs:
+                console.print_error(f"Playlist '{playlist_name}' not found or empty")
                 return 1
 
-            logger.info(
-                f"Playlist {playlist_name} with songs: '{', '.join(song_name_list)}'"
-            )
-            SongStreamHandler(song_name_list).listen_song_online(
+            from ....core.player.online import SongStreamHandler
+
+            SongStreamHandler(list(playlist_songs)).listen_song_online(
                 show_lyrics=show_lyrics, shuffle=shuffle
             )
             return 0
 
         except Exception as e:
             logger.error(f"Error playing playlist: {e}", exc_info=True)
-            console.print(f"[red]Error playing playlist:[/red] {str(e)}")
+            console.print_error(f"Error playling playlist: {str(e)}")
             return 1
 
     @with_error_handling
@@ -114,35 +79,21 @@ class PlaylistProcessor:
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        playlist_to_download: List[str] = []
-
-        theme_styles = ThemeHelper.get_theme_colors()
-
-        success_color = theme_styles.get("success", "green")
-        warning_color = theme_styles.get("warning", "yellow")
-
         if not playlist_names:
-            console.print(
-                f"[{warning_color}]Error: No playlist name provided[/{warning_color}]"
-            )
+            console.print_error("Please specify a playlist to download.")
             return 1
 
         listed_playlist_names = self._parse_args(playlist_names)
 
         if not listed_playlist_names:
-            console.print(
-                f"[{warning_color}]Error: No playlist names provided[/{warning_color}]"
-            )
+            console.print_error("Please specify a playlist to download.")
             return 1
 
-        for playlist_name in listed_playlist_names:
-            playlist_to_download.append(
-                self._get_corrected_playlist_name(playlist_name)
-            )
+        playlist_to_download: List[str] = [
+            self._get_corrected_playlist_name(playlist_name)
+            for playlist_name in listed_playlist_names
+        ]
 
-        console.print(
-            f"[{success_color}]Downloading playlists: {', '.join(playlist_to_download)}[/{success_color}]"
-        )
         success = self.playlist_manager.download_playlist(
             playlist_names=playlist_to_download, format=format, bitrate=bitrate
         )
@@ -158,14 +109,8 @@ class PlaylistProcessor:
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        theme_styles = ThemeHelper.get_theme_colors()
-
-        warning_color = theme_styles.get("warning", "yellow")
-
         if not playlist_name:
-            console.print(
-                f"[{warning_color}]Error: No playlist name provided[/{warning_color}]"
-            )
+            console.print_error("Please specify a playlist to view.")
             return 1
 
         playlist_name = self._get_corrected_playlist_name(playlist_name)
@@ -173,16 +118,17 @@ class PlaylistProcessor:
         playlist_songs = self.playlist_manager.get_playlist_songs(playlist_name)
 
         if not playlist_songs:
-            console.print(
-                f"[{warning_color}]Playlist '{playlist_name}' not found or empty[/{warning_color}]"
-            )
+            console.print_error(f"Playlist '{playlist_name}' not found or empty")
             return 1
+
+        from aurras.utils.console.renderer import ListDisplay
 
         list_display = ListDisplay(
             items=playlist_songs,
-            title=f"Contents of Playlist: {playlist_name}",
+            title=f"{playlist_name}  SONGS󰽱",
             use_table=True,
             style_key="playlist",
+            show_header=False,
         )
 
         console.print(list_display.render())
@@ -196,31 +142,24 @@ class PlaylistProcessor:
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        theme_styles = ThemeHelper.get_theme_colors()
+        available_playlists_with_metadata = self.playlist_manager.get_all_playlists()
 
-        warning_color = theme_styles.get("warning", "yellow")
+        available_playlists_with_description = [
+            (playlist["name"], playlist["description"])
+            for playlist in available_playlists_with_metadata
+        ]
 
-        available_playlists = list(self.playlist_manager.get_all_playlists().keys())
-
-        if not available_playlists:
-            console.print(
-                f"[{warning_color}]No playlists available. Please create a playlist.[/{warning_color}]"
-            )
+        if not available_playlists_with_description:
+            console.print_error("No playlists available. Please create a playlist.")
             return 1
 
-        playlist_names = self._get_corrected_playlist_name(available_playlists)
-
-        if not playlist_names:
-            console.print(
-                f"[{warning_color}]No matching playlists found[/{warning_color}]"
-            )
-            return 1
+        from aurras.utils.console.renderer import ListDisplay
 
         list_display = ListDisplay(
-            items=playlist_names,
-            title="Available Playlists",
+            items=available_playlists_with_description,
             use_table=True,
             style_key="playlist",
+            show_indices=True,
         )
 
         console.print(list_display.render())
@@ -238,62 +177,20 @@ class PlaylistProcessor:
             int: Exit code (0 for success, 1 for failure)
         """
         playlist_to_delete: List[str] = []
-
-        theme_styles = ThemeHelper.get_theme_colors()
-
-        success_color = theme_styles.get("success", "green")
-        warning_color = theme_styles.get("warning", "yellow")
-
-        if not playlist_names:
-            console.print(
-                f"[{warning_color}]Error: No playlist name provided[/{warning_color}]"
-            )
-            return 1
-
         listed_playlist_names = self._parse_args(playlist_names)
 
         for playlist_name in listed_playlist_names:
             playlist_to_delete.append(self._get_corrected_playlist_name(playlist_name))
 
         if not playlist_to_delete:
-            console.print(
-                f"[{warning_color}]Error: No matching playlists found[/{warning_color}]"
-            )
+            console.print_error("No matching playlists found.")
             return 1
 
-        self.playlist_manager.delete_playlist(playlist_to_delete)
-
-        console.print(
-            f"[{success_color}]Deleted playlists: {', '.join(playlist_to_delete)}[/{success_color}]"
-        )
-        return 0
-
-    def import_playlist(self, source=None, playlist_id=None):
-        """
-        Import a playlist from an external source like Spotify.
-
-        Args:
-            source: Source name (e.g., "spotify")
-            playlist_id: Playlist ID or URL
-
-        Returns:
-            int: 0 for success, 1 for failure
-        """
-        if not source or not playlist_id:
-            console.print("[yellow]Error: Source and playlist ID are required[/yellow]")
-            return 1
-
-        try:
-            # This would be connected to the actual import functionality
-            # Future enhancement: Implement proper playlist import
-            console.print(
-                f"[yellow]Feature not yet implemented: importing playlist from {source}[/yellow]"
-            )
+        if self.playlist_manager.delete_playlist(playlist_to_delete):
+            console.print_success(f"Deleted playlists: {', '.join(playlist_to_delete)}")
             return 0
-        except Exception as e:
-            logger.error(f"Error importing playlist: {e}", exc_info=True)
-            console.print(f"[red]Error importing playlist:[/red] {str(e)}")
-            return 1
+
+        return 1
 
     @with_error_handling
     def search_playlists(self, query):
@@ -306,34 +203,21 @@ class PlaylistProcessor:
         Returns:
             int: 0 for success, 1 for failure
         """
-        theme_styles = ThemeHelper.get_theme_colors()
-
-        warning_color = theme_styles.get("warning", "yellow")
-
         if not query:
-            console.print(
-                f"[{warning_color}]Error: No search query provided[/{warning_color}]"
-            )
+            console.print_warning("No search query provided.")
             return 1
 
-        playlist_names = list(self.playlist_manager.search_by_song_or_artist(query).keys())
+        playlist_names = self.playlist_manager.search_by_song_or_artist(query)
 
-        if not playlist_names:
-            console.print(
-                f"[{warning_color}]No matching playlists found for '{query}'[/{warning_color}]"
-            )
-            return 1
+        from aurras.utils.console.renderer import ListDisplay
 
         list_display = ListDisplay(
             items=playlist_names,
-            title=f"Playlists containing '{query}'",
-            use_table=True,
+            title=f"Found playlist consisting query  {query}",
+            use_table=False,
             style_key="playlist",
+            show_header=False,
         )
 
         console.print(list_display.render())
         return 0
-
-
-# Instantiate processor for direct import
-processor = PlaylistProcessor()

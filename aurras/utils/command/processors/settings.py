@@ -8,19 +8,11 @@ import os
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from ...console.manager import get_console
-from ...console.renderer import ListDisplay
-from ...theme_helper import ThemeHelper, with_error_handling
-from ....core.settings.models import Settings
-from ....core.settings.io import save_settings
-from ....core.settings import load_settings, SettingsUpdater
-from ....themes import get_theme, get_current_theme, get_available_themes
+from aurras.utils.console import console
+from aurras.utils.decorators import with_error_handling
+from aurras.core.settings import SETTINGS, SettingsUpdater
 
 logger = logging.getLogger(__name__)
-
-console = get_console()
-
-SETTINGS = load_settings()
 
 
 class SettingsProcessor:
@@ -44,7 +36,7 @@ class SettingsProcessor:
 
         non_empty_categories = {k: v for k, v in categories.items() if v}
         for category, fields in non_empty_categories.items():
-            styled_category = ThemeHelper.get_styled_text(category, "accent", bold=True)
+            styled_category = console.style_text(category, "accent", bold=True)
             all_items.append((styled_category, ""))
 
             for field_path in fields:
@@ -75,6 +67,8 @@ class SettingsProcessor:
             # Add a spacer between categories
             if category != list(non_empty_categories.keys())[-1]:
                 all_items.append(("", ""))
+
+        from aurras.utils.console.renderer import ListDisplay
 
         list_display = ListDisplay(
             items=all_items,
@@ -127,8 +121,7 @@ class SettingsProcessor:
         """
         items: List[Tuple[str, str]] = []
 
-        # Get theme colors for bullet points
-        bullet_color = ThemeHelper.get_theme_color("secondary", "#8BE9FD")
+        bullet_color = console.secondary
 
         # Handle dictionary case
         if isinstance(obj, dict):
@@ -301,7 +294,7 @@ class SettingsProcessor:
     def set_setting(self, key: str, value: str) -> int:
         """
         Set a specific setting to the provided value.
-        
+
         Args:
             key: The setting key to update
             value: The new value for the setting
@@ -311,10 +304,8 @@ class SettingsProcessor:
         """
         settings_updater = SettingsUpdater(key)
         settings_updater.update_directly(value)
-        success_color = ThemeHelper.get_theme_color("success", "green")
-        console.print(
-            f"[bold {success_color}]Updated:[/] Setting '{key}' updated to '{value}'"
-        )
+
+        console.print_success(f"Setting '{key}' updated to '{value}'")
         return 0
 
     @with_error_handling
@@ -325,13 +316,13 @@ class SettingsProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
+        from aurras.core.settings.models import Settings
+        from aurras.core.settings.io import save_settings
+
         default_settings = Settings()
         save_settings(default_settings)
 
-        success_color = ThemeHelper.get_theme_color("success", "green")
-        console.print(
-            f"[bold {success_color}]Reset Complete:[/] All settings have been reset to default values"
-        )
+        console.print_success("Settings reset to default values")
         return 0
 
     @with_error_handling
@@ -348,10 +339,7 @@ class SettingsProcessor:
         )
 
         if not current_value:
-            error_color = ThemeHelper.get_theme_color("error", "red")
-            console.print(
-                f"[bold {error_color}]Error:[/] Setting '{setting_name}' not found or has no value"
-            )
+            console.print_error(f"Setting '{setting_name}' not found or has no value")
             return 1
 
         # Handle different types of toggle settings
@@ -366,10 +354,7 @@ class SettingsProcessor:
             status = "ON" if new_value != "off" else "OFF"
 
         settings_updater.update_directly(new_value)
-        success_color = ThemeHelper.get_theme_color("success", "green")
-        console.print(
-            f"[bold {success_color}]Setting Updated:[/] {display_name} turned {status}"
-        )
+        console.print_success(f"Setings Updated: {display_name} turned {status}")
         return 0
 
     @with_error_handling
@@ -377,34 +362,29 @@ class SettingsProcessor:
         """Set the download path to the provided directory."""
         expanded_path = os.path.expanduser(path)
 
-        warning_color = ThemeHelper.get_theme_color("warning", "yellow")
-
         # Check if path exists
         if not os.path.exists(expanded_path):
-            create_dir = console.input(
-                f"[{warning_color}]Path '{expanded_path}' does not exist. Create it? (y/n): [/]"
+            input_message = console.style_text(
+                f"Path '{expanded_path}' does not exist. Create it? (y/n): ",
+                "warning",
             )
+            create_dir = console.input(input_message)
             if create_dir.lower() == "y":
                 os.makedirs(expanded_path, exist_ok=True)
             else:
-                console.print(
-                    f"[{warning_color}]Cancelled:[/] Operation cancelled by user"
-                )
+                console.print_warning("Operation cancelled by user.")
                 return 1
 
         settings_updater = SettingsUpdater("download_path")
         settings_updater.update_directly(expanded_path)
 
-        success_color = ThemeHelper.get_theme_color("success", "green")
-        console.print(
-            f"[bold {success_color}]Path Updated:[/] Download path set to: {expanded_path}"
-        )
+        console.print_success(f"Download path set to: {expanded_path}")
         return 0
 
     @with_error_handling
     def open_settings_ui(self) -> int:
         """Open the settings management UI."""
-        from ....ui.command_palette import DisplaySettings
+        from aurras.ui.command_palette import DisplaySettings
 
         settings_ui = DisplaySettings()
         settings_ui.display_settings()
@@ -412,9 +392,4 @@ class SettingsProcessor:
 
     def _display_error(self, message: str) -> None:
         """Display an error message to the console."""
-        error_color = ThemeHelper.get_theme_color("error", "red")
-        console.print(f"[bold {error_color}]Error:[/] {message}")
-
-
-# Instantiate processor for direct import
-processor = SettingsProcessor()
+        console.print_error(message)

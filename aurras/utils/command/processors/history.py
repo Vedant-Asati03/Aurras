@@ -1,58 +1,50 @@
 """
-History command processor for Aurras CLI.
+History processor for Aurras CLI.
 
-This module handles playback history operations.
+This module handles playback history-related commands and operations such as
+viewing, clearing, and managing the playback history.
 """
 
 import time
 import logging
 from typing import List, Tuple
 
-from .player import PlayerProcessor
-from ....player.history import RecentlyPlayedManager
-from ...console.manager import get_console
-from ...console.renderer import (
-    ListDisplay,
-)
-from ...theme_helper import ThemeHelper, with_error_handling
+from aurras.utils.console import console
+from aurras.utils.console.renderer import ListDisplay
+from aurras.utils.decorators import with_error_handling
+from aurras.core.player.history import RecentlyPlayedManager
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 
 class HistoryProcessor:
-    """Handle history-related commands and operations."""
+    """Handle playback history-related commands and operations."""
 
     def __init__(self):
         """Initialize the history processor."""
         self.history_manager = RecentlyPlayedManager()
 
     @with_error_handling
-    def display_history(self, limit=30):
-        """Display recently played songs up to the specified limit."""
-        # Get theme colors
-        theme_styles = ThemeHelper.get_theme_colors()
-        info_color = theme_styles.get("info", "blue")
+    def show_history(self, limit: int = 10) -> int:
+        """
+        Show recent playback history.
 
-        with console.status(
-            f"[bold {info_color}]Loading your listening history...", spinner="dots"
-        ):
-            # Get history data
-            recent_songs = self.history_manager.get_recent_songs(limit=limit)
-            history_count = self.history_manager.get_history_count()
+        Args:
+            limit: Maximum number of history items to show
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        recent_songs = self.history_manager.get_recent_songs(limit=limit)
+        history_count = self.history_manager.get_history_count()
 
         if not recent_songs:
-            warning_color = theme_styles.get("warning", "yellow")
-            console.print(
-                f"[italic {warning_color}]No song history found.[/italic {warning_color}]"
-            )
+            console.print_error("No playback history found")
             return 0
 
-        # Format the history data for ListDisplay
         formatted_items: List[Tuple[str, str]] = []
 
         for song in recent_songs:
-            # Format the timestamp
             timestamp = time.strftime(
                 "%Y-%m-%d %H:%M", time.localtime(song["played_at"])
             )
@@ -81,12 +73,11 @@ class HistoryProcessor:
             f"Your Listening history (Showing {len(recent_songs)} of {history_count})"
         )
 
-        # Create description with tips
-        success_color = theme_styles.get("success", "green")
-        dim_color = theme_styles.get("dim", "dim")
-        description = f"Use [bold {success_color}]'--history-limit NUMBER'[/bold {success_color}] [{dim_color}]to show more or fewer songs[/{dim_color}]"
+        description = (
+            f"Use [bold {console.success}]'--history-limit NUMBER'[/] "
+            f"[{console.dim}]to show more or fewer songs[/]"
+        )
 
-        # Create and display the ListDisplay component
         history_list = ListDisplay(
             items=formatted_items,
             title=title,
@@ -101,44 +92,51 @@ class HistoryProcessor:
         return 0
 
     @with_error_handling
-    def clear_history(self):
-        """Clear the song play history."""
+    def clear_history(self) -> int:
+        """
+        Clear the playback history.
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
         self.history_manager.clear_history()
         return 0
 
     @with_error_handling
-    def play_previous_song(self):
-        """Play the previous song from history."""
-        theme_styles = ThemeHelper.get_theme_colors()
-        success_color = theme_styles.get("success", "green")
-        warning_color = theme_styles.get("warning", "yellow")
-        primary_color = theme_styles.get("primary", "cyan")
-        dim_color = theme_styles.get("dim", "dim")
+    def play_previous_song(self, index: int = 0) -> int:
+        """
+        Replay a track from playback history.
 
-        with console.status(
-            f"[bold {success_color}]Finding previous song in history",
-            spinner="aesthetic",
-        ):
-            prev_song = self.history_manager.get_previous_song()
+        Args:
+            index: Index of the history item to replay (0 = most recent)
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        prev_song = self.history_manager.get_previous_song()
 
         if prev_song:
-            console.print(
-                f"[bold {success_color}]Playing previous song:[/bold {success_color}] [{primary_color}]{prev_song}[/{primary_color}]"
+            play_message = (
+                f"[bold {console.success}]Playing previous song:[/bold {console.success}] "
+                f"[{console.primary}]{prev_song}[/{console.primary}]"
             )
-            PlayerProcessor().play_song(
+            console.print(play_message)
+
+            from aurras.utils.command.processors import player_processor
+
+            player_processor.play_song(
                 song_name=prev_song,
                 show_lyrics=True,
             )
 
         else:
-            console.print(
-                f"[{warning_color}]No previous songs found in your listening history.[/{warning_color}]"
+            console.print_warning(
+                "No previous songs found in your listening history. "
+                "Try playing a few songs first to build your history."
             )
-            console.print(
-                f"[{dim_color}]Try playing a few songs first to build your history.[/{dim_color}]"
+            console.style_text(
+                text="Try playing a few songs first to build your history.",
+                style_key="text_muted",
+                text_style="italic",
             )
         return 0
-
-
-# Instantiate processor for direct import
-processor = HistoryProcessor()

@@ -7,13 +7,10 @@ This module handles music playback operations.
 import logging
 from typing import List
 
-from ...console.manager import get_console
-from ....core.downloader import SongDownloader
-from ....player.online import SongStreamHandler
-from ...theme_helper import ThemeHelper, with_error_handling
+from aurras.utils.console import console
+from aurras.utils.decorators import with_error_handling
 
 logger = logging.getLogger(__name__)
-console = get_console()
 
 
 class PlayerProcessor:
@@ -33,33 +30,34 @@ class PlayerProcessor:
         song_name_list = self._parse_args(song_name)
 
         if not song_name_list:
-            theme_styles = ThemeHelper.get_theme_colors()
-            warning_color = theme_styles.get("warning", "yellow")
-            console.print(
-                f"[{warning_color}]Please specify a song to play.[/{warning_color}]"
-            )
+            console.print_error("Please specify a song to play.")
             return 1
+
+        from aurras.core.player.online import SongStreamHandler
 
         logger.info(f"Command-line song argument: '{', '.join(song_name_list)}'")
         SongStreamHandler(song_name_list).listen_song_online(show_lyrics=show_lyrics)
         return 0
 
     @with_error_handling
-    def download_song(self, song_name: str, output_dir=None, format=None, bitrate=None):
+    def download_song(
+        self,
+        song_name: str,
+        playlist: str = None,
+        output_dir: str = None,
+        format: str = None,
+        bitrate: str = None,
+    ):
         """Download a song or multiple songs using enhanced downloader."""
         song_name_list = self._parse_args(song_name)
 
         if not song_name_list:
-            theme_styles = ThemeHelper.get_theme_colors()
-            warning_color = theme_styles.get("warning", "yellow")
-            console.print(
-                f"[{warning_color}]Please specify a song to download.[/{warning_color}]"
-            )
+            console.print_error("Please specify a song to download.")
             return 1
 
-        SongDownloader(song_name_list, output_dir, format, bitrate).download_songs()
+        from aurras.core.downloader import SongDownloader
+
+        SongDownloader(
+            song_name_list, playlist, output_dir, format, bitrate
+        ).download_songs()
         return 0
-
-
-# Instantiate processor for direct import
-processor = PlayerProcessor()

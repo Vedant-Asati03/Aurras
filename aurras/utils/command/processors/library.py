@@ -1,103 +1,136 @@
 """
-Library command processor for Aurras CLI.
+Library processor for Aurras CLI.
 
-This module handles library management commands and operations.
+This module handles library-related commands and operations such as
+searching, indexing, and managing the media library.
 """
 
-import os
 import logging
 
-from ....core.settings import load_settings, SettingsUpdater
-from ...console.manager import get_console
+from aurras.utils.console import console
+from aurras.utils.decorators import with_error_handling
 
-# Get logger
 logger = logging.getLogger(__name__)
-
-# Get rich console for output
-console = get_console()
 
 
 class LibraryProcessor:
-    """Handle library management operations."""
+    """Handle library-related commands and operations."""
 
     def __init__(self):
         """Initialize the library processor."""
-        self.settings = load_settings()
 
-    def scan_library(self):
-        """Scan the music library for new files."""
-        console.print("[cyan]Scanning music library...[/cyan]")
+    @with_error_handling
+    def search(self, query: str, limit: int = 5) -> int:
+        """
+        Search for music across all sources.
 
-        # Get the library path from settings
-        library_path = self.settings.get("library_path", "~/Music")
-        expanded_path = os.path.expanduser(library_path)
+        Args:
+            query: Search query
+            limit: Maximum number of results to show (default: 5)
 
-        if not os.path.exists(expanded_path):
-            console.print(f"[yellow]Library path not found: {expanded_path}[/yellow]")
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        if not query:
+            console.print_error("Search query cannot be empty")
             return 1
 
-        # Count files in directory (this is just a placeholder - a real scanner would do more)
-        file_count = 0
-        for root, _, files in os.walk(expanded_path):
-            for file in files:
-                if file.endswith((".mp3", ".flac", ".wav", ".ogg", ".m4a")):
-                    file_count += 1
+        from ....services.youtube.search import YouTubeSearch
 
-        console.print(
-            f"[green]Library scan complete! Found {file_count} music files.[/green]"
-        )
-        return 0
-
-    def list_playlists(self):
-        """List all playlists in the library."""
-        # This would be implemented to list available playlists from the library
-        console.print("[yellow]Feature not yet implemented: listing playlists[/yellow]")
-        return 0
-
-    def set_library_path(self, path):
-        """Set the library path to the provided directory."""
         try:
-            expanded_path = os.path.expanduser(path)
+            # Create a status indicator while searching
+            with console.status(
+                console.style_text(f"Searching for '{query}'...", "info"),
+                spinner="dots",
+            ):
+                youtube_search = YouTubeSearch()
+                results = youtube_search.search(query, max_results=limit)
 
-            # Check if path exists
-            if not os.path.exists(expanded_path):
-                create_dir = console.input(
-                    f"[yellow]Path '{expanded_path}' does not exist. Create it? (y/n): [/yellow]"
+            if not results:
+                console.print_warning(f"No results found for '{query}'")
+                return 0
+
+            # Create a table to display search results
+            table = console.create_table(
+                title=f"Search Results for '{query}'",
+                caption=f"Found {len(results)} results",
+            )
+
+            table.add_column("#")
+            table.add_column("Title")
+            table.add_column("Artist")
+            table.add_column("Duration")
+
+            for i, result in enumerate(results, 1):
+                table.add_row(
+                    str(i),
+                    result.get("title", "Unknown"),
+                    result.get("artist", "Unknown"),
+                    result.get("duration_str", "-"),
                 )
-                if create_dir.lower() == "y":
-                    os.makedirs(expanded_path, exist_ok=True)
-                else:
-                    console.print("[yellow]Operation cancelled[/yellow]")
-                    return 1
 
-            # Update the setting
-            settings_updater = SettingsUpdater("library-path")
-            settings_updater.update_specified_setting_directly(expanded_path)
-            console.print(f"[green]Library path set to: {expanded_path}[/green]")
+            console.print(table)
+
+            # Display a tip on how to play these results
+            tip_panel = console.create_panel(
+                f"Use 'play {query}' to play the first result",
+                title="Tip",
+                style="info",
+            )
+            console.print(tip_panel)
             return 0
+
         except Exception as e:
-            console.print(f"[red]Error setting library path:[/red] {str(e)}")
+            logger.error(f"Error searching for '{query}': {e}")
+            console.print_error(f"Error searching: {e}")
             return 1
 
-    def count_library(self):
-        """Count the number of songs in the library."""
-        library_path = self.settings.get("library_path", "~/Music")
-        expanded_path = os.path.expanduser(library_path)
+    @with_error_handling
+    def list_downloads(self) -> int:
+        """
+        List downloaded songs.
 
-        if not os.path.exists(expanded_path):
-            console.print(f"[yellow]Library path not found: {expanded_path}[/yellow]")
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        try:
+            downloads = self.downloader.list_downloads()
+
+            if not downloads:
+                console.print_info("No downloaded songs found")
+                return 0
+
+            # Create a table to display downloaded songs
+            table = console.create_table(
+                title="Downloaded Songs", caption=f"Total: {len(downloads)} song(s)"
+            )
+
+            table.add_column("Title")
+            table.add_column("Artist")
+            table.add_column("Size")
+            table.add_column("Date")
+
+            for download in downloads:
+                # Format file size
+                size = download["size"]
+                if size < 1024:
+                    size_str = f"{size} B"
+                elif size < 1024 * 1024:
+                    size_str = f"{size / 1024:.1f} KB"
+                else:
+                    size_str = f"{size / (1024 * 1024):.1f} MB"
+
+                table.add_row(
+                    download.get("title", "Unknown"),
+                    download.get("artist", "Unknown"),
+                    size_str,
+                    download.get("date", "Unknown"),
+                )
+
+            console.print(table)
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error listing downloads: {e}")
+            console.print_error(f"Error listing downloads: {e}")
             return 1
-
-        # Count files
-        file_count = 0
-        for root, _, files in os.walk(expanded_path):
-            for file in files:
-                if file.endswith((".mp3", ".flac", ".wav", ".ogg", ".m4a")):
-                    file_count += 1
-
-        console.print(f"[green]Your library contains {file_count} music files[/green]")
-        return 0
-
-
-# Instantiate processor for direct import
-processor = LibraryProcessor()
