@@ -4,11 +4,9 @@ TUI entry point for Aurras Music Player.
 This module provides the entry point for the textual-based TUI mode.
 """
 
-import os
-import sys
-from pathlib import Path
 import argparse
 import logging
+from pathlib import Path
 
 from aurras.tui.app import AurrasTUI
 from aurras.utils.path_manager import PathManager
