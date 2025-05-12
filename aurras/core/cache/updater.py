@@ -6,7 +6,7 @@ This module provides a class for updating the search history database.
 
 import time
 
-from aurras.core.cache.connection import CacheDatabaseConnection
+from aurras.core.cache import cache_db_connection
 
 
 class UpdateSearchHistoryDatabase:
@@ -16,7 +16,6 @@ class UpdateSearchHistoryDatabase:
 
     def __init__(self) -> None:
         """Initialize the cache database connection."""
-        self.db_connection = CacheDatabaseConnection()
 
     def save_to_cache(
         self,
@@ -40,7 +39,7 @@ class UpdateSearchHistoryDatabase:
             thumbnail_url (str): URL to the song's thumbnail image
             duration (int): Duration of the song in seconds
         """
-        with self.db_connection as conn:
+        with cache_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -74,7 +73,7 @@ class UpdateSearchHistoryDatabase:
         if not cache_id:
             return
 
-        with self.db_connection as conn:
+        with cache_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -111,7 +110,7 @@ class UpdateSearchHistoryDatabase:
             synced_lyrics (str): Timed/synced lyrics
             plain_lyrics (str): Plain text lyrics
         """
-        conn = self.db_connection.connection
+        conn = cache_db_connection.connection
         # Start a transaction
         conn.execute("BEGIN TRANSACTION")
         try:
