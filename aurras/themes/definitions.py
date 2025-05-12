@@ -12,7 +12,7 @@ from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, TypedDict, Any
 
-from .colors import ThemeColor
+from aurras.themes.colors import ThemeColor
 
 logger = logging.getLogger(__name__)
 
