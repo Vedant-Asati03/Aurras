@@ -4,10 +4,8 @@ Settings Updater
 This module provides functionality for updating specific settings using dot notation.
 """
 
-from .models import Settings
-from .io import load_settings, save_settings
-
-SETTINGS = load_settings()
+from aurras.core.settings.io import save_settings
+from aurras.core.settings import Settings, SETTINGS
 
 
 class SettingsUpdater:
