@@ -5,16 +5,16 @@ This module provides functionality to convert theme definitions
 to Textual library compatible formats for the TUI interface.
 """
 
-from typing import Dict, Optional, Any, List
-import logging
 import uuid
+import logging
+from typing import Dict
 
 from rich.style import Style
 from textual.theme import Theme as TextualTheme
 from textual.widgets.text_area import TextAreaTheme
 
-from ..definitions import ThemeDefinition
-from ..utils import get_fallback_value
+from aurras.themes.utils import get_fallback_value
+from aurras.themes.definitions import ThemeDefinition
 
 logger = logging.getLogger(__name__)
 
