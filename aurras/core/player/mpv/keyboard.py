@@ -6,12 +6,10 @@ This module contains keyboard bindings and handlers for the MPV player interface
 
 import logging
 
-from ...settings import load_settings
-from .state import FeedbackType, PlaybackState, LyricsStatus
+from aurras.core.settings import SETTINGS
+from aurras.core.player.mpv.state import FeedbackType, PlaybackState, LyricsStatus
 
 logger = logging.getLogger(__name__)
-
-SETTINGS = load_settings()
 
 
 def setup_key_bindings(player) -> None:
