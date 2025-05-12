@@ -9,9 +9,10 @@ import logging
 from typing import List
 from concurrent.futures import Future
 
-from .state import LyricsStatus, LyricsState
-from ..memory import optimize_memory_usage
-from ....services.lyrics import LyricsManager
+from aurras.services.lyrics import LyricsManager
+from aurras.utils.console import apply_gradient_to_text
+from aurras.core.player.memory import optimize_memory_usage
+from aurras.core.player.mpv.state import LyricsStatus, LyricsState
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +106,7 @@ def get_lyrics_display(
         return f"{_format_feedback_message('Waiting for song metadata...')}"
 
     if lyrics_state.future and lyrics_state.future.done():
-        return (
-            f"{_handle_completed_lyrics_fetch(elapsed, duration, lyrics_state, lyrics_manager)}"
-        )
+        return f"{_handle_completed_lyrics_fetch(elapsed, duration, lyrics_state, lyrics_manager)}"
 
     if (
         lyrics_state.status == LyricsStatus.LOADING
@@ -128,10 +127,7 @@ def get_lyrics_display(
 
 def _format_feedback_message(message: str) -> str:
     """Format a feedback message with theme-consistent styling."""
-    from ....services.lyrics import LyricsManager
-
-    temp_manager = LyricsManager()
-    feedback_text = temp_manager.apply_gradient_to_text(message, "feedback")
+    feedback_text = apply_gradient_to_text(message, "feedback")
     return f"[italic]{feedback_text}[/italic]"
 
 
@@ -191,7 +187,9 @@ def _handle_completed_lyrics_fetch(
         if lyrics:
             lyrics_state.cached_lyrics = lyrics
             lyrics_state.status = LyricsStatus.AVAILABLE
-            return _format_cached_lyrics(elapsed, duration, lyrics_state, lyrics_manager)
+            return _format_cached_lyrics(
+                elapsed, duration, lyrics_state, lyrics_manager
+            )
 
         lyrics_state.status = LyricsStatus.NOT_FOUND
         if lyrics_state.no_lyrics_message is None:
