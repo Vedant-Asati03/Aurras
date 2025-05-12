@@ -8,6 +8,9 @@ from aurras.ui.core.registry.command import CommandRegistry
 from aurras.ui.core.registry.shortcut import ShortcutRegistry
 from aurras.ui.core.registry.completer import CompleterRegistry
 
+command_registry = CommandRegistry()
+shortcut_registry = ShortcutRegistry(command_registry=command_registry)
+
 
 __all__ = [
     "CommandRegistry",

@@ -7,10 +7,8 @@ This package contains the core components that power the UI functionality:
 - input_processor: Processes and routes user input
 """
 
-from .input_processor import InputProcessor
-from .registry.command import CommandRegistry
-from .registry.shortcut import ShortcutRegistry
+from aurras.ui.core.input_processor import InputProcessor
 
 input_processor = InputProcessor()
 
-__all__ = ["input_processor", "CommandRegistry", "ShortcutRegistry"]
+__all__ = ["input_processor"]

@@ -17,7 +17,7 @@ from aurras.ui.core.input_lexer import InputLexer
 from aurras.utils.exceptions import InvalidInputError
 from aurras.ui.completer.history import SongHistoryManager
 from aurras.ui.adaptive_completer import AdaptiveCompleter
-from aurras.ui.core.registry import CommandRegistry, ShortcutRegistry
+from aurras.ui.core.registry import command_registry, shortcut_registry
 from aurras.ui.handler import register_all_commands, register_default_shorthands
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ class InputProcessor:
         """Initialize the input processor."""
         self.user_input = None
         self.dynamic_search_bar = AdaptiveCompleter()
-        self.command_registry = CommandRegistry()
-        self.shorthand_registry = ShortcutRegistry(self.command_registry)
+        self.command_registry = command_registry
+        self.shorthand_registry = shortcut_registry
         register_all_commands(self.command_registry)
         register_default_shorthands(self.shorthand_registry)
 
