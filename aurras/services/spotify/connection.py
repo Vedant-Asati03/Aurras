@@ -1,58 +1,52 @@
 """
-Spotify Connection Module
+Spotify Client Module
 
-This module handles connections to the Spotify API.
+This module handles Spotify API client creation and interactions.
 """
 
-import sqlite3
-import spotipy
-from spotipy import util
+import logging
 
-# Replace absolute import
-from ...utils.path_manager import PathManager
+logger = logging.getLogger(__name__)
 
-_path_manager = PathManager()
+SCOPE = "playlist-read-private"
+REDIRECT_URI = "https://localhost:8080/"
 
 
 class SetupSpotifyConnection:
     """
-    Class for setting up a connection to the Spotify API.
+    Handles Spotify API client creation and operations.
+
+    This class creates and manages authenticated Spotify API clients
+    and provides methods for common API operations.
     """
 
-    def __init__(self) -> None:
-        """Initialize the Spotify connection attributes."""
-        self.client_id = None
-        self.client_secret = None
-        self.scope = None
-        self.username = None
-        self.redirect_uri = None
-        self.spotify_conn = None
+    def __init__(self):
+        """Initialize the SpotifyClient."""
 
-    def _fetch_auth_credentials_from_db(self):
-        """Fetch authentication credentials from the database."""
-        with sqlite3.connect(_path_manager.spotify_auth) as auth:
-            cursor = auth.cursor()
-            cursor.execute(
-                "SELECT client_id, client_secret, scope, username, redirect_uri FROM spotify_auth"
-            )
-            credentials = cursor.fetchone()
+    def create_spotify_client(self):
+        """
+        Get an authenticated Spotify client.
 
-        self.client_id = credentials[0]
-        self.client_secret = credentials[1]
-        self.scope = credentials[2]
-        self.username = credentials[3]
-        self.redirect_uri = credentials[4]
+        Returns:
+            spotipy.Spotify: An authenticated Spotify client
+        """
+        from aurras.services.spotify.cache import CredentialsCache
 
-    def create_spotify_connection(self):
-        """Create a connection to the Spotify API."""
-        self._fetch_auth_credentials_from_db()
+        cache = CredentialsCache()
+        credentials = cache.load_credentials()
 
-        token = util.prompt_for_user_token(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            scope=self.scope,
-            username=self.username,
-            redirect_uri=self.redirect_uri,
+        if not credentials:
+            return None
+
+        import spotipy
+
+        token = spotipy.util.prompt_for_user_token(
+            username=credentials["username"],
+            scope=SCOPE,
+            client_id=credentials["client_id"],
+            client_secret=credentials["client_secret"],
+            redirect_uri=REDIRECT_URI,
         )
 
-        self.spotify_conn = spotipy.Spotify(auth=token)
+        if spotify_client := spotipy.Spotify(auth=token):
+            return spotify_client
