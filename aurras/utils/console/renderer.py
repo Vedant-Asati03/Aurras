@@ -9,60 +9,10 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Callable, Union, Tuple
 
-from rich.live import Live
-from rich.style import Style
-from rich.table import Table
-from rich.box import ROUNDED
-from rich.console import Console
-
-from ..console.manager import get_console
-from ...utils.exceptions import DisplayError, ThemeError
-from ...themes import get_theme, get_current_theme, ThemeDefinition
-from ...themes.adapters import theme_to_rich_theme, get_gradient_styles
+from aurras.utils.exceptions import DisplayError, ThemeError
+from aurras.utils.console import console, apply_gradient_to_text
 
 logger = logging.getLogger(__name__)
-
-
-def get_current_theme_instance() -> ThemeDefinition:
-    """
-    Get the current theme instance.
-
-    Returns:
-        The current theme definition
-    """
-    theme_name = get_current_theme()
-    return get_theme(theme_name)
-
-
-def get_theme_styles(theme_obj: ThemeDefinition) -> Dict[str, Union[Style, str]]:
-    """
-    Get Rich compatible styles from a theme object.
-
-    Args:
-        theme_obj: Theme definition object
-
-    Returns:
-        Dictionary of style names to Rich Style objects
-    """
-    rich_theme = theme_to_rich_theme(theme_obj)
-    return rich_theme.styles
-
-
-def get_theme_gradients(theme_obj: ThemeDefinition) -> Dict[str, List[str]]:
-    """
-    Get gradient styles from a theme object.
-
-    Args:
-        theme_obj: Theme definition object
-
-    Returns:
-        Dictionary of gradient names to lists of color strings
-    """
-    return get_gradient_styles(theme_obj)
-
-
-# Get the current theme for convenient access
-theme = get_current_theme_instance()
 
 
 class UIComponent(ABC):
@@ -77,14 +27,13 @@ class UIComponent(ABC):
 class UIRenderer:
     """Component-based UI renderer for the console."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self):
         """
         Initialize the UI renderer.
 
         Args:
             console: Rich console to use for rendering
         """
-        self.console = console or get_console()
         self.components: Dict[str, UIComponent] = {}
         self._live = None
         self._running = False
@@ -129,11 +78,11 @@ class UIRenderer:
         self._layout_func = layout_func
 
         try:
-            self._live = Live(
+            # Use the new console factory method
+            self._live = console.create_live_display(
                 self._generate_live_render(),
-                console=self.console,
-                transient=True,
                 refresh_per_second=refresh_per_second,
+                transient=True,
             )
 
             self._live.start()
@@ -198,7 +147,10 @@ class UIRenderer:
 
             rendered_components = []
             if not self.components:
-                return "[yellow]No UI components registered[/yellow]"
+                message = console.style_text(
+                    text="No UI components registered", style_key="info"
+                )
+                return message
 
             for name, component in self.components.items():
                 try:
@@ -259,30 +211,42 @@ class UIRenderer:
         try:
             if layout_func:
                 try:
-                    self.console.print(layout_func())
+                    console.print(layout_func())
                 except ThemeError as e:
-                    error_msg = f"Theme error in layout function: {e}"
+                    error_msg = console.style_text(
+                        text=f"Theme error in layout function: {e}",
+                        style_key="error",
+                        print_it=True,
+                    )
                     logger.error(error_msg)
-                    self.console.print(f"[bold red]{error_msg}[/]")
                 except Exception as e:
-                    error_msg = f"Error in layout function: {e}"
+                    error_msg = console.style_text(
+                        text=f"Error in layout function: {e}",
+                        style_key="error",
+                        print_it=True,
+                    )
                     logger.error(error_msg)
-                    self.console.print(f"[bold red]{error_msg}[/]")
             else:
                 # Default layout - just print components in order
                 for name, component in self.components.items():
                     try:
                         rendered = component.render()
                         if rendered is not None:
-                            self.console.print(rendered)
+                            console.print(rendered)
                     except ThemeError as e:
-                        error_msg = f"Theme error rendering component {name}: {e}"
+                        error_msg = console.style_text(
+                            text=f"Theme error rendering component {name}: {e}",
+                            style_key="error",
+                            print_it=True,
+                        )
                         logger.error(error_msg)
-                        self.console.print(f"[bold red]{error_msg}[/]")
                     except Exception as e:
-                        error_msg = f"Error rendering component {name}: {e}"
+                        error_msg = console.style_text(
+                            text=f"Error rendering component {name}: {e}",
+                            style_key="error",
+                            print_it=True,
+                        )
                         logger.error(error_msg)
-                        self.console.print(f"[bold red]{error_msg}[/]")
         except Exception as e:
             error_msg = f"Critical error in rendering: {e}"
             logger.error(error_msg)
@@ -293,7 +257,10 @@ class Header(UIComponent):
     """Header component with title and subtitle."""
 
     def __init__(
-        self, title: str, subtitle: str = "", style: str = "bold", box_style=None
+        self,
+        title: str,
+        subtitle: str = "",
+        style: str = "bold",
     ):
         """
         Initialize the header component.
@@ -302,37 +269,27 @@ class Header(UIComponent):
             title: Main title text
             subtitle: Optional subtitle text
             style: Style for the title
-            box_style: Optional box style for panels
         """
         self.title = title
         self.subtitle = subtitle
         self.style = style
-        self.box_style = box_style
 
     def render(self) -> str:
         """Render the header with appropriate styling."""
-        theme_obj = get_current_theme_instance()
-        theme_styles = get_theme_styles(theme_obj)
-
-        header_color = theme_styles.get(
-            "header", theme_styles.get("primary", "#FFFFFF")
-        )
-        subtitle_color = theme_styles.get("text_muted", "dim")
-
-        # Create title with styling
-        styled_title = f"[{self.style} {header_color}]{self.title}[/]"
-
-        # Add subtitle if provided
         if self.subtitle:
-            result = f"{styled_title}\n[{subtitle_color}]{self.subtitle}[/]"
+            title = console.style_text(text=self.title, style_key="primary", bold=True)
+            subtitle = console.style_text(text=self.subtitle, style_key="text_muted")
+            result = f"{title}\n{subtitle}"
         else:
-            result = styled_title
+            result = console.style_text(text=self.title, style_key="primary", bold=True)
 
         return result
 
 
 class ProgressIndicator(UIComponent):
-    """Enhanced progress indicator with description and time display."""
+    """
+    Enhanced progress indicator with description and time display.
+    """
 
     def __init__(
         self,
@@ -365,37 +322,38 @@ class ProgressIndicator(UIComponent):
         filled_width = int((progress / 100) * self.bar_width)
         unfilled_width = self.bar_width - filled_width
 
-        # Get colors from the theme using adapter helpers
-        theme_obj = get_current_theme_instance()
-        theme_styles = get_theme_styles(theme_obj)
-        theme_gradients = get_theme_gradients(theme_obj)
+        values_color = console.text_muted
 
-        color = theme_styles.get("accent", "#BD93F9")
-        values_color = theme_styles.get("text_muted", "#CCCCCC")
-        percentage_color = theme_styles.get("accent", "#BD93F9")
-
-        # Get progress gradient if available
-        progress_colors = theme_gradients.get("progress", [color])
-        if len(progress_colors) > 0:
-            color = progress_colors[0]
-
-        bar = f"[{color}]{'█' * filled_width}[/][dim]{'█' * unfilled_width}[/]"
+        filled_bar = console.style_text(
+            text=apply_gradient_to_text(
+                f"{'█' * filled_width}", console.progress_gradient
+            ),
+            style_key="primary",
+        )
+        unfilled_bar = console.style_text(
+            text=f"{'█' * unfilled_width}", style_key="text_muted"
+        )
+        bar = f"{filled_bar}{unfilled_bar}"
 
         if self.unit == "s":
             from .formatting import format_time_values
 
             completed_fmt = format_time_values(self.completed)
             total_fmt = format_time_values(self.total)
-            values_text = f"[dim {values_color}]{completed_fmt} / [dim {values_color}]{total_fmt}[/]"
+            values_text = (
+                f"[{values_color}]{completed_fmt} / [{values_color}]{total_fmt}[/]"
+            )
         else:
-            values_text = f"[dim {values_color}]{self.completed:.1f}[/] / [dim {values_color}]{self.total:.1f}{self.unit}[/]"
+            values_text = f"[{values_color}]{self.completed:.1f}[/] / [{values_color}]{self.total:.1f}{self.unit}[/]"
 
         if self.description:
-            desc_text = f"[bold]{self.description}[/] "
+            desc_text = console.style_text(
+                text=f"{self.description} ", style_key="text_muted", text_style="bold"
+            )
         else:
             desc_text = ""
 
-        return f"{desc_text}{bar} [bold {percentage_color}][/] {values_text}"
+        return f"{desc_text}{bar} {values_text}"
 
 
 class FeedbackMessage(UIComponent):
@@ -444,24 +402,15 @@ class FeedbackMessage(UIComponent):
 
     def render(self) -> str:
         """Render the feedback message with appropriate styling."""
-        theme_obj = get_current_theme_instance()
-        theme_styles = get_theme_styles(theme_obj)
-        theme_gradients = get_theme_gradients(theme_obj)
-
         match self.style:
             case "error":
-                color = theme_styles.get("error", "#FF5555")
+                color = console.error
                 icon = f"[bold {color}][/]"
             case "system":
-                color = theme_styles.get("info", theme_styles.get("accent", "#33CCFF"))
+                color = console.info
                 icon = f"[bold {color}][/]"
             case _:
-                # Try to use feedback gradient if available
-                feedback_colors = theme_gradients.get("feedback", [])
-                if feedback_colors:
-                    color = feedback_colors[0]
-                else:
-                    color = theme_styles.get("success", "#50FA7B")
+                color = console.success
                 icon = f"[bold {color}][/]"
 
         if self.action:
@@ -498,18 +447,11 @@ class KeybindingHelp(UIComponent):
         """Render the keybindings in multiple columns."""
         binding_count = len(self.keybindings)
 
-        # Get theme styles using adapter helpers
-        theme_obj = get_current_theme_instance()
-        theme_styles = get_theme_styles(theme_obj)
-
-        # Use provided styles or fall back to theme defaults
-        key_style = self.key_style or theme_styles.get("accent", "#BD93F9")
-        value_style = self.value_style or theme_styles.get("text", "white")
-
         if binding_count == 0:
-            return (
-                f"[{theme_styles.get('dim', 'dim')}]No keyboard shortcuts available[/]"
+            no_bindings_msg = console.style_text(
+                text="No keyboard shortcuts available", style_key="text_muted"
             )
+            return no_bindings_msg
 
         items_per_col = (binding_count + self.columns - 1) // self.columns
 
@@ -525,9 +467,11 @@ class KeybindingHelp(UIComponent):
 
             column_text = []
             for key, desc in items[start:end]:
-                column_text.append(
-                    f"[bold {key_style}]{key}[/] [{value_style}]{desc}[/]"
+                stlyed_key = console.style_text(
+                    text=key, style_key=self.key_style, text_style="bold"
                 )
+                styled_desc = console.style_text(text=desc, style_key=self.value_style)
+                column_text.append(f"{stlyed_key} {styled_desc}")
 
             columns_text.append(" · ".join(column_text))
 
@@ -573,7 +517,6 @@ class ListDisplay(UIComponent):
         self.max_height = max_height
         self.style_key = style_key
         self.use_table = use_table
-        self.highlight_style = highlight_style
 
         # Calculate pagination values if max_height is set
         self.page_count = 1
@@ -588,41 +531,24 @@ class ListDisplay(UIComponent):
 
     def render(self) -> Any:
         """Render the list with appropriate styling."""
-        # Get theme styles
-        theme_obj = get_current_theme_instance()
-        theme_styles = get_theme_styles(theme_obj)
-        theme_gradients = get_theme_gradients(theme_obj)
+        item_style = console.text
+        description_style = console.text_muted
+        highlight_color = console.accent
+        # border_style = console.primary
 
-        # Get style colors from theme
-        title_style = theme_styles.get("header", theme_styles.get("primary", "#FFFFFF"))
-        item_style = theme_styles.get(
-            self.style_key, theme_styles.get("text", "#CCCCCC")
-        )
-        description_style = theme_styles.get("text_muted", "dim")
-
-        # Properly resolve highlight style color - this is where the bug was
-        if self.highlight_style:
-            # If highlight_style is a theme key, look it up in theme_styles
-            highlight_color = theme_styles.get(
-                self.highlight_style, self.highlight_style
-            )
-        else:
-            # Default fallback is the accent color from theme
-            highlight_color = theme_styles.get("accent", "#BD93F9")
-
-        border_style = theme_styles.get("border", theme_styles.get("primary", "cyan"))
-
-        # Handle empty list
         if not self.items:
-            empty_msg = "[italic]No items to display[/]"
+            empty_msg = console.style_text(
+                text="No items to display", style_key="text_muted", text_style="italic"
+            )
+
             if self.use_table:
-                table = Table(
-                    box=ROUNDED,
-                    border_style=border_style,
-                    title=self.title if self.title else "Empty List",
+                table = console.create_table(
+                    title=self.title if self.title else "Empty List"
                 )
+
                 table.add_column("Message")
                 table.add_row(empty_msg)
+
                 return table
             else:
                 return f"{empty_msg}"
@@ -636,9 +562,7 @@ class ListDisplay(UIComponent):
 
         # Render as table if requested
         if self.use_table:
-            table = Table(
-                box=ROUNDED,
-                border_style=border_style,
+            table = console.create_table(
                 title=self.title if self.title else None,
                 caption=self._get_pagination_text() if self.page_count > 1 else None,
                 show_header=self.show_header,
@@ -695,7 +619,7 @@ class ListDisplay(UIComponent):
 
             # Add title if provided
             if self.title:
-                lines.append(f"[bold {title_style}]{self.title}[/]")
+                lines.append(f"[bold {console.theme_obj.primary.hex}]{self.title}[/]")
                 lines.append("")
 
             # Add description if provided
@@ -735,11 +659,7 @@ class ListDisplay(UIComponent):
 
     def _get_pagination_text(self) -> str:
         """Get pagination status text."""
-        theme_obj = get_current_theme_instance()
-        theme_styles = get_theme_styles(theme_obj)
-        dim_style = theme_styles.get("dim", "dim")
-
-        return f"[{dim_style}]Page {self.current_page + 1} of {self.page_count} ({len(self.items)} items)[/]"
+        return f"[{console.theme_obj.dim}]Page {self.current_page + 1} of {self.page_count} ({len(self.items)} items)[/]"
 
     def next_page(self) -> bool:
         """
@@ -764,36 +684,3 @@ class ListDisplay(UIComponent):
             self.current_page -= 1
             return True
         return False
-
-    def select_item(self, index: int) -> bool:
-        """
-        Select an item by index.
-
-        Args:
-            index: Index of the item to select
-
-        Returns:
-            True if selection changed, False otherwise
-        """
-        if 0 <= index < len(self.items):
-            self.selected_index = index
-
-            # Update current page if needed to show the selected item
-            if self.max_height:
-                new_page = index // self.max_height
-                if new_page != self.current_page:
-                    self.current_page = new_page
-
-            return True
-        return False
-
-    def get_selected_item(self) -> Optional[Union[str, Tuple[str, str]]]:
-        """
-        Get the currently selected item.
-
-        Returns:
-            The selected item, or None if nothing is selected
-        """
-        if 0 <= self.selected_index < len(self.items):
-            return self.items[self.selected_index]
-        return None
