@@ -9,16 +9,14 @@ validation, type conversion, and serialization to/from YAML configuration files.
 from typing import Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
-from .backup import Backup
-from .validators import validate_volume
-from .command import CommandSettings
-from .shorthand import ShortHandSettings
-from .keyboard import KeyboardShortcuts
-from .appearance import AppearanceSettings
-from .utils import dict_to_kebab_case, dict_to_snake_case
-from ....utils.path_manager import PathManager
-
-_path_manager = PathManager()
+from aurras.utils.path_manager import _path_manager
+from aurras.core.settings.models.backup import Backup
+from aurras.core.settings.models.command import CommandSettings
+from aurras.core.settings.models.keyboard import KeyboardShortcuts
+from aurras.core.settings.models.validators import validate_volume
+from aurras.core.settings.models.shorthand import ShortHandSettings
+from aurras.core.settings.models.appearance import AppearanceSettings
+from aurras.core.settings.models.utils import dict_to_kebab_case, dict_to_snake_case
 
 
 class Settings(BaseModel):
