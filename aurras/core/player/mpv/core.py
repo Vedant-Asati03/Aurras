@@ -13,11 +13,14 @@ from collections import deque
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 
-from .ui import PlayerLayout
-from .keyboard import setup_key_bindings
-from .events import create_property_observers
-from .lyrics_integration import prefetch_lyrics, get_lyrics_display
-from .state import (
+from aurras.core.player.mpv.ui import PlayerLayout
+from aurras.core.player.mpv.keyboard import setup_key_bindings
+from aurras.core.player.mpv.events import create_property_observers
+from aurras.core.player.mpv.lyrics_integration import (
+    prefetch_lyrics,
+    get_lyrics_display,
+)
+from aurras.core.player.mpv.state import (
     PlaybackState,
     LyricsStatus,
     FeedbackType,
@@ -28,18 +31,15 @@ from .state import (
     HistoryData,
     LyricsState,
 )
-from ..cache import LRUCache
-from ..python_mpv import MPV, ShutdownError
-from ..history import RecentlyPlayedManager
-from ..memory import memory_stats_decorator, optimize_memory_usage
-from ....services.lyrics import LyricsManager
-from ....utils.exceptions import DisplayError
-from ....utils.console.manager import get_console
-from ....core.settings import load_settings
+from aurras.core.player.cache import LRUCache
+from aurras.core.player.python_mpv import MPV, ShutdownError
+from aurras.core.player.history import RecentlyPlayedManager
+from aurras.core.player.memory import memory_stats_decorator, optimize_memory_usage
+from aurras.services.lyrics import LyricsManager
+from aurras.core.settings import SETTINGS
+from aurras.utils.console import console
 
 logger = logging.getLogger(__name__)
-
-SETTINGS = load_settings()
 
 
 class MPVPlayer(MPV):
@@ -54,7 +54,6 @@ class MPVPlayer(MPV):
     - Optimized performance
 
     Attributes:
-        console: Rich console for UI rendering
         lyrics_manager: Manager for lyrics operations
         volume: Current volume level (0-130)
     """
@@ -88,7 +87,6 @@ class MPVPlayer(MPV):
             input_terminal=True,
         )
 
-        self.console = get_console()
         self.lyrics_manager = LyricsManager()  # Updated to LyricsManager
         # Use a smaller thread pool and make it context-managed
         self._thread_pool = ThreadPoolExecutor(max_workers=2).__enter__()
@@ -322,14 +320,14 @@ class MPVPlayer(MPV):
             return 0
 
         except KeyboardInterrupt:
-            self.console.print("\n[yellow]Playback interrupted by user[/]")
+            console.print_info("\nPlayback interrupted by user")
             return 1
         except ShutdownError:
             logger.debug("MPV core shutdown detected, exiting cleanly")
             return 0
         except Exception as e:
             logger.error(f"Error during playback: {e}", exc_info=True)
-            self.console.print(f"[bold red]Playback error: {str(e)}[/]")
+            console.print_error(f"Playback error: {str(e)}")
             return 2
         finally:
             self._stop_display()
@@ -377,7 +375,7 @@ class MPVPlayer(MPV):
             song_name: The initial song name to display
         """
         try:
-            player_layout = PlayerLayout(console=self.console)
+            player_layout = PlayerLayout()
 
             last_song = None
             metadata_ready = False
@@ -530,23 +528,6 @@ class MPVPlayer(MPV):
             return self._current_song_names[self._state.current_playlist_pos]
         return "Unknown"
 
-    def _get_song_source(self) -> str:
-        """
-        Determine if the current song is from history or search results.
-
-        Returns:
-            A formatted text indicator if song is from history, or empty string otherwise
-        """
-        source_text = ""
-
-        if (
-            self._state.current_playlist_pos < self._state.queue_start_index
-            and self._state.queue_start_index > 0
-        ):
-            source_text = " [dim](From History)[/dim]"
-
-        return source_text
-
     def _load_history_data(self, song_name: str) -> None:
         """
         Load and categorize play history data for the current song.
@@ -594,58 +575,6 @@ class MPVPlayer(MPV):
             self._history.loaded = (
                 True  # Still mark as loaded to prevent repeated attempts
             )
-
-    def _get_history_text(self, song_name: str) -> Optional[str]:
-        """
-        Get formatted history information text for display in the UI.
-
-        Generates rich-formatted text with play count statistics and last played time
-        based on the song's play history. Different formatting is applied based on
-        play frequency (favorite, regular, or occasional).
-
-        Args:
-            song_name: Name of the current song
-
-        Returns:
-            Formatted history text string or None if song wasn't played before
-        """
-        if not self._history.loaded or self._history.play_count <= 1:
-            return None
-
-        if self._history.play_count > 10:
-            count_text = f"[bold gold1]You've played this {self._history.play_count} times![/bold gold1]"
-        elif self._history.play_count > 5:
-            count_text = (
-                f"[yellow]You've played this {self._history.play_count} times[/yellow]"
-            )
-        elif self._history.play_count > 1:
-            count_text = (
-                f"[dim]You've played this {self._history.play_count} times[/dim]"
-            )
-        else:
-            return None
-
-        last_played_text = ""
-        if self._history.last_played:
-            current_time = int(time.time())
-            time_diff = current_time - self._history.last_played
-
-            if time_diff < 3600:
-                minutes = time_diff // 60
-                last_played_text = f"[dim]Last played: {minutes} minute{'s' if minutes != 1 else ''} ago[/dim]"
-            elif time_diff < 86400:
-                hours = time_diff // 3600
-                last_played_text = f"[dim]Last played: {hours} hour{'s' if hours != 1 else ''} ago[/dim]"
-            else:
-                days = time_diff // 86400
-                last_played_text = (
-                    f"[dim]Last played: {days} day{'s' if days != 1 else ''} ago[/dim]"
-                )
-
-        if last_played_text:
-            return f"\n{count_text} · {last_played_text}"
-        else:
-            return f"\n{count_text}"
 
     def _show_user_feedback(
         self,
