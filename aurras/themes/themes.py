@@ -7,8 +7,8 @@ Each theme is fully typed and provides a consistent structure for the applicatio
 
 from typing import Dict, Final
 
-from .colors import ThemeColor
-from .definitions import ThemeDefinition, ThemeCategory
+from aurras.themes.colors import ThemeColor
+from aurras.themes.definitions import ThemeDefinition, ThemeCategory
 
 
 # Define the built-in themes with proper typing
@@ -370,9 +370,8 @@ def get_default_theme_from_settings() -> str:
         The theme name specified in settings, or DEFAULT_THEME if not found
     """
     try:
-        from ..core.settings import load_settings
+        from aurras.core.settings import SETTINGS
 
-        SETTINGS = load_settings()
         dafault_theme = SETTINGS.appearance_settings.theme
 
         theme_name = dafault_theme.upper()
