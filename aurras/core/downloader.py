@@ -21,64 +21,17 @@ import contextlib
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Iterator, Tuple
 
-from .settings import load_settings
-from ..utils.path_manager import PathManager
-from ..utils.console.manager import get_console
-from ..utils.handle_fuzzy_search import FuzzySearcher
-from ..utils.console.renderer import (
-    get_current_theme_instance,
-    get_theme_styles,
-    get_theme_gradients,
-)
-
-SETTINGS = load_settings()
+from aurras.utils.console import console
+from aurras.core.settings import SETTINGS
+from aurras.utils.path_manager import _path_manager
+from aurras.utils.handle_fuzzy_search import FuzzySearcher
+from aurras.utils.db_connection import DatabaseConnectionManager
 
 METADATA_FILE = "metadata.spotdl"
 DEFAULT_BATCH_SIZE = 25
 MAX_RETRIES = int(SETTINGS.maximum_retries)
 
-_path_manager = PathManager()
-console = get_console()
 logger = logging.getLogger(__name__)
-
-
-class ThemeHelper:
-    """Utility class for theme-related operations to reduce code duplication."""
-
-    @staticmethod
-    def retrieve_theme_gradients_and_styles():
-        """
-        Get the current theme instance and its gradients.
-
-        Returns:
-            Tuple of active theme gradients and styles.
-        """
-        active_theme_obj = get_current_theme_instance()
-        active_theme_gradients = get_theme_gradients(active_theme_obj)
-        active_theme_styles = get_theme_styles(active_theme_obj)
-        return active_theme_gradients, active_theme_styles
-
-    @staticmethod
-    def get_theme_color(theme_styles, key: str, default: str) -> str:
-        """
-        Get a color from theme styles with fallback.
-
-        Args:
-            theme_styles: The theme styles dictionary
-            key: The color key to look up
-            default: Default color to use if key not found
-
-        Returns:
-            Color value as string
-        """
-        style = theme_styles.get(key)
-
-        if isinstance(style, str):
-            return style
-        elif hasattr(style, "color") and style.color:
-            return style.color.name if hasattr(style.color, "name") else default
-        else:
-            return default
 
 
 @contextlib.contextmanager
@@ -92,40 +45,12 @@ def change_dir(new_dir: str) -> Iterator[None]:
         os.chdir(old_dir)
 
 
-class DatabaseConnection:
-    """Singleton database connection manager."""
-
-    _instance = None
-    _connection = None
-
-    def __new__(cls, db_path: Optional[Path] = None):
-        if cls._instance is None:
-            cls._instance = super(DatabaseConnection, cls).__new__(cls)
-            if db_path:
-                cls._instance.db_path = db_path
-        return cls._instance
-
-    def get_connection(self) -> sqlite3.Connection:
-        """Get or create a database connection."""
-        if self._connection is None:
-            self._connection = sqlite3.connect(self.db_path)
-            self._connection.row_factory = sqlite3.Row
-        return self._connection
-
-    def close(self) -> None:
-        """Close the database connection."""
-        if self._connection:
-            self._connection.close()
-            self._connection = None
-
-
 class DownloadsDatabase:
     """Manager for the downloaded songs database."""
 
     def __init__(self):
         """Initialize the downloads database."""
-        self.db_path = _path_manager.downloads_db
-        self.db_conn = DatabaseConnection(self.db_path)
+        self.db_conn = DatabaseConnectionManager(_path_manager.downloads_db)
         self._initialize_database()
         self.playlist_db = None  # Lazy initialization
 
@@ -357,21 +282,13 @@ class ExtractMetadata:
         Args:
             batch_size: Number of songs to process in a batch
         """
-        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-        warning_color = ThemeHelper.get_theme_color(
-            active_theme_styles, "warning", "yellow"
-        )
-        error_color = ThemeHelper.get_theme_color(active_theme_styles, "error", "red")
-
         try:
             with open(METADATA_FILE, "r") as file:
                 try:
                     songs_data = json.loads(file.read())
 
                     if not songs_data:
-                        console.print(
-                            f"[bold {warning_color}]Warning:[/] No songs found in metadata file"
-                        )
+                        console.print_warning("No songs found in metadata file")
                         return
 
                     # Process songs in batches
@@ -407,20 +324,15 @@ class ExtractMetadata:
                         self._update_database_batch(songs_to_update)
 
                 except json.JSONDecodeError:
-                    console.print(
-                        f"[bold {error_color}]Error:[/] Metadata file contains invalid JSON"
-                    )
+                    console.print_error(f"Invalid JSON in {METADATA_FILE} file")
                     logger.error("Invalid JSON in metadata.spotdl file")
 
         except FileNotFoundError:
-            console.print(
-                f"[bold {error_color}]Error:[/] {METADATA_FILE} file not found"
-            )
+            console.print_error(f"Error: {METADATA_FILE} file not found")
             logger.error(f"{METADATA_FILE} file not found")
+
         except Exception as e:
-            console.print(
-                f"[bold {error_color}]Error:[/] Failed to extract metadata: {str(e)}"
-            )
+            console.print_error(f"Failed to extract metadata: {str(e)}")
             logger.error(f"Failed to extract metadata: {e}", exc_info=True)
 
     def _replace_artists_in_extracted_metadata(
@@ -436,12 +348,8 @@ class ExtractMetadata:
             Updated metadata with replaced artists
         """
         if not data:
-            _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-            error_color = ThemeHelper.get_theme_color(
-                active_theme_styles, "error", "red"
-            )
-            console.print(
-                f"[bold {error_color}]Error:[/] No metadata found for the song. Database not updated!"
+            console.print_error(
+                "Error: No metadata found for the song. Database not updated!"
             )
             return {}
 
@@ -461,12 +369,8 @@ class ExtractMetadata:
             Updated metadata with file path
         """
         if not data:
-            _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-            error_color = ThemeHelper.get_theme_color(
-                active_theme_styles, "error", "red"
-            )
-            console.print(
-                f"[bold {error_color}]Error:[/] No metadata found for the song. Database not updated!"
+            console.print_error(
+                "Error: No metadata found for the song. Database not updated!"
             )
             return {}
 
@@ -483,11 +387,7 @@ class ExtractMetadata:
             self.database.batch_save_songs(data_batch, self.playlist)
 
         else:
-            theme_style = get_theme_styles(get_current_theme_instance())
-            info_color = ThemeHelper.get_theme_color(theme_style, "info", "blue")
-            console.print(
-                f"[{info_color}]No metadata to update in batch[/{info_color}]"
-            )
+            console.print_warning("No metadata to update in batch")
 
     def _find_downloaded_file(
         self, artist: str, title: str, output_dir: Path
@@ -582,25 +482,16 @@ class SongDownloader:
         """
         Download songs using subprocess for the actual download, but use SpotDL library for metadata.
         """
-        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-
-        warning_color = ThemeHelper.get_theme_color(
-            active_theme_styles, "warning", "yellow"
-        )
-        error_color = ThemeHelper.get_theme_color(active_theme_styles, "error", "red")
-        accent_color = ThemeHelper.get_theme_color(
-            active_theme_styles, "accent", "cyan"
-        )
-
         if not self.song_list_to_download:
-            console.print(
-                f"[bold {warning_color}]Warning:[/] No songs provided for download"
-            )
+            console.print_warning("Warning: No songs provided for download")
             return
 
         try:
-            console.print(
-                f"Songs will be saved to: [bold {accent_color}]{self.download_path}[/]"
+            console.style_text(
+                text=f"Songs will be saved to: {self.download_path}",
+                style_key="accent",
+                text_style="bold",
+                print_it=True,
             )
             if self._download_with_subprocess():
                 # This way if download fails, we dont extract metadata
@@ -608,20 +499,16 @@ class SongDownloader:
                     self.metadata_extractor.extract_metadata_from_spotdl_saved()
 
         except KeyboardInterrupt:
-            console.print(
-                f"[bold {error_color}]Cancelled:[/] Download cancelled by user"
-            )
+            console.print_error("Download cancelled by user")
             return
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Subprocess error: {e}", exc_info=True)
-            console.print(
-                f"[bold {error_color}]Error:[/] Error running spotdl: {str(e)}"
-            )
+            console.print_error(f"Error running spotdl: {str(e)}")
+
         except Exception as e:
             logger.error(f"Failed to download songs: {e}", exc_info=True)
-            console.print(
-                f"[bold {error_color}]Error:[/] Error during download: {str(e)}"
-            )
+            console.print_error(f"Error during download: {str(e)}")
 
     def _download_with_subprocess(self):
         """
@@ -631,16 +518,6 @@ class SongDownloader:
         """
         # Format: {artist} - {title}.{output-ext}
         output_format = "{artists} - {title}"
-
-        _, active_theme_styles = ThemeHelper.retrieve_theme_gradients_and_styles()
-
-        success_color = ThemeHelper.get_theme_color(
-            active_theme_styles, "success", "green"
-        )
-        error_color = ThemeHelper.get_theme_color(active_theme_styles, "error", "red")
-        accent_color = ThemeHelper.get_theme_color(
-            active_theme_styles, "accent", "cyan"
-        )
 
         cmd_parts = [
             f"spotdl download {' '.join(f'"{item}"' for item in self.song_list_to_download)}",
@@ -653,7 +530,6 @@ class SongDownloader:
         if self.bitrate:
             cmd_parts.append(f'--bitrate "{self.bitrate}"')
 
-        # Add max retries parameter to use spotdl's built-in retry mechanism
         cmd_parts.append(f"--max-retries {MAX_RETRIES}")
 
         cmd_parts.append("--ytm-data --preload --save-file metadata.spotdl")
@@ -667,9 +543,11 @@ class SongDownloader:
                 )
                 logger.debug(f"Running command: {cmd}")
 
-                # Theme-consistent console output
-                console.print(
-                    f"[bold {accent_color}]Download:[/] Downloading {len(self.song_list_to_download)} songs (with max retries: {MAX_RETRIES})"
+                console.style_text(
+                    text=f"Download: {len(self.song_list_to_download)} songs",
+                    style_key="accent",
+                    text_style="bold",
+                    print_it=True,
                 )
 
                 subprocess.run(
@@ -678,15 +556,13 @@ class SongDownloader:
                     shell=True,
                 )
 
-            console.print(
-                f"[bold {success_color}]Complete:[/] Successfully downloaded {len(self.song_list_to_download)} songs"
+            console.print_success(
+                f"Complete: Successfully downloaded {len(self.song_list_to_download)} songs"
             )
             return True
         except subprocess.CalledProcessError as e:
             logger.error(f"Download failed: {e}")
-            console.print(
-                f"[bold {error_color}]Failed:[/] Download failed after {MAX_RETRIES} retries."
+            console.print_error(
+                f"Error: Download failed after {MAX_RETRIES} retries. Please check your internet connection or the song names."
             )
             raise
-
-        return False  # In case we somehow exit the try/except without returning_
