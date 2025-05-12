@@ -6,23 +6,22 @@ This module provides functionality for playing songs from local files.
 
 import logging
 from typing import List, Tuple
-from rich.console import Console
 
-from ..downloader import DownloadsDatabase
-from ...utils.exceptions import (
+from aurras.utils.console import console
+from aurras.core.downloader import DownloadsDatabase
+from aurras.utils.exceptions import (
     AurrasError,
     PlaybackError,
     DatabaseError,
     SongsNotFoundError,
-    PlayerError,
-    MPVLibraryError,
+    # PlayerError,
+    # MPVLibraryError,
 )
 
-from .mpv import MPVPlayer
-from .mpv.state import PlaybackState
-from .mpv.history_integration import integrate_history_with_playback
+from aurras.core.player.mpv import MPVPlayer
+from aurras.core.player.mpv.state import PlaybackState
+from aurras.core.player.mpv.history_integration import integrate_history_with_playback
 
-console = Console()
 logger = logging.getLogger(__name__)
 
 
@@ -109,7 +108,6 @@ class LocalPlaybackHandler(InitializeOfflinePlayer):
             playlist_name: Optional playlist name to play from
         """
         super().__init__()
-        self.console = Console()
         self.queue = GenerateQueue()
 
     def add_player(self, player):
@@ -134,8 +132,8 @@ class LocalPlaybackHandler(InitializeOfflinePlayer):
             song_names, song_urls = self.queue.create_queues()
 
             if not song_names:
-                console.print(
-                    "[bold red]No songs found in the database. Maybe try downloading some?[/bold red]"
+                console.print_warning(
+                    "No songs found in the database. Maybe try downloading some?"
                 )
                 raise SongsNotFoundError("No songs found in the database")
 
@@ -148,28 +146,28 @@ class LocalPlaybackHandler(InitializeOfflinePlayer):
             logger.debug("Playback completed successfully")
 
         except KeyboardInterrupt:
-            console.print("[yellow]Playback cancelled by user[/yellow]")
-        except SongsNotFoundError as e:
-            console.print(f"[bold red]{str(e)}[/bold red]")
-        except DatabaseError as e:
-            console.print(f"[bold red]Database error: {str(e)}[/bold red]")
-            logger.error(f"Database error during offline playback: {e}", exc_info=True)
-        except MPVLibraryError as e:
-            console.print(f"[bold red]MPV library error: {str(e)}[/bold red]")
-            logger.error(f"MPV library error: {e}", exc_info=True)
-        except PlayerError as e:
-            console.print(f"[bold red]Player error: {str(e)}[/bold red]")
-            logger.error(f"Player error during offline playback: {e}", exc_info=True)
-        except PlaybackError as e:
-            console.print(f"[bold red]Playback error: {str(e)}[/bold red]")
-            logger.error(f"Offline playback error: {e}", exc_info=True)
-        except AurrasError as e:
-            console.print(f"[bold red]Error: {str(e)}[/bold red]")
-            logger.error(f"Aurras error during offline playback: {e}", exc_info=True)
+            console.print_info("Playback cancelled by user")
+            logger.info("Playback cancelled by user")
+        # except SongsNotFoundError as e:
+        # console.print_error(f"Error: {str(e)}")
+        # logger.error(f"Error during offline playback: {e}", exc_info=True)
+        # except DatabaseError as e:
+        # console.print_error(f"Database error: {str(e)}")
+        # logger.error(f"Database error during offline playback: {e}", exc_info=True)
+        # except MPVLibraryError as e:
+        # console.print(f"[bold red]MPV library error: {str(e)}[/bold red]")
+        # logger.error(f"MPV library error: {e}", exc_info=True)
+        # except PlayerError as e:
+        # console.print(f"[bold red]Player error: {str(e)}[/bold red]")
+        # logger.error(f"Player error during offline playback: {e}", exc_info=True)
+        # except PlaybackError as e:
+        # console.print(f"[bold red]Playback error: {str(e)}[/bold red]")
+        # logger.error(f"Offline playback error: {e}", exc_info=True)
+        # except AurrasError as e:
+        # console.print(f"[bold red]Error: {str(e)}[/bold red]")
+        # logger.error(f"Aurras error during offline playback: {e}", exc_info=True)
         except Exception as e:
-            console.print(
-                f"[bold red]Unexpected error playing song: {str(e)}[/bold red]"
-            )
+            console.print_error(f"Unexpected error during offline playback: {str(e)}")
             logger.error(f"Unexpected offline playback error: {e}", exc_info=True)
         finally:
             self._cleanup_player()
