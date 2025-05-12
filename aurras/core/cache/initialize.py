@@ -4,11 +4,6 @@ Cache Initialization Module
 This module provides a class for initializing the search history database.
 """
 
-import sqlite3
-
-from aurras.utils.path_manager import _path_manager
-
-
 class InitializeSearchHistoryDatabase:
     """
     Class for initializing the search history database.
@@ -22,11 +17,13 @@ class InitializeSearchHistoryDatabase:
             connection: An optional pre-existing database connection. If not provided,
                        a new connection will be created for initialization.
         """
-        # If a connection is provided, use it, otherwise create a new one
         if connection:
             self._initialize_tables(connection)
         else:
-            with sqlite3.connect(_path_manager.cache_db) as db:
+            from aurras.utils.db_connection import DatabaseConnectionManager
+            from aurras.utils.path_manager import _path_manager
+
+            with DatabaseConnectionManager(_path_manager.cache_db) as db:
                 self._initialize_tables(db)
 
     def _initialize_tables(self, connection):
