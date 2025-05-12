@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.document import Document
 
-from ...themes import get_current_theme, get_theme
+from aurras.utils.console import console
 
 
 class InputLexer(Lexer):
@@ -40,16 +40,12 @@ class InputLexer(Lexer):
 
     def update_theme_colors(self):
         """Update the theme colors for syntax highlighting."""
-        theme_name = get_current_theme()
-        theme = get_theme(theme_name)
-
-        # Define style classes for different parts of the input
-        self.command_palette_style = f"class:command-palette fg:{theme.accent.hex} bold"
-        self.options_menu_style = f"class:options-menu fg:{theme.secondary.hex} bold"
-        self.shorthand_style = f"class:shorthand fg:{theme.primary.hex}"
-        self.command_style = f"class:command fg:{theme.secondary.hex}"
-        self.argument_style = f"class:argument fg:{theme.text.hex}"
-        self.default_style = f"class:text fg:{theme.text.hex}"
+        self.command_palette_style = f"class:command-palette fg:{console.accent} bold"
+        self.options_menu_style = f"class:options-menu fg:{console.secondary} bold"
+        self.shorthand_style = f"class:shorthand fg:{console.primary}"
+        self.command_style = f"class:command fg:{console.secondary}"
+        self.argument_style = f"class:argument fg:{console.text}"
+        self.default_style = f"class:text fg:{console.text}"
 
     def get_commands(self) -> List[str]:
         """Get a list of all available commands."""
