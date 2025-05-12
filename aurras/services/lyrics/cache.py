@@ -9,9 +9,9 @@ import sqlite3
 import logging
 from typing import Optional, Dict, List, Any
 
-from ...utils.path_manager import PathManager
+from aurras.utils.path_manager import _path_manager
+from aurras.core.cache.updater import UpdateSearchHistoryDatabase
 
-_path_manager = PathManager()
 logger = logging.getLogger(__name__)
 
 
@@ -48,12 +48,7 @@ class LyricsCache:
 
         # Then try database cache
         try:
-            cached_lyrics = self.load_lyrics_from_db(
-                song,
-                artist,
-                album,
-                0,  # Duration not needed for lookup
-            )
+            cached_lyrics = self.load_lyrics_from_db(song, artist, album)
 
             if cached_lyrics:
                 synced_lyrics = cached_lyrics.get("synced_lyrics", "")
@@ -110,13 +105,15 @@ class LyricsCache:
 
         # Store in database
         try:
-            self._save_lyrics(song, artist, album, duration, synced_lyrics, plain_lyrics)
+            self._save_lyrics(
+                song, artist, album, duration, synced_lyrics, plain_lyrics
+            )
             logger.debug(f"Stored lyrics in database for '{song}'")
         except Exception as e:
             logger.error(f"Error storing lyrics in database: {e}")
 
     def load_lyrics_from_db(
-        self, track_name: str, artist_name: str, album_name: str, duration: int
+        self, track_name: str, artist_name: str, album_name: str
     ) -> Optional[Dict[str, Any]]:
         """
         Retrieve lyrics from the unified cache database.
@@ -222,9 +219,6 @@ class LyricsCache:
         )
 
         try:
-            # Use the unified database schema through the updater
-            from ...core.cache.updater import UpdateSearchHistoryDatabase
-
             updater = UpdateSearchHistoryDatabase()
 
             # Look up song in cache by name and artist
