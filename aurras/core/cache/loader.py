@@ -4,7 +4,7 @@ Cache Loading Module
 This module provides a class for loading data from the cache database.
 """
 
-from aurras.core.cache.connection import CacheDatabaseConnection
+from aurras.core.cache import cache_db_connection
 
 
 class LoadSongHistoryData:
@@ -14,7 +14,6 @@ class LoadSongHistoryData:
 
     def __init__(self) -> None:
         """Initialize the cache database connection."""
-        self.db_connection = CacheDatabaseConnection()
 
     def load_song_metadata_from_db(self):
         """
@@ -23,7 +22,7 @@ class LoadSongHistoryData:
         Returns:
             list: A list of tuples containing (query, name, url)
         """
-        with self.db_connection as conn:
+        with cache_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT song_user_searched, track_name, url FROM cache")
             return cursor.fetchall()
@@ -35,7 +34,7 @@ class LoadSongHistoryData:
         Returns:
             list: A list of tuples containing complete song metadata
         """
-        with self.db_connection as conn:
+        with cache_db_connection as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT 
@@ -56,7 +55,7 @@ class LoadSongHistoryData:
         Returns:
             Dictionary with song metadata and lyrics
         """
-        with self.db_connection as conn:
+        with cache_db_connection as conn:
             cursor = conn.cursor()
 
             query = """
