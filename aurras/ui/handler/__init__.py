@@ -8,8 +8,8 @@ This package contains handlers for user input, shortcuts, settings, and keyboard
 - keyboard_shortcut_handler: Management of keyboard shortcuts and key bindings
 """
 
-from .command import register_all_commands
-from .shorthand import register_default_shorthands
+from aurras.ui.handler.command import register_all_commands
+from aurras.ui.handler.shorthand import register_default_shorthands
 
 __all__ = [
     "register_all_commands",

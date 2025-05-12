@@ -6,12 +6,12 @@ This module handles the registration of all shorthand commands in the applicatio
 
 import logging
 
-from ..core.registry.shortcut import ShortcutRegistry
-from ...core.settings import load_settings
+from aurras.core.settings import SETTINGS
+from aurras.ui.core.registry.shortcut import ShortcutRegistry
 
 logger = logging.getLogger(__name__)
-COMMAND_SETTINGS = load_settings().command
-SHORTHAND_SETTINGS = load_settings().shorthand
+COMMAND_SETTINGS = SETTINGS.command
+SHORTHAND_SETTINGS = SETTINGS.shorthand
 
 
 def register_default_shorthands(registry: ShortcutRegistry):

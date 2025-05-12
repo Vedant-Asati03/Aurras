@@ -4,9 +4,9 @@ Registry Module for Commands, Shortcuts and Input Processors
 This module provides a centralized registry for all commands, shortcuts, and input processors
 """
 
-from .command import CommandRegistry
-from .shortcut import ShortcutRegistry
-from .completer import CompleterRegistry
+from aurras.ui.core.registry.command import CommandRegistry
+from aurras.ui.core.registry.shortcut import ShortcutRegistry
+from aurras.ui.core.registry.completer import CompleterRegistry
 
 
 __all__ = [
