@@ -30,9 +30,7 @@ class CommandCompleter(BaseCompleter):
             search_text = text[1:].strip().lower()
             result = []
 
-            for cmd_id, cmd in self.commands.items():
-                name = cmd["name"]
-                desc = cmd["description"]
+            for name, desc in self.commands.items():
                 display = f"{name}: {desc}"
 
                 if (
