@@ -7,8 +7,8 @@ to route input to the appropriate completer based on patterns.
 
 from prompt_toolkit.completion import Completer
 
-from .core.registry.completer import CompleterRegistry
-from .completer import (
+from aurras.ui.core.registry.completer import CompleterRegistry
+from aurras.ui.completer import (
     SongCompleter,
     PlaylistCompleter,
     FeatureCompleter,
