@@ -13,7 +13,7 @@ shortcut_registry = ShortcutRegistry(command_registry=command_registry)
 
 
 __all__ = [
-    "CommandRegistry",
-    "ShortcutRegistry",
     "CompleterRegistry",
+    "command_registry",
+    "shortcut_registry",
 ]

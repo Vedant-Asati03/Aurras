@@ -33,13 +33,15 @@ class InputProcessor:
 
     def __init__(self):
         """Initialize the input processor."""
-        self.user_input = None
-        self.dynamic_search_bar = AdaptiveCompleter()
+        register_all_commands()
+        register_default_shorthands()
+
         self.command_registry = command_registry
         self.shorthand_registry = shortcut_registry
-        register_all_commands(self.command_registry)
-        register_default_shorthands(self.shorthand_registry)
 
+        self.dynamic_search_bar = AdaptiveCompleter()
+
+        self.user_input = None
         self.input_lexer = InputLexer(
             command_registry=self.command_registry,
             shorthand_registry=self.shorthand_registry,

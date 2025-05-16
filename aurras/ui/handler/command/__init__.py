@@ -16,10 +16,10 @@ from aurras.ui.handler.command.spotify import register_spotify_commands
 from aurras.ui.handler.command.playlist import register_playlist_commands
 
 
-def register_all_commands(registry):
+def register_all_commands():
     """Register all commands from all command modules."""
-    register_player_commands(registry)
-    register_system_commands(registry)
-    register_history_commands(registry)
-    register_spotify_commands(registry)
-    register_playlist_commands(registry)
+    register_player_commands()
+    register_system_commands()
+    register_history_commands()
+    register_spotify_commands()
+    register_playlist_commands()

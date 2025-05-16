@@ -6,15 +6,16 @@ This module contains all history-related commands such as viewing and managing p
 
 import logging
 from aurras.core.settings import SETTINGS
+from aurras.ui.core.registry import command_registry
 from aurras.utils.command.processors import history_processor
 
 logger = logging.getLogger(__name__)
 COMMAND_SETTINGS = SETTINGS.command
 
 
-def register_history_commands(registry):
+def register_history_commands():
     """Register all history-related commands to the central registry."""
-    registry.register_command(
+    command_registry.register_command(
         name=COMMAND_SETTINGS.display_history,
         function=history_processor.show_history,
         description="Show play history",
@@ -23,7 +24,7 @@ def register_history_commands(registry):
         category="History",
     )
 
-    registry.register_command(
+    command_registry.register_command(
         name=COMMAND_SETTINGS.play_previous_song,
         function=history_processor.play_previous_song,
         description="Play the previous song",
@@ -32,7 +33,7 @@ def register_history_commands(registry):
         category="Playback",
     )
 
-    registry.register_command(
+    command_registry.register_command(
         name=COMMAND_SETTINGS.clear_listening_history,
         function=history_processor.clear_history,
         description="Clear play history",
