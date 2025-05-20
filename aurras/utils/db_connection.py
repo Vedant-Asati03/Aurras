@@ -7,6 +7,9 @@ across the application to manage SQLite database connections.
 
 import sqlite3
 from pathlib import Path
+from aurras.utils.logger import get_logger
+
+logger = get_logger("aurras.db_connection", log_to_console=False)
 
 
 class DatabaseConnectionManager:
@@ -52,6 +55,7 @@ class DatabaseConnectionManager:
         if self._connection is None:
             self._connection = sqlite3.connect(self.db_path)
             self._connection.row_factory = sqlite3.Row
+            logger.debug(f"Created new database connection to {self.db_path}")
         return self._connection
 
     def close(self) -> None:
@@ -60,6 +64,7 @@ class DatabaseConnectionManager:
         """
         if self._connection:
             self._connection.close()
+            logger.debug(f"Closed database connection to {self.db_path}")
             self._connection = None
 
     @property
