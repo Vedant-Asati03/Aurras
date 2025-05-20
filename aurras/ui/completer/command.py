@@ -40,7 +40,7 @@ class CommandCompleter(BaseCompleter):
                     result.append((display, "Command"))
 
             # Always add a cancel option
-            result.append(("Cancel", "Command"))
+            result.append(("cancel: close palette", "Command"))
 
             return result
 
