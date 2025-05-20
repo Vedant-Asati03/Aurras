@@ -4,8 +4,6 @@ Input Processor for Aurras Music Player.
 This module processes user input and routes it to the appropriate handler.
 """
 
-import logging
-
 from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
@@ -13,6 +11,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.ui.core.input_lexer import InputLexer
 from aurras.utils.exceptions import InvalidInputError
 from aurras.ui.completer.history import SongHistoryManager
@@ -20,7 +19,7 @@ from aurras.ui.adaptive_completer import AdaptiveCompleter
 from aurras.ui.core.registry import command_registry, shortcut_registry
 from aurras.ui.handler import register_all_commands, register_default_shorthands
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.core.input_processor", log_to_console=False)
 
 
 class InputProcessor:
@@ -145,17 +144,17 @@ class InputProcessor:
         if self._process_command_palette_input(input_text):
             return True
 
-        if self._process_direct_commands(input_text):
+        if self._process_shorthand_commands(input_text):
             return True
 
-        if self._process_shorthand_commands(input_text):
+        if self._process_direct_commands(input_text):
             return True
 
         return self._handle_default_input(input_text)
 
     def _process_command_palette_input(self, input_text: str) -> bool:
         """
-        Process input from command palette (commands starting with ">").
+        Process input from command palette.
 
         Args:
             input_text: User input text
@@ -163,28 +162,16 @@ class InputProcessor:
         Returns:
             True if the input was handled, False otherwise
         """
-        if not input_text.startswith(">"):
-            return False
+        command_action = input_text.strip().lower()
 
-        command_action = input_text[1:].strip().lower()
-
-        if command_action == "cancel":
-            return True
-
-        # Parse the command palette selection
         if ":" in command_action:
             try:
-                from aurras.ui.renderers.command_palette import CommandPalette
-
-                # Get the command name from the input
                 command_name = command_action.split(":", 1)[0].strip()
 
-                cmd_palette = CommandPalette()
-                return cmd_palette.execute_command(command_name)
+                if command_name == "cancel":
+                    return True
 
-            except ImportError:
-                logger.error("Command palette module not found", exc_info=True)
-                console.print_error("Command palette not available.")
+                return self.command_registry.execute_command(command_name, None)
 
             except Exception as e:
                 logger.error(
