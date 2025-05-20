@@ -12,8 +12,8 @@ from typing import Optional
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
+from aurras.utils.console.renderer import ListDisplay
 from aurras.utils.decorators import with_error_handling
-from aurras.utils.console.renderer import FeedbackMessage
 
 logger = get_logger("aurras.command.processors.system", log_to_console=False)
 
@@ -33,85 +33,46 @@ class SystemProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        # cache_header: List[Tuple[str, str, str, str]] = []
+        if _path_manager.cache_db.exists():
+            with sqlite3.connect(_path_manager.cache_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                SELECT 
+                    (SELECT COUNT(*) FROM cache) AS search_count,
+                    (SELECT COUNT(*) FROM lyrics) AS lyrics_count,
+                    (SELECT MIN(fetch_time) FROM cache) AS oldest_search,
+                    (SELECT MIN(fetch_time) FROM lyrics) AS oldest_lyrics
+                """)
 
-        try:
-            if _path_manager.cache_db.exists():
-                with sqlite3.connect(_path_manager.cache_db) as conn:
-                    cursor = conn.cursor()
-
-                    # Count search entries
-                    cursor.execute("SELECT COUNT(*) FROM cache")
-                    search_count = cursor.fetchone()[0]
-
-                    # Count lyrics entries
-                    cursor.execute("SELECT COUNT(*) FROM lyrics")
-                    lyrics_count = cursor.fetchone()[0]
-
-                    # Get oldest entry
-                    cursor.execute("SELECT MIN(fetch_time) FROM cache")
-                    oldest_search = cursor.fetchone()[0]
-                    cursor.execute("SELECT MIN(fetch_time) FROM lyrics")
-                    oldest_lyrics = cursor.fetchone()[0]
-
-                    oldest = min(
-                        oldest_search or float("inf"), oldest_lyrics or float("inf")
-                    )
-                    if oldest and oldest != float("inf"):
-                        oldest_date = time.strftime("%Y-%m-%d", time.localtime(oldest))
-                    else:
-                        oldest_date = "N/A"
-
-                    size = _path_manager.cache_db.stat().st_size
-                    size_str = f"{size / 1024:.1f} KB"
-
-                    # Use create_table from ThemedConsole
-                    table = console.create_table(
-                        title="Cache Information",
-                        caption="Use 'cleanup_cache' to clean old cache entries",
-                    )
-
-                    table.add_column("Cache Type")
-                    table.add_column("Entries")
-                    table.add_column("Size")
-                    table.add_column("Oldest Entry")
-
-                    # Add total row styled with primary color
-                    total_row = (
-                        "Total",
-                        str(search_count + lyrics_count),
-                        size_str,
-                        oldest_date,
-                    )
-                    table.add_row(
-                        *total_row, style=console.style_text("", "primary", bold=True)
-                    )
-
-                    # Add detail rows
-                    table.add_row("Searches", str(search_count), "-", oldest_date)
-                    table.add_row("Lyrics", str(lyrics_count), "-", oldest_date)
-            else:
-                table = console.create_table(
-                    title="Cache Information",
-                    caption="Cache database not found or empty",
+                search_count, lyrics_count, oldest_search, oldest_lyrics = (
+                    cursor.fetchone()
                 )
 
-                table.add_column("Cache Type")
-                table.add_column("Entries")
-                table.add_column("Size")
-                table.add_column("Oldest Entry")
+                oldest = min(
+                    oldest_search or float("inf"), oldest_lyrics or float("inf")
+                )
+                if oldest and oldest != float("inf"):
+                    oldest_date = time.strftime("%Y-%m-%d", time.localtime(oldest))
+                else:
+                    oldest_date = "N/A"
 
-                table.add_row("Searches", "0", "0 KB", "N/A")
-                table.add_row("Lyrics", "0", "0 KB", "N/A")
+                size = _path_manager.cache_db.stat().st_size
+                size_str = f"{size / 1024:.1f} KB"
 
-            console.print(table)
-            console.print_info("Tip: Use cleanup_cache to clear old cache entries")
-            return 0
+                info = ListDisplay(
+                    items=[
+                        ("Searches", str(search_count)),
+                        ("Lyrics", str(lyrics_count)),
+                        ("Size", size_str),
+                        ("Oldest Entry", oldest_date),
+                    ],
+                    title="Cache Information",
+                    description="Use 'cleanup_cache' to clean old cache entries",
+                    highlight_style="primary",
+                )
 
-        except Exception as e:
-            console.print_error(f"Error getting cache info: {str(e)}")
-            logger.error(f"Error in show_cache_info: {str(e)}", exc_info=True)
-            return 1
+                console.print(info.render())
+                return 0
 
     @with_error_handling
     def cleanup_cache(self, days: Optional[int] = 30) -> int:
