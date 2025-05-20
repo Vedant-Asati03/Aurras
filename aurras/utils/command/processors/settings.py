@@ -5,14 +5,14 @@ This module handles all settings-related commands and operations.
 """
 
 import os
-import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 from aurras.core.settings import SETTINGS, SettingsUpdater
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.settings", log_to_console=False)
 
 
 class SettingsProcessor:
@@ -384,7 +384,7 @@ class SettingsProcessor:
     @with_error_handling
     def open_settings_ui(self) -> int:
         """Open the settings management UI."""
-        from aurras.ui.command_palette import DisplaySettings
+        from aurras.ui.renderers.command_palette import DisplaySettings
 
         settings_ui = DisplaySettings()
         settings_ui.display_settings()
