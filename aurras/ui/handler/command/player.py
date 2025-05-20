@@ -27,7 +27,7 @@ def register_player_commands():
 
     command_registry.register_command(
         name=COMMAND_SETTINGS.play_offline,
-        function=lambda: LocalPlaybackHandler().listen_song_offline(),
+        function=lambda: LocalPlaybackHandler().listen_song_offline,
         description="Play downloaded songs",
         parameter_help=None,
         requires_args=False,
