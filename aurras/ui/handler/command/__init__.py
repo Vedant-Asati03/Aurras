@@ -9,17 +9,25 @@ This package contains domain-specific command modules organized by functionality
 - spotify_commands: Commands for Spotify integration
 """
 
+from aurras.utils.logger import get_logger
 from aurras.ui.handler.command.player import register_player_commands
 from aurras.ui.handler.command.system import register_system_commands
 from aurras.ui.handler.command.history import register_history_commands
 from aurras.ui.handler.command.spotify import register_spotify_commands
 from aurras.ui.handler.command.playlist import register_playlist_commands
 
+logger = get_logger("aurras.ui.handler.command", log_to_console=False)
+
 
 def register_all_commands():
     """Register all commands from all command modules."""
     register_player_commands()
+    logger.debug("Player commands registered")
     register_system_commands()
+    logger.debug("System commands registered")
     register_history_commands()
+    logger.debug("History commands registered")
     register_spotify_commands()
+    logger.debug("Spotify commands registered")
     register_playlist_commands()
+    logger.debug("Playlist commands registered")

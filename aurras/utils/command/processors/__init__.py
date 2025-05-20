@@ -2,6 +2,7 @@
 Processors for handling various commands in the AURras application.
 """
 
+from aurras.utils.logger import get_logger
 from aurras.utils.command.processors.theme import ThemeProcessor
 from aurras.utils.command.processors.player import PlayerProcessor
 from aurras.utils.command.processors.backup import BackupProcessor
@@ -12,6 +13,8 @@ from aurras.utils.command.processors.library import LibraryProcessor
 from aurras.utils.command.processors.playlist import PlaylistProcessor
 from aurras.utils.command.processors.settings import SettingsProcessor
 
+logger = get_logger("aurras.command.processors", log_to_console=False)
+
 theme_processor = ThemeProcessor()
 backup_processor = BackupProcessor()
 system_processor = SystemProcessor()
@@ -21,6 +24,8 @@ history_processor = HistoryProcessor()
 library_processor = LibraryProcessor()
 playlist_processor = PlaylistProcessor()
 settings_processor = SettingsProcessor()
+
+logger.debug("Command processors initialized successfully.")
 
 __all__ = [
     "theme_processor",
