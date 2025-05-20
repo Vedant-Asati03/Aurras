@@ -134,9 +134,4 @@ class HistoryProcessor:
                 "No previous songs found in your listening history. "
                 "Try playing a few songs first to build your history."
             )
-            console.style_text(
-                text="Try playing a few songs first to build your history.",
-                style_key="text_muted",
-                text_style="italic",
-            )
         return 0
