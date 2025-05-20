@@ -5,16 +5,16 @@ This module provides the main manager class for handling lyrics operations.
 It serves as the primary interface between the lyrics service and the rest of the application.
 """
 
-import logging
 from typing import List
 
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.services.lyrics.cache import LyricsCache
 from aurras.services.lyrics.parser import LyricsParser
 from aurras.services.lyrics.fetcher import LyricsFetcher
 from aurras.services.lyrics.formatter import LyricsFormatter
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.lyrics.manager", log_to_console=False)
 
 
 class LyricsManager:

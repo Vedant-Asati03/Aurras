@@ -6,15 +6,15 @@ directing command line arguments to the appropriate command processors.
 """
 
 import sys
-import logging
 import argparse
 import textwrap
 from typing import List, Dict, Tuple
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.decorators import handle_exceptions
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.dispatcher", log_to_console=False)
 
 # List of available bitrates for song downloads
 bitrates = [

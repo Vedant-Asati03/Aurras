@@ -4,17 +4,17 @@ Lyrics fetching module.
 This module provides functionality for fetching lyrics from APIs and services.
 """
 
-import logging
 import requests
 import threading
 import syncedlyrics
 from typing import Dict, Any
 
+from aurras.utils.logger import get_logger
 from aurras.services.lyrics.cache import LyricsCache
 
 LYRICS_AVAILABLE = True
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.lyrics.fetcher", log_to_console=False)
 
 
 class LyricsFetcher:

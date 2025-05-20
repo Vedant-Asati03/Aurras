@@ -4,9 +4,9 @@ Spotify Client Module
 This module handles Spotify API client creation and interactions.
 """
 
-import logging
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.spotify.connection", log_to_console=False)
 
 SCOPE = "playlist-read-private"
 REDIRECT_URI = "https://localhost:8080/"

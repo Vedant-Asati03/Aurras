@@ -5,14 +5,14 @@ This module provides a component-based architecture for building
 rich terminal user interfaces with consistent styling and behavior.
 """
 
-import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Callable, Union, Tuple
 
+from aurras.utils.logger import get_logger
 from aurras.utils.exceptions import DisplayError, ThemeError
 from aurras.utils.console import console, apply_gradient_to_text
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.renderer", log_to_console=False)
 
 
 class UIComponent(ABC):

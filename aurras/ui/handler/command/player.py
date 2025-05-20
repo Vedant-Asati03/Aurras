@@ -4,14 +4,13 @@ Player commands for Aurras Music Player.
 This module contains all player-related commands such as play, pause, volume control, etc.
 """
 
-import logging
-
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.ui.core.registry import command_registry
 from aurras.core.player.offline import LocalPlaybackHandler
 from aurras.utils.command.processors import player_processor
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.handler.command.player", log_to_console=False)
 COMMAND_SETTINGS = SETTINGS.command
 
 

@@ -6,17 +6,17 @@ to Textual library compatible formats for the TUI interface.
 """
 
 import uuid
-import logging
 from typing import Dict
 
 from rich.style import Style
 from textual.theme import Theme as TextualTheme
 from textual.widgets.text_area import TextAreaTheme
 
+from aurras.utils.logger import get_logger
 from aurras.themes.utils import get_fallback_value
 from aurras.themes.definitions import ThemeDefinition
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.themes.adapters.textual_adapter", log_to_console=False)
 
 
 def theme_to_textual_theme(theme_def: ThemeDefinition) -> TextualTheme:

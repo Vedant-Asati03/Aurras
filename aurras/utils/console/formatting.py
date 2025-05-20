@@ -5,9 +5,9 @@ This module provides utilities for formatting text and values
 for display in the terminal, such as time formatting.
 """
 
-import logging
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.utils.console.formatting", log_to_console=False)
 
 
 def format_time_values(seconds: float) -> str:

@@ -5,12 +5,11 @@ This module handles Spotify-related commands and operations such as
 authentication and service configuration.
 """
 
-import logging
-
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.spotify", log_to_console=False)
 
 
 class SpotifyProcessor:

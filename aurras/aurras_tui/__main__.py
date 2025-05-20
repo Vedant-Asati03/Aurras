@@ -5,11 +5,13 @@ This module provides the entry point for the textual-based TUI mode.
 """
 
 import argparse
-import logging
 from pathlib import Path
 
 from aurras.tui.app import AurrasTUI
 from aurras.utils.path_manager import PathManager
+from aurras.utils.logger import get_logger
+
+logger = get_logger("aurras.tui.main", log_to_console=True)
 
 
 def setup_tui():
@@ -48,11 +50,10 @@ def main():
 
     # Configure logging if in debug mode
     if args.debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            filename="aurras_tui.log",
-        )
+    #     level=logging.DEBUG,
+    #     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        logger.debug("Debug mode enabled")
+        logger.debug("Starting Aurras TUI in debug mode")
 
     # Start the TUI application
     app = AurrasTUI()

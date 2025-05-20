@@ -2,13 +2,13 @@
 This Module provides functionality for downloading one or more playlists.
 """
 
-import logging
 from typing import List, Dict, Optional
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.core.playlist.cache.search_db import SearchFromPlaylistDataBase
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.playlist.download", log_to_console=False)
 
 
 class DownloadPlaylist:

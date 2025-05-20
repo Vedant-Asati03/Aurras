@@ -5,10 +5,11 @@ This module provides a weak-reference based property observer
 system to prevent memory leaks in callback functions.
 """
 
-import logging
 import weakref
 
-logger = logging.getLogger(__name__)
+from aurras.utils.logger import get_logger
+
+logger = get_logger("aurras.core.player.mpv.events", log_to_console=False)
 
 
 class WeakPropertyObserver:

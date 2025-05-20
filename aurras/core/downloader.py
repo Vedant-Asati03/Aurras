@@ -14,7 +14,6 @@ Example:
 import os
 import json
 import time
-import logging
 import sqlite3
 import subprocess
 import contextlib
@@ -23,6 +22,7 @@ from typing import Dict, List, Optional, Any, Iterator, Tuple
 
 from aurras.utils.console import console
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
 from aurras.utils.handle_fuzzy_search import FuzzySearcher
 from aurras.utils.db_connection import DatabaseConnectionManager
@@ -31,7 +31,7 @@ METADATA_FILE = "metadata.spotdl"
 DEFAULT_BATCH_SIZE = 25
 MAX_RETRIES = int(SETTINGS.maximum_retries)
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.downloader", log_to_console=False)
 
 
 @contextlib.contextmanager

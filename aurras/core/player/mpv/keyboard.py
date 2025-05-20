@@ -4,12 +4,11 @@ Keyboard control handling for the MPV player.
 This module contains keyboard bindings and handlers for the MPV player interface.
 """
 
-import logging
-
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.core.player.mpv.state import FeedbackType, PlaybackState, LyricsStatus
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.keyboard", log_to_console=False)
 
 
 def setup_key_bindings(player) -> None:

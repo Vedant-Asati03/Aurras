@@ -4,12 +4,11 @@ Shorthand registry initialization for Aurras Music Player.
 This module handles the registration of all shorthand commands in the application.
 """
 
-import logging
-
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.ui.core.registry import shortcut_registry
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.handler.shorthand", log_to_console=False)
 COMMAND_SETTINGS = SETTINGS.command
 SHORTHAND_SETTINGS = SETTINGS.shorthand
 

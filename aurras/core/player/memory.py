@@ -8,13 +8,14 @@ garbage collection, and caching strategies to prevent memory leaks.
 
 import gc
 import time
-import logging
 import tracemalloc
 from functools import wraps
 from typing import Dict, Any
 from dataclasses import dataclass, field
 
-logger = logging.getLogger(__name__)
+from aurras.utils.logger import get_logger
+
+logger = get_logger("aurras.core.player.memory", log_to_console=False)
 
 
 @dataclass

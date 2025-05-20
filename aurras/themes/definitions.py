@@ -7,14 +7,14 @@ throughout the application.
 
 from __future__ import annotations
 
-import logging
 from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, TypedDict, Any
 
+from aurras.utils.logger import get_logger
 from aurras.themes.colors import ThemeColor
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.themes.definitions", log_to_console=False)
 
 
 class ThemeCategory(Enum):

@@ -6,13 +6,13 @@ This module provides functionality for caching lyrics in memory and database.
 
 import re
 import sqlite3
-import logging
 from typing import Optional, Dict, List, Any
 
+from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
 from aurras.core.cache.updater import UpdateSearchHistoryDatabase
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.lyrics.cache", log_to_console=False)
 
 
 class LyricsCache:

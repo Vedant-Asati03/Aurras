@@ -4,12 +4,12 @@ Spotify Setup Module
 This module provides functionality for setting up Spotify API credentials.
 """
 
-import logging
 from typing import Optional, Tuple
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.spotify.setup", log_to_console=False)
 
 class SpotifySetup:
     """Class for setting up Spotify API credentials."""

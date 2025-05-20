@@ -1,10 +1,10 @@
 import json
-import logging
 from typing import Optional, Dict
 
+from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.spotify.cache", log_to_console=False)
 
 
 class CredentialsCache:

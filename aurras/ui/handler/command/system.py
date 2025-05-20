@@ -4,13 +4,12 @@ System commands for Aurras Music Player.
 This module contains all system-related commands such as cache management, settings, etc.
 """
 
-import logging
-
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.ui.core.registry import command_registry
 from aurras.utils.command.processors import system_processor
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.handler.command.system", log_to_console=False)
 COMMAND_SETTINGS = SETTINGS.command
 
 

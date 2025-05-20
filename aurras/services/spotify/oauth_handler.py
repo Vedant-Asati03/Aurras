@@ -5,10 +5,10 @@ This module handles Spotify API authentication, including credential management,
 OAuth token handling, and related functionality.
 """
 
-import logging
 from typing import Dict, Optional, Any
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.spotify.oauth_handler", log_to_console=False)
 
 SCOPE = "playlist-read-private"
 REDIRECT_URI = "https://localhost:8080/"

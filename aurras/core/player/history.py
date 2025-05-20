@@ -5,14 +5,14 @@ This module provides functionality for tracking and replaying recently played so
 """
 
 import time
-import logging
 from typing import List, Optional
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
 from aurras.utils.db_connection import DatabaseConnectionManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.history", log_to_console=False)
 
 
 class RecentlyPlayedManager:

@@ -5,12 +5,11 @@ This module handles library-related commands and operations such as
 searching, indexing, and managing the media library.
 """
 
-import logging
-
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.library", log_to_console=False)
 
 
 class LibraryProcessor:
@@ -35,7 +34,7 @@ class LibraryProcessor:
             console.print_error("Search query cannot be empty")
             return 1
 
-        from ....services.youtube.search import YouTubeSearch
+        from aurras.services.youtube.search import YouTubeSearch
 
         try:
             # Create a status indicator while searching

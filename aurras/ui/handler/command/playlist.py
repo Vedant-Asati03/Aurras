@@ -4,13 +4,13 @@ Playlist commands for Aurras Music Player.
 This module contains all playlist-related commands such as create, delete, view, and play playlists.
 """
 
-import logging
 from aurras.core.settings import SETTINGS
+from aurras.utils.logger import get_logger
 from aurras.ui.core.registry import command_registry
 from aurras.utils.command.processors import spotify_processor
 from aurras.utils.command.processors import playlist_processor
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.handler.command.playlist", log_to_console=False)
 COMMAND_SETTINGS = SETTINGS.command
 
 

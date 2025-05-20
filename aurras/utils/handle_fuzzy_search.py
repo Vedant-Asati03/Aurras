@@ -1,10 +1,10 @@
 import re
-import logging
 from functools import lru_cache
 from typing import List, Optional
 from difflib import SequenceMatcher
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.utils.handle_fuzzy_search", log_to_console=False)
 
 
 class FuzzySearcher:

@@ -5,15 +5,15 @@ This module handles backup-related commands and operations such as
 creating, restoring, and managing backups of user data.
 """
 
-import logging
 from typing import Optional
 from datetime import datetime
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.backup_manager import BackupManager
 from aurras.utils.decorators import with_error_handling
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.backup", log_to_console=False)
 
 
 class BackupProcessor:
@@ -39,6 +39,11 @@ class BackupProcessor:
             if not backup_name:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 backup_name = f"backup_{timestamp}"
+                logger.debug(f"Generated default backup name: {backup_name}")
+            else:
+                logger.info(f"Using provided backup name: {backup_name}")
+
+            logger.info(f"Starting backup creation process with name: {backup_name}")
 
             # Create a progress display using themed console
             progress = console.create_progress()
@@ -48,18 +53,22 @@ class BackupProcessor:
 
                 # Update progress callback
                 def update_progress(percent: int):
+                    logger.debug(f"Backup progress: {percent}%")
                     progress.update(task, completed=percent)
 
                 # Create the backup
+                logger.debug("Calling backup_manager.create_backup()")
                 backup_path = self.backup_manager.create_backup(
                     backup_name, progress_callback=update_progress
                 )
 
             if not backup_path:
+                logger.error("Backup creation failed - empty backup path returned")
                 console.print_error("Failed to create backup")
                 return 1
 
             # Show success message in a panel
+            logger.info(f"Backup successfully created at: {backup_path}")
             panel = console.create_panel(
                 f"Backup saved to: {backup_path}",
                 title="Backup Created Successfully",
@@ -69,7 +78,7 @@ class BackupProcessor:
             return 0
 
         except Exception as e:
-            logger.error(f"Error creating backup: {e}")
+            logger.exception(f"Error creating backup: {e}")
             console.print_error(f"Error creating backup: {e}")
             return 1
 
@@ -81,12 +90,17 @@ class BackupProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
+        logger.info("Retrieving list of available backups")
         try:
+            logger.debug("Calling backup_manager.get_available_backups()")
             backups = self.backup_manager.get_available_backups()
 
             if not backups:
+                logger.info("No backups found in the backup directory")
                 console.print_info("No backups found")
                 return 0
+
+            logger.info(f"Found {len(backups)} available backups")
 
             # Create a table to display backups
             table = console.create_table(
@@ -98,7 +112,16 @@ class BackupProcessor:
             table.add_column("Size")
             table.add_column("Type")
 
+            total_size = 0
+            oldest_timestamp = float("inf")
+            newest_timestamp = 0
+
             for backup in backups:
+                # Track statistics for logging
+                total_size += backup["size"]
+                oldest_timestamp = min(oldest_timestamp, backup["timestamp"])
+                newest_timestamp = max(newest_timestamp, backup["timestamp"])
+
                 # Format timestamp
                 created = datetime.fromtimestamp(backup["timestamp"]).strftime(
                     "%Y-%m-%d %H:%M:%S"
@@ -115,11 +138,19 @@ class BackupProcessor:
 
                 table.add_row(backup["name"], created, size_str, backup["type"])
 
+            # Log backup statistics
+            total_mb = total_size / (1024 * 1024)
+            oldest_date = datetime.fromtimestamp(oldest_timestamp).strftime("%Y-%m-%d")
+            newest_date = datetime.fromtimestamp(newest_timestamp).strftime("%Y-%m-%d")
+            logger.info(
+                f"Backup statistics: {len(backups)} backups, {total_mb:.2f} MB total, date range: {oldest_date} to {newest_date}"
+            )
+
             console.print(table)
             return 0
 
         except Exception as e:
-            logger.error(f"Error listing backups: {e}")
+            logger.exception(f"Error listing backups: {e}")
             console.print_error(f"Error listing backups: {e}")
             return 1
 

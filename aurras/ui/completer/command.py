@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
+from aurras.ui.renderers import command_palette
 from aurras.ui.completer.base import BaseCompleter
-from aurras.ui.renderers.command_palette import CommandPalette
 
 
 class CommandCompleter(BaseCompleter):
@@ -13,8 +13,7 @@ class CommandCompleter(BaseCompleter):
 
     def __init__(self):
         """Initialize the CommandCompleter class."""
-        self.command_palette = CommandPalette()
-        self.commands = self.command_palette.commands
+        self.commands = command_palette.create_commands_mapping()
 
     def get_suggestions(self, text: str) -> List[Tuple[str, str]]:
         """

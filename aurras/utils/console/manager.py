@@ -5,17 +5,17 @@ This module provides utilities for working with the terminal console
 and accessing theme information for rendering.
 """
 
-import logging
 from typing import Optional, Any
 
 from rich.panel import Panel
 from rich.table import Table
 from rich.console import Console
 
+from aurras.utils.logger import get_logger
 from aurras.themes.adapters import theme_to_rich_theme
 from aurras.themes import get_theme, get_current_theme, set_current_theme
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.utils.console.manager", log_to_console=False)
 
 # Global console instance for consistent styling
 _console: Optional["ThemedConsole"] = None

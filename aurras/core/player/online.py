@@ -4,10 +4,10 @@ Online Player Module
 This module provides functionality for playing songs online by streaming.
 """
 
-import logging
 from typing import List, Union
 from rich.progress import SpinnerColumn, TextColumn, Progress
 
+from aurras.utils.logger import get_logger
 from aurras.core.player.mpv.core import MPVPlayer
 from aurras.core.player.mpv.state import PlaybackState
 from aurras.core.player.mpv.history_integration import integrate_history_with_playback
@@ -24,7 +24,7 @@ from aurras.utils.exceptions import (
     # PlayerError,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.online", log_to_console=False)
 
 
 class InitializeOnlinePlayer:

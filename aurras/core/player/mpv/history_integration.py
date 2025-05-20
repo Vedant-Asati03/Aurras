@@ -6,14 +6,14 @@ It handles retrieving history songs, creating combined playlists, and managing t
 between history songs and searched songs.
 """
 
-import logging
 from collections import deque
 from typing import List, Dict, Tuple
 
+from aurras.utils.logger import get_logger
 from aurras.services.youtube.search import SearchSong
 from aurras.core.player.history import RecentlyPlayedManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.history_integration", log_to_console=False)
 
 
 class HistoryIntegration:

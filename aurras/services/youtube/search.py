@@ -5,17 +5,17 @@ This module provides functionality for searching songs on YouTube with improved
 organization, error handling, and maintainability.
 """
 
-from typing import List, Dict, Optional, Any, Protocol, NamedTuple, Tuple
-import logging
 from ytmusicapi import YTMusic
+from typing import List, Dict, Optional, Any, Protocol, NamedTuple, Tuple
 
+from aurras.utils.logger import get_logger
 from aurras.core.downloader import DownloadsDatabase
 from aurras.core.player.history import RecentlyPlayedManager
 from aurras.core.cache.search_db import SearchFromSongDataBase
 from aurras.core.cache.updater import UpdateSearchHistoryDatabase
 from aurras.utils.handle_fuzzy_search import FuzzySearcher, FuzzyDictMatcher
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.services.youtube.search", log_to_console=False)
 
 
 class SongResult(NamedTuple):

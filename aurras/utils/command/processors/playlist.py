@@ -4,15 +4,15 @@ Playlist command processor for Aurras CLI.
 This module handles playlist management and playback operations.
 """
 
-import logging
 from typing import List
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 from aurras.core.playlist.manager import PlaylistManager
 from aurras.utils.handle_fuzzy_search import FuzzySearcher
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.playlist", log_to_console=False)
 
 
 class PlaylistProcessor:

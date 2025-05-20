@@ -4,13 +4,13 @@ Player command processor for Aurras CLI.
 This module handles music playback operations.
 """
 
-import logging
 from typing import List
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.player", log_to_console=False)
 
 
 class PlayerProcessor:

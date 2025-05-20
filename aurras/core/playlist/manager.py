@@ -6,14 +6,14 @@ downloading, deleting, and modifying playlists, as well as adding and removing s
 """
 
 import time
-import logging
 from typing import Any, List, Dict, Optional
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.core.playlist.cache.updater import UpdatePlaylistDatabase
 from aurras.core.playlist.cache.search_db import SearchFromPlaylistDataBase
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.playlist.manager", log_to_console=False)
 
 
 class PlaylistManager:

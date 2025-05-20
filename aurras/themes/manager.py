@@ -8,14 +8,14 @@ theme related operations.
 
 import os
 import json
-import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+from aurras.utils.logger import get_logger
 from aurras.themes.definitions import ThemeDefinition, ThemeCategory
 from aurras.themes.themes import AVAILABLE_THEMES, get_default_theme_from_settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.themes.manager", log_to_console=False)
 
 _current_theme = get_default_theme_from_settings()
 

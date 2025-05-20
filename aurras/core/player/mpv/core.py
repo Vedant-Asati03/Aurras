@@ -8,7 +8,6 @@ all the functionality from other modules into a cohesive player experience.
 import gc
 import time
 import locale
-import logging
 from collections import deque
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -36,10 +35,11 @@ from aurras.core.player.python_mpv import MPV, ShutdownError
 from aurras.core.player.history import RecentlyPlayedManager
 from aurras.core.player.memory import memory_stats_decorator, optimize_memory_usage
 from aurras.services.lyrics import LyricsManager
+from aurras.utils.logger import get_logger
 from aurras.core.settings import SETTINGS
 from aurras.utils.console import console
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.mpv.core", log_to_console=False)
 
 
 class MPVPlayer(MPV):
@@ -98,7 +98,7 @@ class MPVPlayer(MPV):
         self._observers = create_property_observers(self)
         setup_key_bindings(self)
 
-        self._active_futures = deque(maxlen=100)
+        self._active_futures = deque(maxlen=25)
 
         @self.property_observer("time-pos")
         def _track_time_pos(_name: str, value: Optional[float]) -> None:
@@ -123,7 +123,7 @@ class MPVPlayer(MPV):
 
         self._metadata_cache = LRUCache(max_size=10)
 
-        self._current_song_names = deque(maxlen=1000)
+        self._current_song_names = deque(maxlen=200)
 
         self.volume = volume
 

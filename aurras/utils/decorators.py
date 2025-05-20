@@ -1,11 +1,11 @@
 """Decorators for error handling and logging."""
 
-import logging
 from functools import wraps
 
-from aurras.utils.path_manager import _path_manager
+from aurras.utils.logger import get_logger
 
-logging.basicConfig(filename=_path_manager.log_file, level=logging.ERROR)
+# logging.basicConfig(filename=_path_manager.log_file, level=logging.ERROR)
+logger = get_logger("aurras.utils.decorators", log_to_console=False)
 
 
 def handle_exceptions(func):
@@ -19,7 +19,7 @@ def handle_exceptions(func):
             return func(*args, **kwargs)
         except Exception as e:
             # Log the exception
-            logging.error("Exception in %s : %s", func.__name__, e)
+            logger.error("Exception in %s : %s", func.__name__, e)
 
             return "An unexpected error occurred. Please check the logs for details."
 
@@ -40,7 +40,7 @@ def with_error_handling(method):
             method_name = method.__name__
 
             console.print_error(f"Error in {method_name}: {str(e)}")
-            logging.error(f"Error in {method_name}: {e}", exc_info=True)
+            logger.error(f"Error in {method_name}: {e}", exc_info=True)
             return 1
 
     return wrapper

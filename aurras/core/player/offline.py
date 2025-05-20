@@ -4,10 +4,10 @@ Offline Player Module
 This module provides functionality for playing songs from local files.
 """
 
-import logging
 from typing import List, Tuple
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.core.downloader import DownloadsDatabase
 from aurras.utils.exceptions import (
     AurrasError,
@@ -22,7 +22,7 @@ from aurras.core.player.mpv import MPVPlayer
 from aurras.core.player.mpv.state import PlaybackState
 from aurras.core.player.mpv.history_integration import integrate_history_with_playback
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.offline", log_to_console=False)
 
 
 class InitializeOfflinePlayer:

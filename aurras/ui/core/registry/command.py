@@ -7,12 +7,12 @@ It allows registering, executing, and retrieving information about commands.
 
 import re
 import shlex
-import logging
 from typing import Dict, Callable, Optional, List, Tuple
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.core.registry.command", log_to_console=False)
 
 COMMAND_PATTERN = re.compile(r"^(\w+)(?:\s+(.*))?$")
 

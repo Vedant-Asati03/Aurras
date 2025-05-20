@@ -7,15 +7,15 @@ cache management, disk usage, and system information.
 
 import time
 import sqlite3
-import logging
 from typing import Optional
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
 from aurras.utils.decorators import with_error_handling
 from aurras.utils.console.renderer import FeedbackMessage
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.system", log_to_console=False)
 
 
 class SystemProcessor:

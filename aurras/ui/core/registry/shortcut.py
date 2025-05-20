@@ -5,10 +5,10 @@ This module provides a centralized registry for all keyboard shortcuts and comma
 in the application. It allows registering, executing, and retrieving information about shortcuts.
 """
 
-import logging
 from typing import Dict, List
+from aurras.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.ui.core.registry.shortcut", log_to_console=False)
 
 
 class ShortcutRegistry:

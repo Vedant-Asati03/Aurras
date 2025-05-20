@@ -1,8 +1,11 @@
 from sqlitedict import SqliteDict
 from prompt_toolkit.history import History
 
-from aurras.utils.logger import exception_log
+# from aurras.utils.logger import exception_log
+from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
+
+logger = get_logger("aurras.ui.completer.history", log_to_console=False)
 
 
 class SongHistoryManager(History):
@@ -36,7 +39,7 @@ class SongHistoryManager(History):
             index = str(len(self.history_dict))
             self.history_dict[index] = command
         except Exception as e:
-            exception_log(f"Error appending string to history: {e}")
+            logger.error(f"Error appending string to history: {e}", exc_info=True)
 
     def load_history_strings(self):
         """
@@ -48,7 +51,7 @@ class SongHistoryManager(History):
         try:
             return list(self.history_dict.values())
         except Exception as e:
-            exception_log(f"Error loading history strings: {e}")
+            logger.error(f"Error loading history strings: {e}", exc_info=True)
             return []
 
     def store_string(self, command):
@@ -62,4 +65,4 @@ class SongHistoryManager(History):
             index = str(len(self.history_dict))
             self.history_dict[index] = command
         except Exception as e:
-            exception_log(f"Error storing string in history: {e}")
+            logger.error(f"Error storing string in history: {e}", exc_info=True)

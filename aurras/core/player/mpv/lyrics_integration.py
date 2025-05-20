@@ -5,16 +5,16 @@ This module provides functionality for fetching, formatting and displaying
 lyrics in the MPV player interface with theme-consistent styling.
 """
 
-import logging
 from typing import List
 from concurrent.futures import Future
 
+from aurras.utils.logger import get_logger
 from aurras.services.lyrics import LyricsManager
 from aurras.utils.console import apply_gradient_to_text
 from aurras.core.player.memory import optimize_memory_usage
 from aurras.core.player.mpv.state import LyricsStatus, LyricsState
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.core.player.lyrics", log_to_console=False)
 
 
 @optimize_memory_usage()

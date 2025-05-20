@@ -6,15 +6,15 @@ viewing, clearing, and managing the playback history.
 """
 
 import time
-import logging
 from typing import List, Tuple
 
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.console.renderer import ListDisplay
 from aurras.utils.decorators import with_error_handling
 from aurras.core.player.history import RecentlyPlayedManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.history", log_to_console=False)
 
 
 class HistoryProcessor:

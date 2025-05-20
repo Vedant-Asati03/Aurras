@@ -4,9 +4,8 @@ Theme command processor for Aurras CLI.
 Handles listing, setting, cycling, and saving UI themes.
 """
 
-import logging
-
 from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.utils.console.manager import (
     get_theme,
     get_available_themes,
@@ -14,7 +13,7 @@ from aurras.utils.console.manager import (
     set_current_theme,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger("aurras.command.processors.theme", log_to_console=False)
 
 
 class ThemeProcessor:
