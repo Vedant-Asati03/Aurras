@@ -75,17 +75,21 @@ class AurrasApp:
 
     def __init__(self):
         """Initialize the AurrasApp class."""
+        logger.debug("Initializing AurrasApp for interactive mode")
 
     @handle_exceptions
     def run(self):
         """Run the Aurras application in interactive mode."""
         from aurras.ui.core import input_processor
+        logger.info("Starting Aurras interactive mode")
 
         try:
+            logger.debug("Entering main input processing loop")
             while True:
                 input_processor.process_input()
 
         except KeyboardInterrupt:
+            logger.info("User exited interactive mode with keyboard interrupt")
             console.print_success("Thanks for using Aurras!")
             sys.exit(0)
 
@@ -102,11 +106,15 @@ def process_command_line_args(argv: List[str]) -> List[str]:
     Returns:
         list: Processed argument list
     """
+    logger.debug(f"Processing raw command line args: {argv}")
+    
     if len(argv) <= 1:
+        logger.debug("No arguments to process")
         return argv
 
     # Handle the case where the first argument might be a song name without any flags
     if len(argv) == 2 and not argv[1].startswith("-"):
+        logger.debug(f"Single non-flag argument detected: {argv[1]}")
         return argv
 
     # Parse more complex command lines
@@ -119,6 +127,7 @@ def process_command_line_args(argv: List[str]) -> List[str]:
 
         # Add the argument to our result
         result.append(arg)
+        logger.debug(f"Added argument: {arg}")
 
         # If this is an option that takes a value
         if arg.startswith("-") and i < len(argv) and not argv[i].startswith("-"):
@@ -135,8 +144,11 @@ def process_command_line_args(argv: List[str]) -> List[str]:
                     break
 
             # Add the combined value
-            result.append(" ".join(value_parts))
+            combined_value = " ".join(value_parts)
+            result.append(combined_value)
+            logger.debug(f"Added option value: {combined_value} for option {arg}")
 
+    logger.debug(f"Processed command line args: {result}")
     return result
 
 
@@ -149,6 +161,8 @@ def create_parser() -> Tuple[
     Returns:
         tuple: The configured argument parser and a dictionary of subparsers
     """
+    logger.debug("Creating argument parser with subcommands")
+    
     # Initialize argument parser with improved formatter
     parser = argparse.ArgumentParser(
         description="Aurras - A high-end command line music player",
@@ -164,6 +178,7 @@ def create_parser() -> Tuple[
 
     # Create subparsers for main commands - use dest="subcommand" to avoid conflict
     subparsers = parser.add_subparsers(dest="subcommand", help="Commands")
+    logger.debug("Created subparsers for main commands")
 
     # Create a dictionary to store subparsers for later access
     subparsers_dict = {}
@@ -353,6 +368,7 @@ def create_parser() -> Tuple[
         "--count", action="store_true", help="Show count of songs in library"
     )
 
+    logger.debug("Finished configuring all subparsers")
     return parser, subparsers_dict
 
 
@@ -360,8 +376,11 @@ def main():
     """Main entry point for the Aurras application."""
     logger.info("Starting Aurras CLI")
     try:
+        logger.debug(f"Raw command line arguments: {sys.argv}")
+        
         # If no arguments were provided, start interactive mode
         if len(sys.argv) == 1:
+            logger.info("No arguments provided, starting interactive mode")
             app = AurrasApp()
             app.run()
             return 0
@@ -388,25 +407,40 @@ def main():
         ):
             # Assume this is a song name for playing
             song_name = sys.argv[1]
+            logger.info(f"Direct song play request detected: {song_name}")
             return player_processor.play_song(song_name, True)
+
+        # Process command line arguments for proper handling of comma-separated values
+        processed_args = process_command_line_args(sys.argv)
+        if processed_args != sys.argv:
+            logger.debug(f"Arguments were processed: {processed_args}")
+            sys.argv = processed_args
 
         # Parse arguments
         try:
             args = parser.parse_args()
             logger.debug(f"Parsed arguments: {args}")
         except SystemExit as e:
+            logger.info(f"Parser exited with code {e.code}")
             return e.code
 
         # Process based on the subcommand
         subcommand = args.subcommand
+        logger.info(f"Processing subcommand: {subcommand}")
 
         match subcommand:
             case "play":
+                logger.debug(f"Executing play command with song: {args.song}, lyrics: {not getattr(args, 'no_lyrics', False)}")
                 return player_processor.play_song(
                     args.song, not getattr(args, "no_lyrics", False)
                 )
 
             case "download":
+                logger.debug(f"Executing download command for: {args.song}")
+                logger.debug(f"Download options - playlist: {getattr(args, 'playlist', None)}, " 
+                           f"output_dir: {getattr(args, 'output_dir', None)}, "
+                           f"format: {getattr(args, 'format', 'mp3')}, "
+                           f"bitrate: {getattr(args, 'bitrate', 'auto')}")
                 return player_processor.download_song(
                     args.song,
                     getattr(args, "playlist", None),
@@ -417,24 +451,32 @@ def main():
 
             case "playlist":
                 from aurras.utils.command.processors import playlist_processor
+                logger.debug(f"Executing playlist command with name: {args.name}")
 
                 if getattr(args, "download", False):
+                    logger.info(f"Downloading playlist: {args.name}")
                     return playlist_processor.download_playlist(
                         args.name,
                         getattr(args, "format", None),
                         getattr(args, "bitrate", None),
                     )
                 elif getattr(args, "delete", False):
+                    logger.info(f"Deleting playlist: {args.name}")
                     return playlist_processor.delete_playlist(args.name)
                 elif getattr(args, "import", False):
+                    logger.info("Importing Spotify playlists")
                     from aurras.utils.command.processors import spotify_processor
-
                     return spotify_processor.import_user_playlists()
                 elif getattr(args, "search", False):
+                    logger.info(f"Searching playlists for: {args.name}")
                     return playlist_processor.search_playlists(args.name)
                 elif getattr(args, "list", False):
+                    logger.info("Listing all playlists")
                     return playlist_processor.list_playlists()
                 else:
+                    logger.info(f"Playing playlist: {args.name}")
+                    logger.debug(f"Playlist options - lyrics: {not getattr(args, 'no_lyrics', False)}, " 
+                               f"shuffle: {getattr(args, 'shuffle', False)}")
                     return playlist_processor.play_playlist(
                         args.name,
                         not getattr(args, "no_lyrics", False),
@@ -443,74 +485,100 @@ def main():
 
             case "history":
                 from aurras.utils.command.processors import history_processor
+                logger.debug("Executing history command")
 
                 if getattr(args, "clear", False):
+                    logger.info("Clearing play history")
                     return history_processor.clear_history()
                 elif getattr(args, "previous", False):
+                    logger.info("Playing previous song from history")
                     return history_processor.play_previous_song()
                 else:
+                    logger.info(f"Showing play history with limit: {getattr(args, 'limit', 30)}")
                     return history_processor.show_history(getattr(args, "limit", 30))
 
             case "settings":
                 from aurras.utils.command.processors import settings_processor
+                logger.debug("Executing settings command")
 
                 if getattr(args, "list", False):
+                    logger.info("Listing all settings")
                     return settings_processor.list_settings()
                 elif getattr(args, "set", None):
                     key, value = args.set
+                    logger.info(f"Setting configuration: {key}={value}")
                     return settings_processor.set_setting(key, value)
                 elif getattr(args, "reset", False):
+                    logger.info("Resetting all settings to defaults")
                     return settings_processor.reset_settings()
                 else:
+                    logger.info("Opening settings UI")
                     return settings_processor.open_settings_ui()
 
             case "theme":
                 from aurras.utils.command.processors import theme_processor
+                logger.debug("Executing theme command")
 
                 if getattr(args, "list", False):
+                    logger.info("Listing all themes")
                     return theme_processor.list_themes()
                 elif args.name:
+                    logger.info(f"Setting theme to: {args.name}")
                     return theme_processor.set_theme(args.name)
                 else:
+                    logger.info("No theme name provided, showing theme list")
                     return theme_processor.list_themes()
 
             case "backup":
                 from aurras.utils.command.processors import backup_processor
+                logger.debug("Executing backup command")
 
                 if getattr(args, "create", False):
+                    logger.info("Creating new backup")
                     return backup_processor.create_backup()
                 elif getattr(args, "list", False):
+                    logger.info("Listing available backups")
                     return backup_processor.list_backups()
                 elif getattr(args, "restore", None) is not None:
+                    logger.info(f"Restoring from backup: {args.restore}")
                     return backup_processor.restore_backup(args.restore)
                 else:
+                    logger.info("No backup operation specified, showing backup list")
                     return backup_processor.list_backups()
 
             case "library":
                 from aurras.utils.command.processors import library_processor
+                logger.debug("Executing library command")
 
                 if getattr(args, "scan", False):
+                    logger.info("Scanning music library")
                     return library_processor.scan_library()
                 elif getattr(args, "list_playlists", False):
+                    logger.info("Listing playlists in library")
                     return library_processor.list_playlists()
                 elif getattr(args, "set_path", None):
+                    logger.info(f"Setting library path to: {args.set_path}")
                     return library_processor.set_library_path(args.set_path)
                 elif getattr(args, "count", False):
+                    logger.info("Counting songs in library")
                     return library_processor.count_library()
                 else:
+                    logger.info("No library operation specified, running scan")
                     return library_processor.scan_library()
 
         # If we got here with no subcommand, show help
         if not subcommand:
+            logger.info("No subcommand specified, showing help")
             parser.print_help()
             return 0
 
     except KeyboardInterrupt:
+        logger.info("User interrupted execution with KeyboardInterrupt")
         console.print_success("Thanks for using Aurras!")
         return 0
 
     except Exception as e:
-        logger.exception("Unhandled exception in main")
+        logger.exception(f"Unhandled exception in main: {str(e)}")
         console.print_error(f"An error occurred: {str(e)}")
         return 1
 
@@ -519,4 +587,6 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = main()
+    logger.debug(f"Exiting with code: {exit_code}")
+    sys.exit(exit_code)
