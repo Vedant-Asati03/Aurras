@@ -32,6 +32,25 @@ class ThemeProcessor:
             logger.error(f"Failed to persist theme: {e}")
             return False
 
+    def display_current_theme(self) -> int:
+        """Display the current theme."""
+        try:
+            current_theme = get_current_theme()
+            theme = get_theme(current_theme)
+
+            console.style_text(
+                text=f"Theme: {theme.name} 󰑃  {theme.description}",
+                style_key="accent",
+                text_style="italic",
+                print_it=True,
+            )
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error displaying current theme: {e}")
+            console.print_error(f"Error displaying current theme: {e}")
+            return 1
+
     def set_theme(self, theme_name: str) -> int:
         """Set the theme and persist it."""
         if not theme_name:
