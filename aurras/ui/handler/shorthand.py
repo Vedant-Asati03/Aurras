@@ -73,11 +73,4 @@ def register_default_shorthands():
         strip_prefix=True,
     )
 
-    shortcut_registry.register_shorthand(
-        prefix=SHORTHAND_SETTINGS.toggle_lyrics,
-        command=COMMAND_SETTINGS.toggle_lyrics,
-        description="Toggle lyrics (shorthand)",
-        strip_prefix=True,
-    )
-
     logger.debug("Default shorthand commands registered")

@@ -16,7 +16,6 @@ class ShortHandSettings(BaseModel):
     view_playlist: str = "v"
     delete_playlist: str = "de"
     display_history: str = "h"
-    toggle_lyrics: str = "l"
 
     model_config = {
         # Allow extra fields for backward compatibility
