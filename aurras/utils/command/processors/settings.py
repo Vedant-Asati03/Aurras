@@ -316,10 +316,9 @@ class SettingsProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        from aurras.core.settings.models import Settings
+        from aurras.core.settings import default_settings
         from aurras.core.settings.io import save_settings
 
-        default_settings = Settings()
         save_settings(default_settings)
 
         console.print_success("Settings reset to default values")
@@ -335,7 +334,7 @@ class SettingsProcessor:
 
         settings_updater = SettingsUpdater(setting_name)
         current_value = settings_updater._get_nested_value(
-            settings_updater.SETTINGS, settings_updater.key
+            SETTINGS, settings_updater.key
         )
 
         if not current_value:
