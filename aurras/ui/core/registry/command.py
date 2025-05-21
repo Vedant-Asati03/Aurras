@@ -14,7 +14,8 @@ from aurras.utils.logger import get_logger
 
 logger = get_logger("aurras.ui.core.registry.command", log_to_console=False)
 
-COMMAND_PATTERN = re.compile(r"^(\w+)(?:\s+(.*))?$")
+# COMMAND_PATTERN = re.compile(r"^(\w+)(?:\s+(.*))?$")
+COMMAND_PATTERN = re.compile(r"^([\w\-:]+)(?:\s+(.*))?$")
 
 
 class CommandRegistry:
