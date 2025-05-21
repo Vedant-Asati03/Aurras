@@ -56,7 +56,7 @@ def register_playlist_commands():
         name=COMMAND_SETTINGS.import_playlist,
         function=spotify_processor.import_user_playlists,
         description="Import a playlist from Spotify",
-        parameter_help="[playlist_name]",
+        parameter_help="<playlist_name>",
         requires_args=False,
         category="Playlist",
     )
