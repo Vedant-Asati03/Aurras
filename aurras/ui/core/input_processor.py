@@ -159,6 +159,9 @@ class InputProcessor:
         """
         command, args = command_registry.parse_command(input_text)
 
+        if command == "cancel":
+            return True
+
         if command and command_registry.execute_command(command, args):
             return True
 
