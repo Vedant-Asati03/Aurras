@@ -35,15 +35,12 @@ class InputProcessor:
         register_all_commands()
         register_default_shorthands()
 
-        self.command_registry = command_registry
-        self.shorthand_registry = shortcut_registry
-
         self.dynamic_search_bar = AdaptiveCompleter()
 
         self.user_input = None
         self.input_lexer = InputLexer(
-            command_registry=self.command_registry,
-            shorthand_registry=self.shorthand_registry,
+            command_registry=command_registry,
+            shorthand_registry=shortcut_registry,
         )
 
     def _set_placeholder_style(self):
@@ -141,49 +138,18 @@ class InputProcessor:
         """
         input_text: str = self.get_user_input()
 
-        if self._process_command_palette_input(input_text):
+        if self._process_direct_commands(input_text):
             return True
 
         if self._process_shorthand_commands(input_text):
             return True
 
-        if self._process_direct_commands(input_text):
-            return True
-
         return self._handle_default_input(input_text)
-
-    def _process_command_palette_input(self, input_text: str) -> bool:
-        """
-        Process input from command palette.
-
-        Args:
-            input_text: User input text
-
-        Returns:
-            True if the input was handled, False otherwise
-        """
-        command_action = input_text.strip().lower()
-
-        if ":" in command_action:
-            try:
-                command_name = command_action.split(":", 1)[0].strip()
-
-                if command_name == "cancel":
-                    return True
-
-                return self.command_registry.execute_command(command_name, None)
-
-            except Exception as e:
-                logger.error(
-                    f"Error executing command palette action: {e}", exc_info=True
-                )
-                console.print_error("Error executing command palette action.")
-
-        return False
 
     def _process_direct_commands(self, input_text: str) -> bool:
         """
         Process direct command execution.
+        This also includes command palette commands because they are basically direct commands.
 
         Args:
             input_text: User input text
@@ -191,9 +157,9 @@ class InputProcessor:
         Returns:
             True if a command was executed, False otherwise
         """
-        command, args = self.command_registry.parse_command(input_text)
+        command, args = command_registry.parse_command(input_text)
 
-        if command and self.command_registry.execute_command(command, args):
+        if command and command_registry.execute_command(command, args):
             return True
 
         return False
@@ -208,7 +174,7 @@ class InputProcessor:
         Returns:
             True if a shorthand was executed, False otherwise
         """
-        return self.shorthand_registry.check_shorthand_commands(input_text)
+        return shortcut_registry.check_shorthand_commands(input_text)
 
     def _handle_default_input(self, input_text: str) -> bool:
         """
