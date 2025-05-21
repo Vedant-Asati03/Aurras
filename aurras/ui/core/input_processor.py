@@ -16,6 +16,7 @@ from aurras.ui.core.input_lexer import InputLexer
 from aurras.utils.exceptions import InvalidInputError
 from aurras.ui.completer.history import SongHistoryManager
 from aurras.ui.adaptive_completer import AdaptiveCompleter
+from aurras.ui.renderers.options_palette import execute_option
 from aurras.ui.core.registry import command_registry, shortcut_registry
 from aurras.ui.handler import register_all_commands, register_default_shorthands
 
@@ -138,6 +139,9 @@ class InputProcessor:
         """
         input_text: str = self.get_user_input()
 
+        if self._process_options_palette(input_text):
+            return True
+
         if self._process_direct_commands(input_text):
             return True
 
@@ -178,6 +182,18 @@ class InputProcessor:
             True if a shorthand was executed, False otherwise
         """
         return shortcut_registry.check_shorthand_commands(input_text)
+
+    def _process_options_palette(self, input_text: str) -> bool:
+        """
+        Process options palette commands.
+
+        Args:
+            input_text: User input text
+
+        Returns:
+            True if an option was executed, False otherwise
+        """
+        return execute_option(input_text)
 
     def _handle_default_input(self, input_text: str) -> bool:
         """
