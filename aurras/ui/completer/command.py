@@ -30,17 +30,15 @@ class CommandCompleter(BaseCompleter):
             result = []
 
             for name, desc in self.commands.items():
-                display = f"{name}: {desc}"
-
                 if (
                     not search_text
                     or search_text in name.lower()
                     or search_text in desc.lower()
                 ):
-                    result.append((display, "Command"))
+                    result.append((name, desc))
 
             # Always add a cancel option
-            result.append(("cancel: close palette", "Command"))
+            result.append(("cancel", "close palette"))
 
             return result
 
