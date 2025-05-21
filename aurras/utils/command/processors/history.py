@@ -25,7 +25,7 @@ class HistoryProcessor:
         self.history_manager = RecentlyPlayedManager()
 
     @with_error_handling
-    def show_history(self, limit: int = 10) -> int:
+    def show_history(self, limit: str = 10) -> int:
         """
         Show recent playback history.
 
@@ -35,6 +35,7 @@ class HistoryProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
+        limit = int(limit)
         recent_songs = self.history_manager.get_recent_songs(limit=limit)
         history_count = self.history_manager.get_history_count()
 
