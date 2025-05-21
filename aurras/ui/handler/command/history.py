@@ -19,7 +19,7 @@ def register_history_commands():
         name=COMMAND_SETTINGS.display_history,
         function=history_processor.show_history,
         description="Show play history",
-        parameter_help="[limit=30]",
+        parameter_help="<limit=30>",
         requires_args=False,
         category="History",
     )
