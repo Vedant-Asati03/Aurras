@@ -1,4 +1,6 @@
 from typing import List, Tuple
+
+from aurras.ui.renderers import options
 from aurras.ui.completer.base import BaseCompleter
 
 
@@ -13,19 +15,6 @@ class FeatureCompleter(BaseCompleter):
         """
         Initializes the SuggestAppFeatures class.
         """
-        self.app_features = [
-            "Help",
-            "Play_Offline",
-            "Download_Song",
-            "Play_Playlist",
-            "Delete_Playlist",
-            "Import_Playlist",
-            "Download_Playlist",
-            "Settings",
-            "Command_Palette",
-            ">",
-            "cmd",
-        ]
 
     def get_suggestions(self, text: str) -> List[Tuple[str, str]]:
         """
@@ -38,5 +27,5 @@ class FeatureCompleter(BaseCompleter):
             List of tuples (feature_name, "Feature")
         """
         if text.startswith("?"):
-            return [(command, "Feature") for command in self.app_features]
+            return [(name, desc) for name, desc in options.items()]
         return []
