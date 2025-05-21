@@ -28,18 +28,9 @@ def register_system_commands():
         name=COMMAND_SETTINGS.cleanup_cache,
         function=system_processor.cleanup_cache,
         description="Clean up cache",
-        parameter_help="[days=30]",
+        parameter_help="<days=30>",
         requires_args=False,
         category="System",
-    )
-
-    command_registry.register_command(
-        name=COMMAND_SETTINGS.toggle_lyrics,
-        function=system_processor.toggle_lyrics,
-        description="Toggle lyrics display",
-        parameter_help=None,
-        requires_args=False,
-        category="Interface",
     )
 
     logger.debug("System commands registered")
