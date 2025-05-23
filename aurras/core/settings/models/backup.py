@@ -8,38 +8,47 @@ from pydantic import BaseModel, Field
 
 
 class BackupItems(BaseModel):
-    history: str = "yes"
-    playlists: str = "yes"
-    settings: str = "yes"
-    cache: str = "no"
-    downloads: str = "no"
+    """Items to include in backups."""
 
-    model_config = {"extra": "allow"}
+    cache: str = "yes"  # Cache data (can be regenerated)
+    history: str = "yes"  # Playback history
+    credentials: str = "yes"  # API credentials and tokens
+    settings: str = "yes"  # User preferences and configurations
+    downloads: str = "yes"  # Actual downloaded media files
+    playlists: str = "yes"  # Playlist structure and metadata
 
 
 class TimedBackup(BaseModel):
-    status: str = "off"
-    daily: str = "off"
-    weekly: str = "off"
-    monthly: str = "off"
+    """Configuration for timed backups."""
 
-    model_config = {"extra": "allow"}
+    enable: str = "yes"  # Enable timed backups
+    interval: int = 24  # Interval in hours for backups
 
 
-class ManualBackup(BaseModel):
-    status: str = "off"
-    timed: TimedBackup = Field(default_factory=TimedBackup)
+class SmartRestore(BaseModel):
+    """Configuration for smart restoration of media files."""
 
-    model_config = {"extra": "allow"}
+    enable: str = "yes"  # Enable smart restore capability
+    redownload_strategy: str = "ask"  # Options: "always", "ask", "never"
 
 
-class Backup(BaseModel):
-    enable_backups: str = "yes"  # More consistent than "enabled"
-    automatic_backups: str = "yes"  # More descriptive than "auto_backup"
-    backup_interval_days: str = "7"  # Unit is now in the name
-    backup_location: str = "default"
+class BackupSettings(BaseModel):
+    """Backup settings model."""
+
+    # Backup directory path
+    backup_dir: str = "default"  # 'default' uses platform-specific paths, otherwise absolute path to custom location
+    # Windows: %LOCALAPPDATA%\aurras\backups
+    # macOS: ~/Library/Application Support/aurras/backups
+    # Linux: ~/.aurras/backups
+    maximum_backups: int = 10  # Maximum number of backups to keep
+
+    # Items to include in backups
     backup_items: BackupItems = Field(default_factory=BackupItems)
-    manual_backup: ManualBackup = Field(default_factory=ManualBackup)
-    maximum_backups: str = "10"  # More consistent
+
+    # Timed backup settings
+    timed_backup: TimedBackup = Field(default_factory=TimedBackup)
+
+    # Smart restore settings
+    smart_restore: SmartRestore = Field(default_factory=SmartRestore)
 
     model_config = {"extra": "allow"}
