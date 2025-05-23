@@ -38,7 +38,21 @@ GALAXY: Final[ThemeDefinition] = ThemeDefinition(
         "#8BE9FD44",
     ],  # Added for consistency
     status_gradient=["#F8F8F2", "#F8F8F2AA", "#F8F8F277"],  # Added for consistency
-    progress_gradient=["#50FA7B", "#50FA7BAA"],  # Added for consistency
+    progress_gradient=[
+        "#40FA70",
+        "#45FA74",
+        "#4AFA78",
+        "#50FA7B",
+        "#58FA81",
+        "#60FA86",
+        "#68FA8C",
+        "#70FA91",
+        "#78FA96",
+        "#80FA9C",
+        "#88FAA2",
+        "#90FAA7",
+        "#50FA7BAA",
+    ],  # galaxy gradient
     feedback_gradient=["#50FA7B", "#50FA7BAA", "#50FA7B77"],  # Added for consistency
     history_gradient=[
         "#8BE9FD",
@@ -66,7 +80,20 @@ NEON: Final[ThemeDefinition] = ThemeDefinition(
     title_gradient=["#FF00FF", "#FF33FF", "#FF66FF", "#FF99FF"],  # Pink gradient
     artist_gradient=["#00FFFF", "#33FFFF", "#66FFFF", "#99FFFF"],  # Cyan gradient
     status_gradient=["#FFFFFF", "#CCCCCC", "#999999"],  # White to gray
-    progress_gradient=["#39FF14", "#00FF7F"],  # Green to cyan
+    progress_gradient=[
+        "#4DFF00",
+        "#46FF0A",
+        "#3FFF14",
+        "#39FF14",
+        "#32FF24",
+        "#29FF2F",
+        "#21FF3B",
+        "#1AFF4A",
+        "#12FF57",
+        "#0AFF64",
+        "#05FF71",
+        "#00FF7F",
+    ],  # green to cyan
     feedback_gradient=["#FFFF00", "#FFCC00", "#FF9900"],  # Yellow to orange
     history_gradient=["#FF00FF", "#CC00FF", "#9900FF"],  # Magenta to purple
     dim="#333333",
@@ -89,7 +116,22 @@ VINTAGE: Final[ThemeDefinition] = ThemeDefinition(
     title_gradient=["#CC9966", "#D9A978", "#E6BA8A", "#F2CB9C"],  # Sepia gradient
     artist_gradient=["#FFCC99", "#FFD6AD", "#FFE0C2", "#FFEBD6"],  # Peach gradient
     status_gradient=["#CCCCCC", "#BBBBBB", "#AAAAAA"],  # Light gray gradient
-    progress_gradient=["#99CC66", "#AAD680", "#BBE099"],  # Green to light green
+    progress_gradient=[
+        "#88CC55",
+        "#8FCE5B",
+        "#96CC61",
+        "#99CC66",
+        "#9ECF6A",
+        "#A3D16F",
+        "#A7D475",
+        "#AAD680",
+        "#AFD98A",
+        "#B4DB8F",
+        "#B8DE94",
+        "#BBE099",
+        "#C0E3A1",
+        "#C5E5A8",
+    ],  # green to light green
     feedback_gradient=["#FF9966", "#FFAA77", "#FFBB88"],  # Orange gradient
     history_gradient=["#CC9966", "#BF8855", "#B37744"],  # Brown gradient
     dim="#332211",
@@ -112,7 +154,23 @@ MINIMAL: Final[ThemeDefinition] = ThemeDefinition(
     title_gradient=["#FFFFFF", "#F7F7F7", "#EFEFEF", "#E7E7E7"],  # White gradient
     artist_gradient=["#DDDDDD", "#D5D5D5", "#CDCDCD", "#C5C5C5"],  # Gray gradient
     status_gradient=["#BBBBBB", "#B3B3B3", "#AAAAAA"],  # Gray gradient
-    progress_gradient=["#AAFFAA", "#BBFFBB", "#CCFFCC"],  # Green gradient
+    progress_gradient=[
+        "#9AFFA0",
+        "#A0FFA5",
+        "#A5FFAA",
+        "#AAFFAA",
+        "#AFFFAF",
+        "#B3FFB3",
+        "#B7FFB7",
+        "#BBFFBB",
+        "#BFFFBF",
+        "#C4FFC4",
+        "#C8FFC8",
+        "#CCFFCC",
+        "#D0FFD0",
+        "#D5FFD5",
+        "#D9FFD9",
+    ],  # green gradient
     feedback_gradient=["#FFFFFF", "#F0F0F0", "#E0E0E0"],  # White to gray
     history_gradient=["#DDDDDD", "#D0D0D0", "#C3C3C3"],  # Gray gradient
     dim="#555555",
@@ -143,11 +201,23 @@ NIGHTCLUB: Final[ThemeDefinition] = ThemeDefinition(
     artist_gradient=["#00BFFF", "#33CCFF", "#66D9FF", "#99E6FF"],  # Blue gradient
     status_gradient=["#9370DB", "#A385E0", "#B39AE5", "#C3AFEA"],  # Purple gradient
     progress_gradient=[
+        "#00E070",
+        "#00E877",
+        "#00F07D",
         "#00FF7F",
+        "#0DFF85",
+        "#1AFF8C",
+        "#26FF93",
         "#33FF96",
+        "#40FF9D",
+        "#4DFFA5",
+        "#5AFFAB",
         "#66FFAD",
+        "#73FFB3",
+        "#80FFB9",
+        "#8CFFC0",
         "#99FFC4",
-    ],  # Green gradient
+    ],  # green gradient
     feedback_gradient=["#FF1493", "#FF3DA1", "#FF66AF", "#FF8FBD"],  # Pink gradient
     history_gradient=[
         "#9370DB",
@@ -178,7 +248,24 @@ CYBERPUNK: Final[ThemeDefinition] = ThemeDefinition(
     title_gradient=["#FF00DE", "#FF33E5", "#FF66EC", "#FF99F2"],  # Pink gradient
     artist_gradient=["#00F3FF", "#33F5FF", "#66F7FF", "#99F9FF"],  # Cyan gradient
     status_gradient=["#FFFC00", "#FFFD3F", "#FFFE7F", "#FFFFBF"],  # Yellow gradient
-    progress_gradient=["#00F3FF", "#02C3FF", "#0496FF", "#0060FF"],  # Cyan to blue
+    progress_gradient=[
+        "#00FFFF",
+        "#00F9FF",
+        "#00F6FF",
+        "#00F3FF",
+        "#00E8FF",
+        "#01DCFF",
+        "#01D1FF",
+        "#02C3FF",
+        "#02B8FF",
+        "#03ACFF",
+        "#03A1FF",
+        "#0496FF",
+        "#048BFF",
+        "#057BFF",
+        "#056EFF",
+        "#0060FF",
+    ],  # cyan to blue gradient
     feedback_gradient=[
         "#FF00DE",
         "#C300FF",
@@ -219,7 +306,25 @@ FOREST: Final[ThemeDefinition] = ThemeDefinition(
         "#BEDE86",
     ],  # Light green gradient
     status_gradient=["#795548", "#8A6859", "#9B7B6A", "#AC8E7B"],  # Brown gradient
-    progress_gradient=["#CDDC39", "#D3E04F", "#D9E465", "#DEE87B"],  # Lime gradient
+    progress_gradient=[
+        "#C4D428",
+        "#C8D730",
+        "#CCDA35",
+        "#CDDC39",
+        "#CEDD3F",
+        "#D0DF44",
+        "#D1E04A",
+        "#D3E04F",
+        "#D4E155",
+        "#D6E25A",
+        "#D7E360",
+        "#D9E465",
+        "#DAE56B",
+        "#DBE670",
+        "#DDE776",
+        "#DEE87B",
+        "#E0E980",
+    ],  # lime gradient
     feedback_gradient=[
         "#FF9800",
         "#FFA827",
@@ -260,7 +365,25 @@ OCEAN: Final[ThemeDefinition] = ThemeDefinition(
         "#CEF3F7",
         "#DCF7FA",
     ],  # Light cyan gradient
-    progress_gradient=["#009688", "#33A59C", "#66B5B0", "#99C4C4"],  # Teal gradient
+    progress_gradient=[
+        "#00877B",
+        "#008F81",
+        "#009286",
+        "#009688",
+        "#0D998C",
+        "#1A9C90",
+        "#279F96",
+        "#33A59C",
+        "#40A8A1",
+        "#4DAEA6",
+        "#59B1AB",
+        "#66B5B0",
+        "#73B8B5",
+        "#80BCBA",
+        "#8CBFBF",
+        "#99C4C4",
+        "#A5C8C8",
+    ],  # teal gradient
     feedback_gradient=[
         "#4DD0E1",
         "#64D7E6",
@@ -296,7 +419,25 @@ SUNSET: Final[ThemeDefinition] = ThemeDefinition(
         "#FFC899",
     ],  # Light orange gradient
     status_gradient=["#FFC107", "#FFCB3F", "#FFD677", "#FFE0AF"],  # Amber gradient
-    progress_gradient=["#F44336", "#F66356", "#F88376", "#FAA396"],  # Red gradient
+    progress_gradient=[
+        "#F43026",
+        "#F4372E",
+        "#F43F36",
+        "#F44336",
+        "#F4493D",
+        "#F55246",
+        "#F55B4E",
+        "#F66356",
+        "#F66C5E",
+        "#F77366",
+        "#F77C6E",
+        "#F88376",
+        "#F88C7E",
+        "#F99386",
+        "#F99C8E",
+        "#FAA396",
+        "#FAAC9E",
+    ],  # red gradient
     feedback_gradient=["#E91E63", "#EE4B83", "#F377A2", "#F8A4C2"],  # Pink gradient
     history_gradient=[
         "#9C27B0",
@@ -328,11 +469,31 @@ MONOCHROME: Final[ThemeDefinition] = ThemeDefinition(
     artist_gradient=["#CCCCCC", "#BABABA", "#A8A8A8", "#969696"],  # Gray gradient
     status_gradient=["#999999", "#888888", "#777777", "#666666"],  # Gray gradient
     progress_gradient=[
+        "#727272",
+        "#6F6F6F",
+        "#6C6C6C",
+        "#696969",
         "#666666",
+        "#636363",
+        "#616161",
+        "#5E5E5E",
+        "#5B5B5B",
+        "#595959",
         "#565656",
+        "#535353",
+        "#505050",
+        "#4E4E4E",
+        "#4B4B4B",
+        "#494949",
         "#464646",
+        "#444444",
+        "#414141",
+        "#3E3E3E",
+        "#3B3B3B",
+        "#393939",
         "#363636",
-    ],  # Dark gray gradient
+        "#333333",
+    ],  # dark gray gradient
     feedback_gradient=["#FFFFFF", "#E0E0E0", "#C0C0C0", "#A0A0A0"],  # White to gray
     history_gradient=[
         "#333333",
