@@ -21,16 +21,17 @@ class PathManager:
         self.app_dir.mkdir(parents=True, exist_ok=True)
 
         # Define instance attributes for critical directories
-        self._backup_dir = self.app_dir / "backups"
         self._config_dir = self.app_dir / "config"
         self._credentials_dir = self.app_dir / "credentials"
         self._database_dir = self.app_dir / "database"
         self._downloaded_songs_dir = self.app_dir / "songs"
         self._playlists_dir = self.app_dir / "playlists"
         self._log_dir = self.app_dir / "logs"
+        self._backups_storage_dir = Path("backups")
+        self._backup_metadata_dir = Path("metadata")
+        self._backup_logs_dir = self._backup_metadata_dir / "logs"
 
         # Create directories
-        self._backup_dir.mkdir(parents=True, exist_ok=True)
         self._config_dir.mkdir(parents=True, exist_ok=True)
         self._credentials_dir.mkdir(parents=True, exist_ok=True)
         self._database_dir.mkdir(parents=True, exist_ok=True)
@@ -52,11 +53,20 @@ class PathManager:
         generated_path.mkdir(parents=True, exist_ok=True)
         return generated_path
 
-    # Define properties for all directories with consistent naming
     @property
-    def backup_dir(self):
-        """Path to the backup directory."""
-        return self._backup_dir
+    def backups_storage_dir(self):
+        """Path to the backup storage directory where individual backups are stored."""
+        return self._backups_storage_dir
+
+    @property
+    def backup_metadata_dir(self):
+        """Path to the backup metadata directory."""
+        return self._backup_metadata_dir
+
+    @property
+    def backup_logs_dir(self):
+        """Path to the backup logs directory."""
+        return self._backup_logs_dir
 
     @property
     def config_dir(self):
