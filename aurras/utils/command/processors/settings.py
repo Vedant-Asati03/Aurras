@@ -4,7 +4,6 @@ Settings command processor for Aurras CLI.
 This module handles all settings-related commands and operations.
 """
 
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from aurras.utils.console import console
@@ -355,40 +354,3 @@ class SettingsProcessor:
         settings_updater.update_directly(new_value)
         console.print_success(f"Setings Updated: {display_name} turned {status}")
         return 0
-
-    @with_error_handling
-    def set_download_path(self, path: str) -> int:
-        """Set the download path to the provided directory."""
-        expanded_path = os.path.expanduser(path)
-
-        # Check if path exists
-        if not os.path.exists(expanded_path):
-            input_message = console.style_text(
-                f"Path '{expanded_path}' does not exist. Create it? (y/n): ",
-                "warning",
-            )
-            create_dir = console.input(input_message)
-            if create_dir.lower() == "y":
-                os.makedirs(expanded_path, exist_ok=True)
-            else:
-                console.print_warning("Operation cancelled by user.")
-                return 1
-
-        settings_updater = SettingsUpdater("download_path")
-        settings_updater.update_directly(expanded_path)
-
-        console.print_success(f"Download path set to: {expanded_path}")
-        return 0
-
-    @with_error_handling
-    def open_settings_ui(self) -> int:
-        """Open the settings management UI."""
-        from aurras.ui.renderers.command_palette import DisplaySettings
-
-        settings_ui = DisplaySettings()
-        settings_ui.display_settings()
-        return 0
-
-    def _display_error(self, message: str) -> None:
-        """Display an error message to the console."""
-        console.print_error(message)
