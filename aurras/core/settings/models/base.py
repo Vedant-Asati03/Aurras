@@ -10,7 +10,7 @@ from typing import Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
 from aurras.utils.path_manager import _path_manager
-from aurras.core.settings.models.backup import Backup
+from aurras.core.settings.models.backup import BackupSettings
 from aurras.core.settings.models.command import CommandSettings
 from aurras.core.settings.models.keyboard import KeyboardShortcuts
 from aurras.core.settings.models.validators import validate_volume
@@ -52,14 +52,8 @@ class Settings(BaseModel):
     # Appearance settings
     appearance_settings: AppearanceSettings = Field(default_factory=AppearanceSettings)
 
-    # System settings
-    enable_hardware_acceleration: str = "yes"
-    enable_media_keys: str = "yes"
-    enable_auto_updates: str = "yes"
-    update_check_hours: str = "168"
-
     # Backup settings
-    backup: Backup = Field(default_factory=Backup)
+    backup: BackupSettings = Field(default_factory=BackupSettings)
 
     # Advanced settings
     log_level: str = "info"
