@@ -437,6 +437,8 @@ def main():
 
         match subcommand:
             case "play":
+                from aurras.utils.command.processors import player_processor
+
                 logger.debug(
                     f"Executing play command with song: {args.song}, lyrics: {not getattr(args, 'no_lyrics', False)}"
                 )
@@ -445,6 +447,8 @@ def main():
                 )
 
             case "download":
+                from aurras.utils.command.processors import player_processor
+
                 logger.debug(f"Executing download command for: {args.song}")
                 logger.debug(
                     f"Download options - playlist: {getattr(args, 'playlist', None)}, "
