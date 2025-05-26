@@ -203,11 +203,11 @@ class LyricsFormatter:
                 result_lines.append(word_highlight)
             else:
                 # Other lines - use theme color but dimmed
-                result_lines.append(console.style_text(text=text, style_key="dim"))
+                result_lines.append(console.style_text(text=text, style_key="text_muted"))
 
         # Add a footer if we're not at the end
         if end_index < len(parsed_lyrics):
-            result_lines.append(console.style_text(text="", style_key="dim"))
+            result_lines.append(console.style_text(text="", style_key="text_muted"))
 
         return "\n".join(result_lines)
 
@@ -258,7 +258,7 @@ class LyricsFormatter:
 
         # If elapsed time is negative, we're still before this line starts
         if elapsed_in_line < 0:
-            stlyed_text = console.style_text(text=text, style_key="dim")
+            stlyed_text = console.style_text(text=text, style_key="text_muted")
             return stlyed_text
 
         # Calculate which word should be highlighted based on elapsed time percentage
@@ -335,4 +335,4 @@ class LyricsFormatter:
             return f"[{color}]{word}[/{color}]"
 
         # Far words - use dim color
-        return console.style_text(text=word, style_key="dim")
+        return console.style_text(text=word, style_key="text_muted")
