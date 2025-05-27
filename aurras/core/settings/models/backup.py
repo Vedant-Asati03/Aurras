@@ -14,6 +14,7 @@ class BackupItems(BaseModel):
     history: str = "yes"  # Playback history
     credentials: str = "yes"  # API credentials and tokens
     settings: str = "yes"  # User preferences and configurations
+    themes: str = "yes" # Custom themes and styles
     downloads: str = "yes"  # Actual downloaded media files
     playlists: str = "yes"  # Playlist structure and metadata
 
