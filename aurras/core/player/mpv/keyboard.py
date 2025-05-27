@@ -182,7 +182,7 @@ def setup_key_bindings(player) -> None:
     # Cycle themes
     @player.on_key_press(SETTINGS.keyboard_shortcuts.switch_themes)
     def _cycle_theme() -> None:
-        from ....utils.console.manager import (
+        from aurras.utils.console.manager import (
             change_theme,
             get_available_themes,
             get_current_theme,

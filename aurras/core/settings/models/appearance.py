@@ -5,9 +5,7 @@ This module defines the Pydantic model for appearance-related settings,
 including player visualization, themes, and display preferences.
 """
 
-from pydantic import BaseModel, Field, field_validator
-
-from aurras.core.settings.models.validators import validate_theme
+from pydantic import BaseModel, Field
 
 
 class AppearanceSettings(BaseModel):
@@ -29,9 +27,3 @@ class AppearanceSettings(BaseModel):
     time_format: str = "24h"  # options: 12h, 24h
 
     model_config = {"extra": "allow"}
-
-    @field_validator("theme", mode="before")
-    @classmethod
-    def validate_theme_field(cls, v):
-        """Validate the theme exists in the available themes."""
-        return validate_theme(v)
