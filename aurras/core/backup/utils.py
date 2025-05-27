@@ -31,22 +31,22 @@ def get_platform_specific_backup_dir():
             base_dir = Path(
                 os.environ.get("LOCALAPPDATA", str(home / "AppData" / "Local"))
             )
-            return base_dir / "aurras" / "backups"
+            return base_dir / "aurras" / "backup"
 
         case "darwin":  # macOS
-            return home / "Library" / "Application Support" / "aurras" / "backups"
+            return home / "Library" / "Application Support" / "aurras" / "backup"
 
         case s if s.startswith("linux"):  # Linux
             # Check if using XDG
             xdg_data_home = os.environ.get("XDG_DATA_HOME")
 
             if xdg_data_home:
-                return Path(xdg_data_home) / "aurras" / "backups"
-            return home / ".aurras" / "backups"  # Traditional dot-directory approach
+                return Path(xdg_data_home) / "aurras" / "backup"
+            return home / ".local" / "share" / "aurras" / "backup"
 
         case _:  # Other platforms
             logger.warning("Unsupported platform. Defaulting to home directory.")
-            return home / ".aurras" / "backups"
+            return home / ".aurras" / "backup"
 
 
 def resolve_backup_dir(backup_path: str):
