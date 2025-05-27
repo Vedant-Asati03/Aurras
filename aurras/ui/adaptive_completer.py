@@ -7,6 +7,7 @@ to route input to the appropriate completer based on patterns.
 
 from prompt_toolkit.completion import Completer
 
+from aurras.core.settings import SETTINGS
 from aurras.ui.core.registry.completer import CompleterRegistry
 from aurras.ui.completer import (
     SongCompleter,
@@ -33,8 +34,8 @@ class AdaptiveCompleter(Completer):
         self.playlist_completer = PlaylistCompleter()
 
         # Register completers with appropriate prefixes/patterns
-        self.registry.register_prefix(">", self.command_completer)
-        self.registry.register_prefix("?", self.feature_completer)
+        self.registry.register_prefix(SETTINGS.command_palette_key, self.command_completer)
+        self.registry.register_prefix(SETTINGS.options_menu_key, self.feature_completer)
         self.registry.register_pattern(r"^(p|d),", self.playlist_completer)
 
         # Set default completer for when no pattern matches

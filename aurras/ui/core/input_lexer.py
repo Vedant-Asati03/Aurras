@@ -12,6 +12,7 @@ from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.document import Document
 
 from aurras.utils.console import console
+from aurras.core.settings import SETTINGS
 
 
 class InputLexer(Lexer):
@@ -173,12 +174,14 @@ class InputLexer(Lexer):
             if not line:
                 return []
 
-            if line.startswith("?"):
-                return self._process_prefix_command(line, "?", self.options_menu_style)
-
-            if line.startswith(">"):
+            if line.startswith(SETTINGS.options_menu_key):
                 return self._process_prefix_command(
-                    line, ">", self.command_palette_style
+                    line, SETTINGS.options_menu_key, self.options_menu_style
+                )
+
+            if line.startswith(SETTINGS.command_palette_key):
+                return self._process_prefix_command(
+                    line, SETTINGS.command_palette_key, self.command_palette_style
                 )
 
             commands = self.get_commands()

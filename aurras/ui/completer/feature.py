@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 from aurras.ui.renderers import options
+from aurras.core.settings import SETTINGS
 from aurras.ui.completer.base import BaseCompleter
 
 
@@ -26,6 +27,6 @@ class FeatureCompleter(BaseCompleter):
         Returns:
             List of tuples (feature_name, "Feature")
         """
-        if text.startswith("?"):
+        if text.startswith(SETTINGS.options_menu_key):
             return [(name, desc) for name, desc in options.items()]
         return []

@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from aurras.core.settings import SETTINGS
 from aurras.ui.renderers import command_palette
 from aurras.ui.completer.base import BaseCompleter
 
@@ -25,7 +26,7 @@ class CommandCompleter(BaseCompleter):
         Returns:
             List of tuples (command_display, "Command")
         """
-        if text.startswith(">"):
+        if text.startswith(SETTINGS.command_palette_key):
             search_text = text[1:].strip().lower()
             result = []
 

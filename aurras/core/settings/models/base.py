@@ -56,6 +56,8 @@ class Settings(BaseModel):
     backup: BackupSettings = Field(default_factory=BackupSettings)
 
     # Advanced settings
+    command_palette_key: str = ">"
+    options_menu_key: str = "?"
     log_level: str = "info"
     buffer_size_kb: str = "4096"
     enable_cache: str = "yes"
