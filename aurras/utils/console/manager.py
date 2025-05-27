@@ -13,7 +13,7 @@ from rich.console import Console
 
 from aurras.utils.logger import get_logger
 from aurras.themes.adapters import theme_to_rich_theme
-from aurras.themes import get_theme, get_current_theme, set_current_theme
+from aurras.themes.manager import get_theme, get_current_theme, set_current_theme
 
 logger = get_logger("aurras.utils.console.manager", log_to_console=False)
 
@@ -469,7 +469,7 @@ def get_available_themes() -> list[str]:
     Returns:
         List of theme names
     """
-    from aurras.themes import get_available_themes
+    from aurras.themes.manager import get_available_themes
 
     return get_available_themes()
 
