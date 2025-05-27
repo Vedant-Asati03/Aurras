@@ -109,7 +109,6 @@ class InputProcessor:
                     enable_suspend=True,
                     lexer=self.input_lexer,
                 )
-                .strip("?")
                 .strip()
                 .lower()
             )
