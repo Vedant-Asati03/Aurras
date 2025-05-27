@@ -273,7 +273,7 @@ class SettingsProcessor:
             categories["System"].append(field_path)
         elif any(kw in field_path for kw in ["recommend", "suggestion"]):
             categories["Recommendations"].append(field_path)
-        elif any(kw in field_path for kw in ["cache", "log", "buffer", "advanced"]):
+        elif any(kw in field_path for kw in ["cache", "log", "buffer", "advanced", "key"]):
             categories["Advanced"].append(field_path)
         else:
             categories["Other"].append(field_path)
