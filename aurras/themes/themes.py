@@ -5,10 +5,15 @@ This module defines all the built-in themes available in Aurras.
 Each theme is fully typed and provides a consistent structure for the application.
 """
 
+import yaml
 from typing import Dict, Final
 
+from aurras.utils.logger import get_logger
 from aurras.themes.colors import ThemeColor
+from aurras.utils.path_manager import _path_manager
 from aurras.themes.definitions import ThemeDefinition, ThemeCategory
+
+logger = get_logger("aurras.themes.themes", log_to_console=False)
 
 
 # Define the built-in themes with proper typing
@@ -504,6 +509,46 @@ MONOCHROME: Final[ThemeDefinition] = ThemeDefinition(
     dim="#111111",  # Near black
 )
 
+
+# Default theme that will be used if no theme is specified in settings
+DEFAULT_THEME: Final[str] = GALAXY.name
+USER_THEME_CONFIG_FILE = _path_manager.config_dir / "themes.yaml"
+
+
+def _load_user_themes() -> Dict[str, ThemeDefinition]:
+    """
+    Load all user-defined themes from the themes.yaml file.
+
+    Returns:
+        Dictionary of theme name to ThemeDefinition
+    """
+    user_themes = {}
+
+    try:
+        if not USER_THEME_CONFIG_FILE.exists():
+            return user_themes
+
+        with open(USER_THEME_CONFIG_FILE, "r") as f:
+            themes_data: Dict = yaml.safe_load(f) or {}
+
+        for theme_name, theme_properties in themes_data.items():
+            try:
+                theme_properties["name"] = theme_name.upper()
+                theme_obj = ThemeDefinition.from_dict(theme_properties)
+
+                user_themes[theme_obj.name] = theme_obj
+                logger.debug(f"Loaded user theme: {theme_obj.name}")
+            except Exception as e:
+                logger.error(f"Failed to load theme '{theme_name}': {e}")
+
+    except Exception as e:
+        logger.error(f"Error loading user themes from {USER_THEME_CONFIG_FILE}: {e}")
+
+    return user_themes
+
+
+user_themes = _load_user_themes()
+
 # Collection of all available themes with proper typing
 AVAILABLE_THEMES: Final[Dict[str, ThemeDefinition]] = {
     GALAXY.name: GALAXY,
@@ -516,11 +561,8 @@ AVAILABLE_THEMES: Final[Dict[str, ThemeDefinition]] = {
     OCEAN.name: OCEAN,
     SUNSET.name: SUNSET,
     MONOCHROME.name: MONOCHROME,
+    **{theme_def.name: theme_def for theme_def in user_themes.values()},
 }
-
-
-# Default theme that will be used if no theme is specified in settings
-DEFAULT_THEME: Final[str] = GALAXY.name
 
 
 def get_default_theme_from_settings() -> str:
@@ -543,9 +585,6 @@ def get_default_theme_from_settings() -> str:
         return DEFAULT_THEME
 
     except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
         logger.error(f"Error getting theme from settings: {e}")
 
         return DEFAULT_THEME
