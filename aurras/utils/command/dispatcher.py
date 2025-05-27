@@ -181,26 +181,6 @@ def create_parser() -> Tuple[
     # Create a dictionary to store subparsers for later access
     subparsers_dict = {}
 
-    # Play command - default when no subcommand is given
-    subparsers_dict["play"] = subparsers.add_parser(
-        "play",
-        help="Play a song or playlist",
-        description="Play a song, multiple songs, or a playlist",
-        formatter_class=SmartFormatter,
-    )
-    subparsers_dict["play"].add_argument("song", nargs="?", help="Song name to play")
-    subparsers_dict["play"].add_argument(
-        "--no-lyrics",
-        action="store_true",
-        help="Disable lyrics display during playback",
-    )
-    subparsers_dict["play"].add_argument(
-        "--shuffle", action="store_true", help="Play songs in random order"
-    )
-    subparsers_dict["play"].add_argument(
-        "--repeat", action="store_true", help="Repeat playback"
-    )
-
     # Download command
     subparsers_dict["download"] = subparsers.add_parser(
         "download",
@@ -355,26 +335,6 @@ def create_parser() -> Tuple[
         help="Restore from a specific backup by ID",
     )
 
-    # # Library command
-    # subparsers_dict["library"] = subparsers.add_parser(
-    #     "library",
-    #     help="Manage music library",
-    #     description="Scan for new music, manage the library path, and view content",
-    #     formatter_class=SmartFormatter,
-    # )
-    # subparsers_dict["library"].add_argument(
-    #     "--scan", action="store_true", help="Scan for new music files"
-    # )
-    # subparsers_dict["library"].add_argument(
-    #     "--list-playlists", action="store_true", help="List all saved playlists"
-    # )
-    # subparsers_dict["library"].add_argument(
-    #     "--set-path", metavar="PATH", help="Set the library path"
-    # )
-    # subparsers_dict["library"].add_argument(
-    #     "--count", action="store_true", help="Show count of songs in library"
-    # )
-
     logger.debug("Finished configuring all subparsers")
     return parser, subparsers_dict
 
@@ -436,16 +396,6 @@ def main():
         logger.info(f"Processing subcommand: {subcommand}")
 
         match subcommand:
-            case "play":
-                from aurras.utils.command.processors import player_processor
-
-                logger.debug(
-                    f"Executing play command with song: {args.song}, lyrics: {not getattr(args, 'no_lyrics', False)}"
-                )
-                return player_processor.play_song(
-                    args.song, not getattr(args, "no_lyrics", False)
-                )
-
             case "download":
                 from aurras.utils.command.processors import player_processor
 
@@ -575,27 +525,6 @@ def main():
                 else:
                     logger.info("No backup operation specified, showing backup list")
                     return backup_processor.list_backups()
-
-            # case "library":
-            #     from aurras.utils.command.processors import library_processor
-
-            #     logger.debug("Executing library command")
-
-            #     if getattr(args, "scan", False):
-            #         logger.info("Scanning music library")
-            #         return library_processor.scan_library()
-            #     elif getattr(args, "list_playlists", False):
-            #         logger.info("Listing playlists in library")
-            #         return library_processor.list_playlists()
-            #     elif getattr(args, "set_path", None):
-            #         logger.info(f"Setting library path to: {args.set_path}")
-            #         return library_processor.set_library_path(args.set_path)
-            #     elif getattr(args, "count", False):
-            #         logger.info("Counting songs in library")
-            #         return library_processor.count_library()
-            #     else:
-            #         logger.info("No library operation specified, running scan")
-            #         return library_processor.scan_library()
 
         # If we got here with no subcommand, show help
         if not subcommand:
