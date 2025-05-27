@@ -13,7 +13,12 @@ from pathlib import Path
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
 from aurras.utils.path_manager import _path_manager
-from aurras.core.backup.manager import BACKUP_SETTINGS
+from aurras.core.backup.manager import (
+    BACKUP_SETTINGS,
+    BackupItems,
+    BackupPaths,
+    THEMES_PATH,
+)
 
 logger = get_logger("aurras.core.backup.restore", log_to_console=False)
 
@@ -89,50 +94,59 @@ class RestoreManager:
             items = metadata.get("items", {})
 
             # Restore settings
-            if items.get("settings", False):
-                settings_path = backup_path / "settings" / "settings.yaml"
+            if items.get(BackupItems.SETTINGS.value, False):
+                settings_path = backup_path / BackupPaths.SETTINGS.value
                 if settings_path.exists():
                     shutil.copy(settings_path, _path_manager.settings_file)
                     console.print_success("Settings restored")
                     restoration_result["restored_items"]["settings"] = True
 
+            # Restore custom themes
+            if items.get(BackupItems.THEMES.value, False):
+                themes_path = backup_path / BackupPaths.THEMES.value
+                if themes_path.exists():
+                    shutil.copy(themes_path, THEMES_PATH)
+                    console.print_success("Custom themes restored")
+                    restoration_result["restored_items"]["themes"] = True
+
             # Close any open database connections before restoring
             time.sleep(0.5)
 
             # Restore history database
-            if items.get("history", False):
-                history_path = backup_path / "databases" / "history.db"
+            if items.get(BackupItems.HISTORY.value, False):
+                history_path = backup_path / BackupPaths.HISTORY.value
                 if history_path.exists():
                     shutil.copy(history_path, _path_manager.history_db)
                     console.print_success("Play history restored")
                     restoration_result["restored_items"]["history"] = True
 
             # Restore playlists database
-            if items.get("playlists", False):
-                playlists_path = backup_path / "databases" / "playlists.db"
+            if items.get(BackupItems.PLAYLISTS.value, False):
+                playlists_path = backup_path / BackupPaths.PLAYLISTS.value
                 if playlists_path.exists():
                     shutil.copy(playlists_path, _path_manager.playlists_db)
                     console.print_success("Playlists restored")
                     restoration_result["restored_items"]["playlists"] = True
 
             # Restore downloads database
-            downloads_path = backup_path / "databases" / "downloads.db"
-            if downloads_path.exists():
-                shutil.copy(downloads_path, _path_manager.downloads_db)
-                console.print_success("Downloads database restored")
-                restoration_result["restored_items"]["downloads_db"] = True
+            if items.get(BackupItems.DOWNLOADS.value, False):
+                downloads_path = backup_path / BackupPaths.DOWNLOADS.value
+                if downloads_path.exists():
+                    shutil.copy(downloads_path, _path_manager.downloads_db)
+                    console.print_success("Downloads database restored")
+                    restoration_result["restored_items"]["downloads_db"] = True
 
             # Restore cache if it was backed up
-            if items.get("cache", False):
-                cache_path = backup_path / "databases" / "cache.db"
+            if items.get(BackupItems.CACHE.value, False):
+                cache_path = backup_path / BackupPaths.CACHE.value
                 if cache_path.exists():
                     shutil.copy(cache_path, _path_manager.cache_db)
                     console.print_success("Cache restored")
                     restoration_result["restored_items"]["cache"] = True
 
             # Restore credentials
-            if items.get("credentials", False):
-                credentials_dir = backup_path / "credentials"
+            if items.get(BackupItems.CREDENTIALS.value, False):
+                credentials_dir = backup_path / BackupPaths.CREDENTIALS.value
                 if credentials_dir.exists() and credentials_dir.is_dir():
                     _path_manager.credentials_dir.mkdir(parents=True, exist_ok=True)
                     for cred_file in credentials_dir.glob("*"):
