@@ -58,25 +58,17 @@ def main():
         print("   Or visit: https://github.com/astral-sh/uv#installation")
         sys.exit(1)
 
-    # Create virtual environment
-    if not run_command("uv venv", "Creating virtual environment"):
-        sys.exit(1)
-
-    # Install project dependencies
+    # Create virtual environment and install dependencies from pyproject.toml
     if not run_command(
-        "uv pip install -r requirements.txt", "Installing project dependencies"
+        "uv sync", "Creating virtual environment and installing dependencies"
     ):
         sys.exit(1)
 
     # Install development packages
     dev_packages = "pytest black isort flake8 mypy"
     if not run_command(
-        f"uv pip install {dev_packages}", "Installing development packages"
+        f"uv add --dev {dev_packages}", "Installing development packages"
     ):
-        sys.exit(1)
-
-    # Install package in development mode
-    if not run_command("uv pip install -e .", "Installing package in development mode"):
         sys.exit(1)
 
     print("\nDevelopment environment setup complete!")
