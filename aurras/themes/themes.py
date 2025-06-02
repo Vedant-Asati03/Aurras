@@ -156,6 +156,7 @@ MINIMAL: Final[ThemeDefinition] = ThemeDefinition(
     error=ThemeColor("#FF5555"),  # Soft red
     text=ThemeColor("#FFFFFF"),  # White
     text_muted=ThemeColor("#BBBBBB"),  # Grey
+    background=ThemeColor("#222222"),  # Very dark gray
     title_gradient=["#FFFFFF", "#F7F7F7", "#EFEFEF", "#E7E7E7"],  # White gradient
     artist_gradient=["#DDDDDD", "#D5D5D5", "#CDCDCD", "#C5C5C5"],  # Gray gradient
     status_gradient=["#BBBBBB", "#B3B3B3", "#AAAAAA"],  # Gray gradient
