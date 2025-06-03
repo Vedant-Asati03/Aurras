@@ -85,7 +85,6 @@ class AurrasApp:
         logger.info("Starting Aurras interactive mode")
 
         try:
-            logger.debug("Entering main input processing loop")
             while True:
                 input_processor.process_input()
 
@@ -335,6 +334,34 @@ def create_parser() -> Tuple[
         help="Restore from a specific backup by ID",
     )
 
+    # Self command
+    subparsers_dict["self"] = subparsers.add_parser(
+        "self",
+        help="Manage Aurras installation",
+        description="Update, uninstall, or get information about Aurras",
+        formatter_class=SmartFormatter,
+    )
+    # subparsers_dict["self"].add_argument(
+    #     "--update",
+    #     action="store_true",
+    #     help="Update Aurras to the latest version",
+    # )
+    subparsers_dict["self"].add_argument(
+        "--info",
+        action="store_true",
+        help="Show detailed version and installation information",
+    )
+    subparsers_dict["self"].add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Uninstall Aurras from the system",
+    )
+    subparsers_dict["self"].add_argument(
+        "--check",
+        action="store_true",
+        help="Check if all required dependencies are installed",
+    )
+
     logger.debug("Finished configuring all subparsers")
     return parser, subparsers_dict
 
@@ -360,14 +387,13 @@ def main():
             and not sys.argv[1].startswith("-")
             and sys.argv[1]
             not in [
-                "play",
                 "download",
                 "playlist",
                 "history",
                 "settings",
                 "theme",
                 "backup",
-                "library",
+                "self",
             ]
         ):
             # Assume this is a song name for playing
@@ -377,13 +403,11 @@ def main():
             logger.info(f"Direct song play request detected: {song_name}")
             return player_processor.play_song(song_name, True)
 
-        # Process command line arguments for proper handling of comma-separated values
         processed_args = process_command_line_args(sys.argv)
         if processed_args != sys.argv:
             logger.debug(f"Arguments were processed: {processed_args}")
             sys.argv = processed_args
 
-        # Parse arguments
         try:
             args = parser.parse_args()
             logger.debug(f"Parsed arguments: {args}")
@@ -391,7 +415,6 @@ def main():
             logger.info(f"Parser exited with code {e.code}")
             return e.code
 
-        # Process based on the subcommand
         subcommand = args.subcommand
         logger.info(f"Processing subcommand: {subcommand}")
 
@@ -525,6 +548,27 @@ def main():
                 else:
                     logger.info("No backup operation specified, showing backup list")
                     return backup_processor.list_backups()
+
+            case "self":
+                from aurras.utils.command.processors import self_processor
+
+                logger.debug("Executing self command")
+
+                # if getattr(args, "update", False):
+                #     logger.info("Updating Aurras to latest version")
+                #     return self_processor.update()
+                if getattr(args, "uninstall", False):
+                    logger.info("Uninstalling Aurras")
+                    return self_processor.uninstall()
+                elif getattr(args, "info", False):
+                    logger.info("Showing version information")
+                    return self_processor.get_version_info()
+                # elif getattr(args, "check", False):
+                #     logger.info("Checking dependencies")
+                #     return self_processor.check_dependencies()
+                else:
+                    logger.info("No self operation specified, showing version info")
+                    return self_processor.get_version_info()
 
         # If we got here with no subcommand, show help
         if not subcommand:
