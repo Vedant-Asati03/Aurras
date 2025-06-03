@@ -563,9 +563,9 @@ def main():
                 elif getattr(args, "info", False):
                     logger.info("Showing version information")
                     return self_processor.get_version_info()
-                # elif getattr(args, "check", False):
-                #     logger.info("Checking dependencies")
-                #     return self_processor.check_dependencies()
+                elif getattr(args, "check", False):
+                    logger.info("Checking dependencies")
+                    return self_processor.check_dependencies()
                 else:
                     logger.info("No self operation specified, showing version info")
                     return self_processor.get_version_info()
