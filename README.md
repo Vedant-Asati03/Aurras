@@ -281,6 +281,7 @@ Aurras uses `settings.yaml` file to store all your settings located at `~/.aurra
 - `display-cache-info` **cache**
 - `cleanup-cache` **cleanup**
 - `toggle-lyrics` **lyrics**
+- `self-management` **self** (update, uninstall, version info, check dependencies)
 
 ### Shorthands:
 
@@ -463,7 +464,7 @@ For comprehensive guidelines on contributing to Aurras, please refer to our [Con
 
 </details>
 
-# demo-usage
+# Demo Usage
 
 ## CLI Command-Line Demo
 
@@ -538,25 +539,20 @@ DRACULA:
   # Text colors
   text: "#F8F8F2"         # Foreground
   text_muted: "#6272A4"   # Comment
-  text_secondary: "#BFBFBF"
-
-  # Interactive colors
-  hover: "#6272A4"
-  selected: "#44475A"
-  focus: "#BD93F9"
 
   # Border colors
   border: "#6272A4"
-  border_focus: "#BD93F9"
-
-  # Progress colors
-  progress_bar: "#BD93F9"
-  progress_background: "#44475A"
 
   # Gradients for enhanced visuals
   title_gradient: ["#BD93F9", "#FF79C6", "#8BE9FD"]
   artist_gradient: ["#8BE9FD", "#50FA7B", "#FFB86C"]
+  status_gradient: ["#F8F8F2", "#F8F8F2AA", "#F8F8F277"]
   progress_gradient: ["#BD93F9", "#FF79C6", "#50FA7B"]
+  feedback_gradient: ["#50FA7B", "#50FA7BAA", "#50FA7B77"]
+  history_gradient: ["#8BE9FD", "#8BE9FDAA", "#8BE9FD77", "#8BE9FD44"]
+
+  # Dim
+  dim: "#333366"
 ```
 
 ## Settings -
@@ -600,8 +596,8 @@ Encountering an issue? Here are solutions to some common problems. For more in-d
 
   Aurras relies on mpv as its playback engine. If you see errors indicating mpv or libmpv is missing (especially common on Windows), you need to install it.
 
-  1. On Windows: Download a recent mpv release from its official website (mpv.io). Ensure the mpv.dll file (usually found in the mpv/ directory of the downloaded archive) is accessible via your system's PATH, or placed in a location where Aurras can find it (e.g., near the Aurras executable or script).
-  2. On Linux/macOS: Install via your package manager (e.g., `sudo dnf install mpv` for Fedora/RHEL, `sudo apt install mpv` for Debian/Ubuntu or `brew install mpv` for macOS).
+  1. <u>On Windows</u>: Download a recent mpv release from its official website (mpv.io). Ensure the mpv.dll file (usually found in the mpv/ directory of the downloaded archive) is accessible via your system's PATH, or placed in a location where Aurras can find it (e.g., near the Aurras executable or script).
+  2. <u>On Linux/macOS</u>: Install via your package manager (e.g., `sudo dnf install mpv` for Fedora/RHEL, `sudo apt install mpv` for Debian/Ubuntu or `brew install mpv` for macOS).
 
 - **Display Information Not Updating During Playback**:
 
@@ -614,6 +610,27 @@ Encountering an issue? Here are solutions to some common problems. For more in-d
 
 For more detailed troubleshooting, including specific error codes, advanced scenarios, and solutions to less common issues, please consult the comprehensive [Troubleshooting Guide](/docs/troubleshooting.md).
 
+# Uninstall
+
+Need to remove Aurras from your system? We've made it easy with our built-in self-management command that safely removes all traces of the application.
+
+```bash
+# Using built-in uninstall command (recommended)
+aurras self --uninstall
+```
+
+**Package-only removal will:**
+
+- **Safely remove** the Aurras package from your system
+- **Preserve your data** (songs, playlists, history, spotify credentials, settings, themes)
+- **Clean up** pip package references and dependencies
+
+*<u>Warning</u>: Complete data removal will permanently delete all your songs, playlists, history, spotify credentials, settings, and themes. This action cannot be undone.*
+
+## Troubleshooting Uninstall Issues
+
+- **Permission errors**: You may need to use `sudo` on Linux/macOS or run as administrator on Windows
+
 # Contributing
 
 Aurras is a new project with huge ambitions, and we're just getting started! **Your contributions are incredibly valuable in shaping its future and making it even better**. We warmly welcome all ideas and help. Here's how you can join in:
@@ -621,7 +638,7 @@ Aurras is a new project with huge ambitions, and we're just getting started! **Y
 ## Quick Contribution Setup
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/Aurras.git
+git clone https://github.com/vedant-asati03/Aurras.git
 cd Aurras
 
 # Set up development environment
