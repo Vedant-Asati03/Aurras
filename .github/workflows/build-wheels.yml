@@ -1,0 +1,266 @@
+# Comprehensive GitHub Actions workflow for Aurras music player
+# Builds platform-specific wheels and automates distribution to multiple package managers
+
+name: Build Platform-Specific Wheels
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # Detect release type for conditional publishing
+  detect-release:
+    runs-on: ubuntu-latest
+    outputs:
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Check release type
+        id: check
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "🔍 Detected pre-release version: $VERSION"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "🔍 Detected stable release version: $VERSION"
+          fi
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv twine
+          
+      - name: Verify DLL exists
+        run: |
+          if (Test-Path "aurras/core/player/libmpv-2.dll") {
+            Write-Host "✅ DLL found - building Windows wheel with MPV library"
+            $dll_size = (Get-Item "aurras/core/player/libmpv-2.dll").Length / 1MB
+            Write-Host "📦 DLL size: $([math]::Round($dll_size, 1)) MB"
+          } else {
+            Write-Host "❌ DLL not found!" -ForegroundColor Red
+            exit 1
+          }
+        shell: powershell
+          
+      - name: Build Windows wheel (with DLL)
+        run: python scripts/build_platform_wheels.py
+        
+      - name: Upload Windows wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-wheel
+          path: dist/*.whl
+
+  build-universal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv twine
+          
+      - name: Build universal wheel (no DLL)
+        run: python scripts/build_platform_wheels.py
+        
+      - name: Upload universal wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-wheel
+          path: dist/*.whl  # PyPI Publishing
+  publish:
+    needs: [build-windows, build-universal, detect-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        
+      - name: Verify wheel files
+        run: |
+          echo "📦 Available wheels for publishing:"
+          ls -la windows-wheel/ universal-wheel/
+          echo ""
+          echo "🔍 Wheel details:"
+          ls -lh windows-wheel/*.whl universal-wheel/*.whl
+          
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          pip install twine
+          echo "🚀 Publishing wheels to PyPI..."
+          echo "📤 Windows wheel (with DLL):"
+          twine upload windows-wheel/*.whl --verbose
+          echo "📤 Universal wheel (no DLL):"
+          twine upload universal-wheel/*.whl --verbose
+          echo "✅ Publishing complete!"
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            windows-wheel/*.whl
+            universal-wheel/*.whl
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ needs.detect-release.outputs.is_prerelease == 'true' }}
+  # Chocolatey Publishing (Windows Package Manager)
+  publish-chocolatey:
+    needs: [publish, detect-release]
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/') && needs.detect-release.outputs.is_prerelease == 'false'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        shell: powershell
+        
+      - name: Update Chocolatey package version
+        run: |
+          python scripts/release_manager.py ${{ needs.detect-release.outputs.version }}
+        
+      - name: Build Chocolatey package
+        run: |
+          cd packaging/choco
+          choco pack aurras.nuspec
+        
+      - name: Publish to Chocolatey
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          cd packaging/choco
+          $package = Get-ChildItem -Filter "*.nupkg" | Select-Object -First 1
+          echo "📦 Publishing $($package.Name) to Chocolatey..."
+          choco push $package.Name --api-key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
+          echo "✅ Chocolatey package published!"
+        shell: powershell
+
+  # Homebrew Formula Update (macOS Package Manager)
+  update-homebrew:
+    needs: [publish, detect-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && needs.detect-release.outputs.is_prerelease == 'false'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Calculate SHA256 for source tarball
+        id: sha256
+        run: |
+          VERSION=${{ needs.detect-release.outputs.version }}
+          echo "📦 Downloading source tarball to calculate SHA256..."
+          wget -q "https://files.pythonhosted.org/packages/source/a/aurras/aurras-${VERSION}.tar.gz"
+          SHA256=$(sha256sum "aurras-${VERSION}.tar.gz" | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "✅ SHA256: $SHA256"
+          
+      - name: Update Homebrew formula
+        run: |
+          python scripts/release_manager.py ${{ needs.detect-release.outputs.version }}
+          # Update SHA256 in formula
+          sed -i "s/sha256 \".*\"/sha256 \"${{ steps.sha256.outputs.sha256 }}\"/" packaging/homebrew/aurras.rb
+          
+      - name: Create Homebrew PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+        run: |
+          echo "🍺 Creating Homebrew formula update..."
+          echo "✅ Homebrew formula updated (manual PR creation needed)"
+          echo "Formula file ready at: packaging/homebrew/aurras.rb"
+
+  # Arch User Repository (AUR) Package Update
+  update-aur:
+    needs: [publish, detect-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && needs.detect-release.outputs.is_prerelease == 'false'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install makepkg (for AUR package building)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y base-devel
+          
+      - name: Setup SSH for AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          echo "Host aur.archlinux.org" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/aur" >> ~/.ssh/config
+          echo "  User aur" >> ~/.ssh/config
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          
+      - name: Update AUR package
+        run: |
+          VERSION=${{ needs.detect-release.outputs.version }}
+          
+          # Update version in PKGBUILD
+          python scripts/release_manager.py $VERSION
+          
+          # Clone AUR repo
+          git clone ssh://aur@aur.archlinux.org/aurras.git aur-repo
+          
+          # Copy updated files
+          cp packaging/aur/PKGBUILD aur-repo/
+          
+          cd aur-repo
+          
+          # Generate .SRCINFO
+          makepkg --printsrcinfo > .SRCINFO
+          
+          # Commit and push
+          git config user.name "Aurras Release Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to version $VERSION"
+          git push
+          
+          echo "✅ AUR package updated!"
