@@ -10,13 +10,6 @@ class Aurras < Formula
   depends_on "python@3.12"
   depends_on "mpv"
 
-  resource "aiosqlite" do
-    url "https://files.pythonhosted.org/packages/source/a/aiosqlite/aiosqlite-0.18.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  # Add all other dependencies with their URLs and SHA256 hashes
-  
   def install
     virtualenv_install_with_resources
   end
