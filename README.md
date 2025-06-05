@@ -14,7 +14,7 @@ Elevate your music experience. Aurras transforms your terminal into a sophistica
 - [Quick Start](#quick-start)
 - [Why AURRAS?](#why-choose-aurras)
 - [Core Features](#core-features)
-- [Installation](#installation)
+- [Installation Guide](#installation-guide-for-aurras)
   - [Development](#clone-and-setup)
 - [Demo Usage](#demo-usage)
 - [Spotify Setup](#spotify-setup)
@@ -392,59 +392,103 @@ Transform your listening experience into an immersive journey where every word c
 </details>
 </details>
 
-# Installation
+# Installation Guide for Aurras
+
+This guide provides comprehensive instructions for installing Aurras on various operating systems. Please ensure you meet the prerequisites before proceeding with the installation.
 
 ## Prerequisites
 
-Ensure you have Python 3.12+ installed:
+**Python 3.12 or newer**: Aurras is built on Python 3.12+ and requires this version for proper functionality. You can download the latest version of Python from the [official Python website](https://www.python.org/).
+
+## Operating System Specific Instructions
+
+### Windows
+
+No additional dependencies are required for Windows. Aurras comes bundled with all necessary MPV components, providing a seamless out-of-the-box experience.
+
+#### Recommended Installation Method: Python Package Index (pip)
+
+This is the preferred method for most users on Windows, offering easy installation and updates.
 
 ```bash
-python --version  # Should show 3.12 or higher
-```
-
-## Required Dependencies
-
-### Install MPV (Audio Player)
-
-```bash
-# Ubuntu/Debian
-sudo apt install mpv
-
-# Arch Linux
-sudo pacman -S mpv
-
-# macOS
-brew install mpv
-
-# Windows (Chocolatey)
-choco install mpv
-```
-
-### Install FFmpeg (Audio Processing)
-
-```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
-
-# Arch Linux
-sudo pacman -S ffmpeg
-
-# macOS
-brew install ffmpeg
-
-# Windows (Chocolatey)
-choco install ffmpeg
-```
-
-## Install Aurras
-
-```bash
-# Install from PyPI
 pip install aurras
 ```
 
+#### Alternative Installation Method: Chocolatey (Package Manager)
+
+If you use Chocolatey, Windows' package manager, you can install Aurras via the command line:
+
+```bash
+choco install aurras
+```
+
+### Linux & macOS
+
+Aurras on Linux and macOS relies on mpv as its audio playback engine. You'll need to install mpv separately before installing Aurras.
+
+#### Step 1: Install MPV (Audio Player Engine)
+
+Choose the command appropriate for your distribution or operating system:
+
+**Ubuntu/Debian:**
+
+```bash
+sudo apt update
+sudo apt install mpv
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S mpv
+```
+
+**Fedora/RHEL:**
+
+```bash
+sudo dnf install mpv
+```
+
+**macOS (via Homebrew):**
+
+```bash
+brew install mpv
+```
+
+#### Step 2: Install Aurras
+
+Once MPV is successfully installed, you can proceed with installing Aurras using one of the following methods:
+
+##### Recommended Installation Method: Python Package Index (pip)
+
+This is the most universal method for Python packages and is recommended for most users.
+
+```bash
+pip install aurras
+```
+
+##### Alternative Installation Method: Arch User Repository (AUR) - For Arch Linux Users Only
+
+If you are an Arch Linux user, you can install Aurras from the Arch User Repository. This typically requires an AUR helper like yay.
+
+```bash
+yay -S aurras
+```
+
+> If you do not have yay or another AUR helper, please consult the [Arch Wiki](https://wiki.archlinux.org/title/AUR_helpers) for instructions on installing an AUR helper.
+
+##### Alternative Installation Method: Homebrew - For macOS Users
+
+macOS users can install Aurras directly via Homebrew:
+
+```bash
+brew install aurras
+```
+
+> **Technical Note**: Aurras requires `libmpv` (MPV's shared library) for audio playback. Installing the `mpv` package provides both the executable and the required `libmpv` library that Aurras uses through python-mpv bindings.
+
 <details>
-<summary>Development Installation - For contributors and advanced users</summary>
+<summary>Development Installation - For contributors</summary>
 
 ## Clone and Setup
 
@@ -463,6 +507,8 @@ aurras --help
 For comprehensive guidelines on contributing to Aurras, please refer to our [Contributions Guide](/CONTRIBUTING.md)
 
 </details>
+
+---
 
 # Demo Usage
 
@@ -594,10 +640,26 @@ Encountering an issue? Here are solutions to some common problems. For more in-d
 
 - **mpv or libmpv not found**:
 
-  Aurras relies on mpv as its playback engine. If you see errors indicating mpv or libmpv is missing (especially common on Windows), you need to install it.
+  Aurras requires different setups depending on your platform:
 
-  1. <u>On Windows</u>: Download a recent mpv release from its official website (mpv.io). Ensure the mpv.dll file (usually found in the mpv/ directory of the downloaded archive) is accessible via your system's PATH, or placed in a location where Aurras can find it (e.g., near the Aurras executable or script).
-  2. <u>On Linux/macOS</u>: Install via your package manager (e.g., `sudo dnf install mpv` for Fedora/RHEL, `sudo apt install mpv` for Debian/Ubuntu or `brew install mpv` for macOS).
+  **Windows**: Aurras includes bundled MPV DLLs, so this error shouldn't occur. If you still see MPV-related errors, try reinstalling Aurras with `pip install --upgrade --force-reinstall aurras`.
+
+  **Linux/macOS**: Install MPV via your package manager:
+  ```bash
+  # Fedora/RHEL
+  sudo dnf install mpv
+  
+  # Debian/Ubuntu  
+  sudo apt install mpv
+  
+  # Arch Linux
+  sudo pacman -S mpv
+  
+  # macOS
+  brew install mpv
+  ```
+
+  > **Technical Detail**: Aurras uses python-mpv bindings which load `libmpv` dynamically. You need the shared library (`libmpv.so` on Linux, `libmpv.dylib` on macOS), which is provided by the main MPV package.
 
 - **Display Information Not Updating During Playback**:
 
@@ -683,10 +745,11 @@ Aurras comes alive thanks to these amazing open-source projects. Huge shoutout t
 - **Textual**: The foundational framework for rich Text User Interfaces (MIT License)
 - **Rich**: Enhances terminal output with vibrant formatting and styling (MIT License)
 - **Spotipy**: Facilitates seamless integration with the Spotify API (MIT License)
-- **spotdl**: Powers high-quality song downloads from streaming services (MIT License)
-- **yt-dlp**: Used for robust song searching on YouTube (Unlicense)
-- **syncedlyrics**: For accurate, real-time synchronized lyrics fetching (MIT License)
-- **MPV**: Serves as the high-performance media playback engine (GPL v2+)
+- **Spotdl**: Powers high-quality song downloads from streaming services (MIT License)
+- **Yt-dlp**: Used for robust song searching on YouTube (Unlicense)
+- **Syncedlyrics**: For accurate, real-time synchronized lyrics fetching (MIT License)
+- **Python-mpv**: Python bindings for libmpv, bundled directly for seamless integration (GPL v2+ / LGPL v2.1+)
+- **Libmpv**: The high-performance media playback library from MPV project (GPL v2+)
 
 ---
 
