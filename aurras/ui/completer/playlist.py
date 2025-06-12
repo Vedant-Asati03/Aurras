@@ -28,14 +28,13 @@ class PlaylistCompleter(BaseCompleter):
             List of tuples (playlist_name, "Playlist")
         """
         all_playlists: List[str] = list(
-            self.playlist_manager.get_all_playlists().keys()
+            self.playlist_manager.get_playlist_songs(None).keys()
         )
 
         if not all_playlists:
             return []
 
         if text.startswith("p,") or text.startswith("d,"):
-            # Return all playlists with a "Playlist" description
             return [(playlist, "Playlist") for playlist in all_playlists]
 
         return []
