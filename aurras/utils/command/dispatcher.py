@@ -462,7 +462,7 @@ def main():
                     return playlist_processor.search_playlists(args.name)
                 elif getattr(args, "list", False):
                     logger.info("Listing all playlists")
-                    return playlist_processor.list_playlists()
+                    return playlist_processor.view_playlist(args.name)
                 else:
                     logger.info(f"Playing playlist: {args.name}")
                     logger.debug(
