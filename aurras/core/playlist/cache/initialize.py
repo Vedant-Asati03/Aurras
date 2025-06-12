@@ -4,6 +4,7 @@ Cache Initialization Module
 This module provides a class for initializing the playlist database.
 """
 
+
 class InitializePlaylistDatabase:
     """
     Class for initializing the playlist database.
@@ -43,15 +44,14 @@ class InitializePlaylistDatabase:
             )"""
         )
 
-        # Create playlist_songs table
         cursor.execute(
             """CREATE TABLE IF NOT EXISTS playlist_songs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 playlist_id INTEGER,
                 track_name TEXT NOT NULL,
                 artist_name TEXT,
-                album_name TEXT,
                 added_at INTEGER,
-                FOREIGN KEY (playlist_id) REFERENCES playlists(id)
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id),
+                UNIQUE(playlist_id, track_name, artist_name)
             )"""
         )
