@@ -273,7 +273,9 @@ class SettingsProcessor:
             categories["System"].append(field_path)
         elif any(kw in field_path for kw in ["recommend", "suggestion"]):
             categories["Recommendations"].append(field_path)
-        elif any(kw in field_path for kw in ["cache", "log", "buffer", "advanced", "key"]):
+        elif any(
+            kw in field_path for kw in ["cache", "log", "buffer", "advanced", "key"]
+        ):
             categories["Advanced"].append(field_path)
         else:
             categories["Other"].append(field_path)
@@ -324,33 +326,19 @@ class SettingsProcessor:
         return 0
 
     @with_error_handling
-    def toggle_setting(
-        self, setting_name: str, display_name: Optional[str] = None
-    ) -> int:
+    def toggle_setting(self) -> int:
         """Toggle a yes/no or on/off setting."""
-        if display_name is None:
-            display_name = setting_name.replace("-", " ").title()
+        settings_updater = SettingsUpdater("appearance_settings.display_lyrics")
+        current_value = settings_updater.current_value
 
-        settings_updater = SettingsUpdater(setting_name)
-        current_value = settings_updater._get_nested_value(
-            SETTINGS, settings_updater.key
-        )
+        new_value = "no" if current_value.lower() == "yes" else "yes"
 
         if not current_value:
-            console.print_error(f"Setting '{setting_name}' not found or has no value")
+            console.print_error(
+                "Setting 'appearance_settings.display_lyrics' not found."
+            )
             return 1
 
-        # Handle different types of toggle settings
-        if current_value.lower() in ["yes", "no"]:
-            new_value = "no" if current_value.lower() == "yes" else "yes"
-            status = "ON" if new_value == "yes" else "OFF"
-        elif current_value.lower() in ["on", "off"]:
-            new_value = "off" if current_value.lower() == "on" else "on"
-            status = "ON" if new_value == "on" else "OFF"
-        else:
-            new_value = "off" if current_value.lower() != "off" else "on"
-            status = "ON" if new_value != "off" else "OFF"
-
         settings_updater.update_directly(new_value)
-        console.print_success(f"Setings Updated: {display_name} turned {status}")
+        console.print_success(f"Lyrics turned {'off' if new_value == 'no' else 'on'}")
         return 0
