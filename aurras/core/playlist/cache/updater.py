@@ -7,7 +7,12 @@ This module provides a class for updating the playlist database.
 import time
 from typing import List
 
+from aurras.utils.console import console
+from aurras.utils.logger import get_logger
 from aurras.core.playlist.cache import playlist_db_connection
+
+logger = get_logger("aurras.core.playlist.cache.updater", log_to_console=False)
+
 
 class UpdatePlaylistDatabase:
     """
@@ -74,8 +79,8 @@ class UpdatePlaylistDatabase:
             cursor.executemany(
                 """
                 INSERT INTO playlist_songs 
-                (playlist_id, track_name, artist_name, album_name, added_at)
-                VALUES (?, ?, ?, ?, ?)
+                (playlist_id, track_name, artist_name, added_at)
+                VALUES (?, ?, ?, ?)
                 """,
                 songs_metadata,
             )
@@ -90,7 +95,7 @@ class UpdatePlaylistDatabase:
         Args:
             playlist_name (str): The name of the playlist to add songs to
             songs_metadata (List[tuple]): List of tuples containing song metadata
-                (playlist_id, track_name, artist_name, album_name, added_at)
+                (playlist_id, track_name, artist_name, added_at)
         """
         current_time = int(time.time())
 
@@ -110,7 +115,6 @@ class UpdatePlaylistDatabase:
                 playlist_id,
                 data[0],  # track_name
                 data[1],  # artist_name
-                data[2],  # album_name
                 data[4],  # added_at - same timestamp for batch
             )
             for data in songs_metadata
@@ -118,24 +122,84 @@ class UpdatePlaylistDatabase:
 
         self.save_song_to_playlist(playlist_songs_metadata_batch)
 
-    def remove_playlist(self, playlist_names: List[str]) -> None:
+    def remove_playlist(self, playlist_names: List[str]) -> int:
         """
         Removes playlists from the database.
 
         Args:
             playlist_names (List[str]): List of playlist names to be removed
+
+        Returns:
+            int: Number of playlists actually deleted
+
+        Raises:
+            ValueError: If playlist_names is empty
+            DatabaseError: If a database operation fails
         """
-        with playlist_db_connection as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                DELETE FROM playlists 
-                WHERE name IN ({})
-                """.format(",".join("?" * len(playlist_names))),
-                playlist_names,
-            )
-            conn.commit()
-            return cursor.rowcount
+        if not playlist_names:
+            raise ValueError("No playlist names provided for deletion")
+
+        # Validate that playlists exist before deletion
+        existing_playlists = []
+        non_existing_playlists = []
+
+        try:
+            with playlist_db_connection as conn:
+                cursor = conn.cursor()
+
+                # Check which playlists actually exist
+                for playlist_name in playlist_names:
+                    cursor.execute(
+                        "SELECT name FROM playlists WHERE name = ?", (playlist_name,)
+                    )
+                    if cursor.fetchone():
+                        existing_playlists.append(playlist_name)
+                    else:
+                        non_existing_playlists.append(playlist_name)
+
+                if non_existing_playlists:
+                    console.print_warning(
+                        f"Warning: The following playlists don't exist: {', '.join(non_existing_playlists)}"
+                    )
+
+                if not existing_playlists:
+                    console.print_warning("No valid playlists found to delete")
+                    return 0
+
+                # First, delete associated songs (manual cascade due to SQLite limitations)
+                cursor.execute(
+                    """
+                    DELETE FROM playlist_songs 
+                    WHERE playlist_id IN (
+                        SELECT id FROM playlists WHERE name IN ({})
+                    )
+                    """.format(",".join("?" * len(existing_playlists))),
+                    existing_playlists,
+                )
+
+                # Then delete the playlists
+                cursor.execute(
+                    """
+                    DELETE FROM playlists 
+                    WHERE name IN ({})
+                    """.format(",".join("?" * len(existing_playlists))),
+                    existing_playlists,
+                )
+                playlists_deleted = cursor.rowcount
+
+                conn.commit()
+
+                if playlists_deleted > 0:
+                    console.print_success(
+                        f"Successfully deleted {playlists_deleted} playlist(s)"
+                    )
+
+                return playlists_deleted
+
+        except Exception as e:
+            logger.error(f"Error removing playlists: {e}", exc_info=True)
+            console.print_error(f"Error: Failed to remove playlists: {str(e)}")
+            raise
 
     def remove_song_from_playlist(
         self, playlist_name: str, song_name: List[str]
