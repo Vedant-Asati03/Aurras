@@ -6,7 +6,7 @@ downloading, deleting, and modifying playlists, as well as adding and removing s
 """
 
 import time
-from typing import Any, List, Dict, Optional
+from typing import List, Dict, Optional
 
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
@@ -25,7 +25,7 @@ class PlaylistManager:
     def __init__(self):
         """Initialize the PlaylistManager."""
         self.db_updater = UpdatePlaylistDatabase()
-        self.db_searcher = SearchFromPlaylistDataBase()
+        self.search_db = SearchFromPlaylistDataBase()
 
         # State management
         self.active_playlist = None
@@ -72,8 +72,10 @@ class PlaylistManager:
                 console.print_warning("Warning: No playlist name provided.")
                 return False
 
-            self.db_updater.remove_playlist(playlist_names=playlist_name)
-            return True
+            deleted_count = self.db_updater.remove_playlist(
+                playlist_names=playlist_name
+            )
+            return deleted_count > 0
 
         except Exception as e:
             logger.error(f"Error deleting playlist: {e}", exc_info=True)
@@ -134,17 +136,7 @@ class PlaylistManager:
             logger.error(f"Error importing playlist: {e}", exc_info=True)
             console.print_error(f"Error: Failed to import playlist: {str(e)}")
 
-    def get_all_playlists(self) -> Dict[str, Any]:
-        """
-        Get all playlists from the database.
-
-        Returns:
-            dict: Dictionary with playlist name as key and list of song names as value
-        """
-        if playlists := self.db_searcher.initialize_playlist_metadata():
-            return playlists
-
-    def get_playlist_songs(self, playlist_name: str) -> Dict[str, List[str]]:
+    def get_playlist_songs(self, playlist_name: Optional[str]) -> Dict[str, List[str]]:
         """
         Get all songs from a playlist.
 
@@ -154,15 +146,20 @@ class PlaylistManager:
         Returns:
             Dict: Dictionary with song names
         """
-        songs = self.db_searcher.initialize_playlist_songs_dict(playlist_name)
+        if playlist_name:
+            playlist_metadata = self.search_db.create_playlist_tracks_dict(
+                playlist_name
+            )
+        else:
+            playlist_metadata = self.search_db.create_playlist_tracks_dict()
 
-        if not songs:
+        if not playlist_metadata:
             console.print_warning(
                 f"Warning: No songs found in playlist '{playlist_name}'"
             )
             return {}
 
-        return songs
+        return playlist_metadata
 
     def get_playlist_songs_with_complete_metadata(
         self, playlist_name: str
@@ -176,9 +173,7 @@ class PlaylistManager:
         Returns:
             dict: Dictionary with song metadata
         """
-        songs = self.db_searcher.initialize_playlist_songs_dict_with_metadata(
-            playlist_name
-        )
+        songs = self.search_db.create_playlist_tracks_dict(playlist_name)
 
         if not songs:
             console.print_warning(
@@ -198,7 +193,7 @@ class PlaylistManager:
         Returns:
             list: List of playlists matching the query
         """
-        playlists = self.db_searcher.search_for_playlists_by_name_or_artist(query)
+        playlists = self.search_db.search_for_playlists_by_name_or_artist(query)
 
         if not playlists:
             console.print_warning(f"Warning: No playlists found matching '{query}'")
