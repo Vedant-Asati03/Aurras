@@ -7,7 +7,7 @@ This module contains all player-related commands such as play, pause, volume con
 from aurras.core.settings import SETTINGS
 from aurras.utils.logger import get_logger
 from aurras.ui.core.registry import command_registry
-from aurras.core.player.offline import LocalPlaybackHandler
+# from aurras.core.player.offline import LocalPlaybackHandler
 from aurras.utils.command.processors import player_processor
 
 logger = get_logger("aurras.ui.handler.command.player", log_to_console=False)
@@ -25,13 +25,13 @@ def register_player_commands():
         category="Download",
     )
 
-    command_registry.register_command(
-        name=COMMAND_SETTINGS.play_offline,
-        function=lambda: LocalPlaybackHandler().listen_song_offline,
-        description="Play downloaded songs",
-        parameter_help=None,
-        requires_args=False,
-        category="Playback",
-    )
+    # command_registry.register_command(
+    #     name=COMMAND_SETTINGS.play_offline,
+    #     function=lambda: LocalPlaybackHandler().listen_song_offline,
+    #     description="Play downloaded songs",
+    #     parameter_help=None,
+    #     requires_args=False,
+    #     category="Playback",
+    # )
 
     logger.debug("Player commands registered")
