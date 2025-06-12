@@ -5,6 +5,7 @@ This module handles playlist management and playback operations.
 """
 
 from typing import List
+from itertools import chain
 
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
@@ -48,13 +49,18 @@ class PlaylistProcessor:
         console.print_success(f"Playing playlist: {playlist_name}")
 
         try:
-            playlist_songs = self.playlist_manager.get_playlist_songs(playlist_name)
+            playlist_metadata = self.playlist_manager.get_playlist_songs(playlist_name)
+
+            playlist_songs = [
+                song["track_name"]
+                for song in chain.from_iterable(playlist_metadata.values())
+            ]
 
             if not playlist_songs:
                 console.print_error(f"Playlist '{playlist_name}' not found or empty")
                 return 1
 
-            from ....core.player.online import SongStreamHandler
+            from aurras.core.player.online import SongStreamHandler
 
             SongStreamHandler(list(playlist_songs)).listen_song_online(
                 show_lyrics=show_lyrics, shuffle=shuffle
@@ -83,82 +89,53 @@ class PlaylistProcessor:
             console.print_error("Please specify a playlist to download.")
             return 1
 
-        listed_playlist_names = self._parse_args(playlist_names)
+        parsed_playlist_names = self._parse_args(playlist_names)
 
-        if not listed_playlist_names:
+        if not parsed_playlist_names:
             console.print_error("Please specify a playlist to download.")
             return 1
 
-        playlist_to_download: List[str] = [
-            self._get_corrected_playlist_name(playlist_name)
-            for playlist_name in listed_playlist_names
-        ]
-
         success = self.playlist_manager.download_playlist(
-            playlist_names=playlist_to_download, format=format, bitrate=bitrate
+            playlist_names=parsed_playlist_names, format=format, bitrate=bitrate
         )
 
         return 0 if success else 1
 
     @with_error_handling
-    def view_playlist(self, playlist_name: str):
+    def view_playlist(self, playlist_name: str | None):
         """
         View the contents of a playlist.
+
         Args:
-            playlist_name: Name of the playlist to view
-        Returns:
-            int: Exit code (0 for success, 1 for failure)
-        """
-        if not playlist_name:
-            console.print_error("Please specify a playlist to view.")
-            return 1
-
-        playlist_name = self._get_corrected_playlist_name(playlist_name)
-
-        playlist_songs = self.playlist_manager.get_playlist_songs(playlist_name)
-
-        if not playlist_songs:
-            console.print_error(f"Playlist '{playlist_name}' not found or empty")
-            return 1
-
-        from aurras.utils.console.renderer import ListDisplay
-
-        list_display = ListDisplay(
-            items=playlist_songs,
-            title=f"{playlist_name}  SONGS󰽱",
-            use_table=True,
-            style_key="playlist",
-            show_header=False,
-        )
-
-        console.print(list_display.render())
-        return 0
-
-    @with_error_handling
-    def list_playlists(self):
-        """
-        List all available playlists.
+            playlist_name: Name of the playlist to view. If None, list all playlists.
 
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        available_playlists_with_metadata = self.playlist_manager.get_all_playlists()
+        playlist_metadata = self.playlist_manager.get_playlist_songs(playlist_name)
 
-        available_playlists_with_description = [
-            (playlist["name"], playlist["description"])
-            for playlist in available_playlists_with_metadata
+        playlists_meta = [
+            (
+                name,
+                ", ".join(
+                    [
+                        f"{tracks['track_name']} ({tracks['artist_name']})"
+                        for tracks in data
+                    ]
+                ),
+            )
+            for name, data in playlist_metadata.items()
         ]
 
-        if not available_playlists_with_description:
+        if not playlists_meta:
             console.print_error("No playlists available. Please create a playlist.")
             return 1
 
         from aurras.utils.console.renderer import ListDisplay
 
         list_display = ListDisplay(
-            items=available_playlists_with_description,
-            use_table=True,
-            style_key="playlist",
+            items=playlists_meta,
+            use_table=False,
             show_indices=True,
         )
 
@@ -176,11 +153,7 @@ class PlaylistProcessor:
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        playlist_to_delete: List[str] = []
-        listed_playlist_names = self._parse_args(playlist_names)
-
-        for playlist_name in listed_playlist_names:
-            playlist_to_delete.append(self._get_corrected_playlist_name(playlist_name))
+        playlist_to_delete = self._parse_args(playlist_names)
 
         if not playlist_to_delete:
             console.print_error("No matching playlists found.")
