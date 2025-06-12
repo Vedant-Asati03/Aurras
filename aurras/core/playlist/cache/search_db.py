@@ -5,8 +5,8 @@ This module provides a class for searching songs in the playlist database.
 """
 
 from typing import Any, Dict, List, Optional
-from aurras.core.playlist.cache.loader import LoadPlaylistData
 from aurras.utils.handle_fuzzy_search import FuzzySearcher
+from aurras.core.playlist.cache.loader import LoadPlaylistData
 
 
 class SearchFromPlaylistDataBase:
@@ -18,79 +18,12 @@ class SearchFromPlaylistDataBase:
         """
         Initializes the SearchFromPlaylistDataBase class.
         """
-        self.load_playlist_data = LoadPlaylistData()
+        self.load_playlist = LoadPlaylistData()
         self.fuzzy_search = FuzzySearcher(threshold=0.73)
 
-    def _retrieve_correct_playlist_name(self, playlist_name: str) -> Optional[str]:
-        """
-        Retrieves the correct playlist name from the database using fuzzy matching.
-        This is useful for correcting typos or variations in playlist names.
-
-        Args:
-            playlist_name: Name of the playlist to filter
-
-        Returns:
-            str: Corrected playlist name if found, None otherwise
-        """
-        playlists_metadata = self.initialize_playlist_metadata()
-
-        playlists = [data["name"] for data in playlists_metadata]
-
-        if corrected_playlist_name := self.fuzzy_search.find_best_match(
-            playlist_name, playlists
-        ):
-            return corrected_playlist_name
-
-    def initialize_playlist_metadata(
+    def create_song_artist_dict(
         self,
-        playlist_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Initializes a dictionary of songs for a specific playlist.
-
-        Args:
-            playlist_name: Name of the playlist to filter
-        Returns:
-            dict: Dictionary with playlist name as key and list of song names as value
-        """
-        playlists_metadata = self.load_playlist_data.load_playlists_with_partial_data()
-
-        if not playlist_name:
-            return playlists_metadata
-
-        corrected_playlist_name = self._retrieve_correct_playlist_name(playlist_name)
-
-        if not corrected_playlist_name:
-            return {}
-
-        if playlist_metadata := [
-            data
-            for data in playlists_metadata
-            if data["name"] == corrected_playlist_name
-        ]:
-            return playlist_metadata[0]
-
-    def initialize_all_playlist_songs_dict(
-        self, playlist_name: Optional[str] = None
-    ) -> Dict[str, List[str]]:
-        """
-        Initializes a dictionary of songs from the playlist database.
-
-        Returns:
-            dict: Dictionary with playlist name as key and list of song names as value
-        """
-        playlists_metadata = self.load_playlist_data.load_playlists_with_partial_data()
-
-        playlist_songs_dict = {
-            playlist["name"]: [song["track_name"] for song in playlist["songs"]]
-            for playlist in playlists_metadata
-        }
-
-        return playlist_songs_dict
-
-    def initialize_playlist_songs_dict(
-        self,
-        playlist_name: Optional[str] = None,
+        playlist_name: Optional[str],
     ) -> Dict[str, List[str]]:
         """
         Initializes a dictionary of songs for a specific playlist.
@@ -101,79 +34,47 @@ class SearchFromPlaylistDataBase:
         Returns:
             dict: Dictionary with playlist name as key and list of song names as value
         """
-        playlist_metadata = (
-            self.load_playlist_data.load_playlist_songs_with_full_metadata(
-                playlist_name
-            )
-        )
+        metadata = self.load_playlist.retireve_playlist_info_with_content(playlist_name)
 
-        playlist_songs_dict = {
-            song["track_name"]: [song["artist_name"], song["album_name"]]
-            for song in playlist_metadata
+        track_artist_dictionary = {
+            song["track_name"]: song["artist_name"] for song in metadata
         }
 
-        return playlist_songs_dict
+        return track_artist_dictionary
 
-    def initialize_all_playlists_songs_with_metadata_dict(
+    def create_playlist_tracks_dict(
         self,
-    ) -> Dict[str, List[Dict[str, str]]]:
+        playlist_name: str = None,
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Initializes a dictionary of songs with metadata from the complete playlist database.
 
         Returns:
             dict: Dictionary with playlist name as key and list of songs with metadata as value
         """
-        playlist_metadata_from_db = (
-            self.load_playlist_data.load_playlists_with_complete_data()
-        )
-        # print(playlist_metadata_from_db)
+        if playlist_name:
+            metadata = self.load_playlist.retireve_playlist_info_with_content(
+                playlist_name
+            )
+            playlist_info = self.load_playlist.retrieve_playlist_info(playlist_name)
 
-        playlist_songs_dict = {
+        else:
+            metadata = self.load_playlist.retireve_playlist_info_with_content()
+            playlist_info = self.load_playlist.retrieve_playlist_info()
+
+        playlist_tracks_info = {
             playlist["name"]: [
                 {
                     "track_name": song["track_name"],
                     "artist_name": song["artist_name"],
-                    "album_name": song["album_name"],
                 }
-                for song in playlist["songs"]
+                for song in metadata
+                if song["playlist_id"] == playlist["id"]
             ]
-            for playlist in playlist_metadata_from_db
+            for playlist in playlist_info
         }
 
-        return playlist_songs_dict
-
-    def initialize_playlist_songs_dict_with_metadata(
-        self,
-        playlist_name: str,
-    ) -> Dict[str, List[Dict[str, str]]]:
-        """
-        Initializes a dictionary of songs with metadata for a specific playlist.
-
-        Args:
-            playlist_name: Name of the playlist to filter
-        Returns:
-            dict: Dictionary with playlist name as key and list of song metadata as value
-        """
-        playlist_metadata_from_db = (
-            self.load_playlist_data.load_playlists_with_partial_data()
-        )
-        playlist_songs_dict = {
-            playlist["name"]: [
-                {
-                    "track_name": song["track_name"],
-                    "url": song["url"],
-                    "artist_name": song["artist_name"],
-                    "album_name": song["album_name"],
-                    "thumbnail_url": song["thumbnail_url"],
-                    "duration": song["duration"],
-                }
-                for song in playlist["songs"]
-            ]
-            for playlist in playlist_metadata_from_db
-            if playlist["name"] == playlist_name
-        }
-
-        return playlist_songs_dict
+        return playlist_tracks_info
 
     def search_for_playlists_by_name_or_artist(self, query: str) -> List[str]:
         """
@@ -187,7 +88,7 @@ class SearchFromPlaylistDataBase:
         """
         playlists_found: List[str] = []
 
-        playlist_songs_dict = self.initialize_all_playlists_songs_with_metadata_dict()
+        playlist_songs_dict = self.create_playlist_tracks_dict()
 
         song_names: List[str] = []
         artist_names: List[str] = []
@@ -215,8 +116,22 @@ class SearchFromPlaylistDataBase:
         Returns:
             bool: True if the playlist is already downloaded, False otherwise
         """
-        playlist_metadata = self.initialize_playlist_metadata(playlist_name)
+        metadata = self.load_playlist.retrieve_playlist_info(playlist_name)
+        playlist_info = metadata[0] if metadata else {}
 
-        is_downloaded = playlist_metadata.get("is_downloaded", False)
+        is_downloaded = playlist_info.get("is_downloaded", False)
 
         return is_downloaded
+
+    def check_if_playlist_exists(self, playlist_name: str) -> bool:
+        """
+        Check if a playlist exists in the database.
+
+        Args:
+            playlist_name: Name of the playlist to check
+
+        Returns:
+            bool: True if the playlist exists, False otherwise
+        """
+        metadata = self.load_playlist.retrieve_playlist_info(playlist_name)
+        return bool(metadata)
