@@ -2,7 +2,8 @@
 This Module provides functionality for downloading one or more playlists.
 """
 
-from typing import List, Dict, Optional
+from itertools import chain
+from typing import List, Optional
 
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
@@ -43,20 +44,25 @@ class DownloadPlaylist:
         console.print_success(f"Downloading playlist: {', '.join(playlists)}")
 
         for playlist in playlists:
+            if not self._check_if_playlist_exists(playlist):
+                console.print_error(f"Error: Playlist '{playlist}' does not exist")
+                console.print_info(
+                    "Try running: `aurras playlist --list` to see available playlists."
+                )
+                continue
+
             if self._check_if_already_downloaded(playlist):
-                console.print_error("Error: Playlist already downloaded")
+                console.print_info("Playlist already downloaded!")
                 continue
 
             try:
-                songs_data = self._retrieve_playlist_songs(playlist)
+                song_names = self._retrieve_playlist_songs(playlist)
 
-                if not songs_data:
+                if not song_names:
                     console.print_error(
                         f"Error: No songs found in playlist '{playlist}'"
                     )
                     continue
-
-                song_names = [song["track_name"] for song in songs_data]
 
                 self._download_songs(song_names, playlist, format, bitrate)
 
@@ -74,6 +80,24 @@ class DownloadPlaylist:
                 return False
 
         return True
+
+    def _check_if_playlist_exists(self, playlist: str) -> bool:
+        """
+        Check if the playlist exists in the database.
+
+        Args:
+            playlist: Name of the playlist to check
+
+        Returns:
+            bool: True if the playlist exists, False otherwise
+        """
+        try:
+            return self.search_db.check_if_playlist_exists(playlist)
+
+        except Exception as e:
+            logger.error(f"Error checking if playlist exists: {e}", exc_info=True)
+            console.print(f"[red]Error checking playlist existence: {str(e)}[/red]")
+            return False
 
     def _check_if_already_downloaded(self, playlist: str) -> bool:
         """
@@ -95,7 +119,7 @@ class DownloadPlaylist:
             console.print(f"[red]Error checking playlist status: {str(e)}[/red]")
             return False
 
-    def _retrieve_playlist_songs(self, playlist: str) -> List[Dict[str, str]]:
+    def _retrieve_playlist_songs(self, playlist: str) -> List[str]:
         """
         Fetch the list of songs from a playlist using the SearchFromPlaylistDataBase.
 
@@ -106,19 +130,27 @@ class DownloadPlaylist:
             List of song dictionaries with metadata
         """
         try:
-            playlist_data = self.search_db.initialize_playlist_songs_dict_with_metadata(
-                playlist
-            )
+            if playlist:
+                playlist_metadata = self.search_db.create_playlist_tracks_dict(playlist)
+            else:
+                playlist_metadata = self.search_db.create_playlist_tracks_dict()
 
-            if playlist in playlist_data and playlist_data[playlist]:
-                logger.info(
-                    f"Found {len(playlist_data[playlist])} songs in playlist '{playlist}'"
+            if not playlist_metadata:
+                console.print_warning(
+                    f"Warning: No songs found in playlist '{playlist}'"
                 )
-                return playlist_data[playlist]
+                return []
 
-            logger.info(f"No songs found in playlist '{playlist}' in database")
+            playlist_songs = [
+                song["track_name"]
+                for song in chain.from_iterable(playlist_metadata.values())
+            ]
 
-            return []
+            if not playlist_songs:
+                logger.info(f"No songs found in playlist '{playlist}' in database")
+                return []
+
+            return playlist_songs
 
         except Exception as e:
             logger.error(f"Error fetching playlist songs: {e}", exc_info=True)
