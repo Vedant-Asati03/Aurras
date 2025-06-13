@@ -49,7 +49,7 @@ class UpdatePlaylistDatabase:
 
     def _get_playlist_id(self, playlist_name: str) -> int:
         """
-        Retrieves the ID of a playlist by its name.
+        Retrieves the ID of a playlist by its name using fuzzy matching.
 
         Args:
             playlist_name (str): The name of the playlist
@@ -59,9 +59,22 @@ class UpdatePlaylistDatabase:
         """
         with playlist_db_connection as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM playlists WHERE name = ?", (playlist_name,))
-            result = cursor.fetchone()
-            return result[0] if result else None
+            cursor.execute("""SELECT id, name FROM playlists""")
+            playlists_data = cursor.fetchall()
+
+        playlist_names = [row[1] for row in playlists_data]
+        
+        # Import here to avoid circular imports
+        from aurras.utils.handle_fuzzy_search import FuzzySearcher
+        fuzzy_search = FuzzySearcher(threshold=0.88)
+
+        if corrected_playlist_name := fuzzy_search.find_best_match(
+            playlist_name, playlist_names
+        ):
+            id = [row[0] for row in playlists_data if row[1] == corrected_playlist_name]
+            return id[0]
+
+        return None
 
     def save_song_to_playlist(
         self,
@@ -78,7 +91,7 @@ class UpdatePlaylistDatabase:
             cursor = conn.cursor()
             cursor.executemany(
                 """
-                INSERT INTO playlist_songs 
+                INSERT OR IGNORE INTO playlist_songs 
                 (playlist_id, track_name, artist_name, added_at)
                 VALUES (?, ?, ?, ?)
                 """,
@@ -91,21 +104,16 @@ class UpdatePlaylistDatabase:
     ) -> None:
         """
         Save multiple songs to a playlist in a batch operation.
+        
+        This method only handles adding songs to playlists and does NOT modify
+        playlist metadata like download status. Playlist metadata should be
+        managed separately by the calling code.
 
         Args:
             playlist_name (str): The name of the playlist to add songs to
             songs_metadata (List[tuple]): List of tuples containing song metadata
-                (playlist_id, track_name, artist_name, added_at)
+                (track_name, artist_name, ?, ?, added_at)
         """
-        current_time = int(time.time())
-
-        self.save_playlist(
-            playlist_name=playlist_name,
-            description=f"Playlist {playlist_name}",
-            updated_at=current_time,
-            is_downloaded=True,
-        )
-
         playlist_id = self._get_playlist_id(playlist_name)
         if playlist_id is None:
             raise ValueError(f"Playlist '{playlist_name}' not found in the database.")
@@ -121,6 +129,59 @@ class UpdatePlaylistDatabase:
         ]
 
         self.save_song_to_playlist(playlist_songs_metadata_batch)
+
+    def mark_playlist_as_downloaded(self, playlist_name: str) -> None:
+        """
+        Mark a playlist as downloaded. This should only be called when
+        a playlist download operation completes successfully.
+
+        Args:
+            playlist_name (str): The name of the playlist to mark as downloaded
+        """
+        # First get the correct playlist ID using fuzzy matching
+        playlist_id = self._get_playlist_id(playlist_name)
+        if playlist_id is None:
+            raise ValueError(f"Playlist '{playlist_name}' not found in the database.")
+            
+        current_time = int(time.time())
+        
+        with playlist_db_connection as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE playlists 
+                SET is_downloaded = TRUE, updated_at = ? 
+                WHERE id = ?
+                """,
+                (current_time, playlist_id),
+            )
+            conn.commit()
+
+    def mark_playlist_as_not_downloaded(self, playlist_name: str) -> None:
+        """
+        Mark a playlist as not downloaded. This can be used to reset download status.
+
+        Args:
+            playlist_name (str): The name of the playlist to mark as not downloaded
+        """
+        # First get the correct playlist ID using fuzzy matching
+        playlist_id = self._get_playlist_id(playlist_name)
+        if playlist_id is None:
+            raise ValueError(f"Playlist '{playlist_name}' not found in the database.")
+            
+        current_time = int(time.time())
+        
+        with playlist_db_connection as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE playlists 
+                SET is_downloaded = FALSE, updated_at = ? 
+                WHERE id = ?
+                """,
+                (current_time, playlist_id),
+            )
+            conn.commit()
 
     def remove_playlist(self, playlist_names: List[str]) -> int:
         """
