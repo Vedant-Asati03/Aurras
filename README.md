@@ -17,7 +17,8 @@ Elevate your music experience. Aurras transforms your terminal into a sophistica
 - [Installation Guide](#installation-guide-for-aurras)
   - [Development](#clone-and-setup)
 - [Demo Usage](#demo-usage)
-- [Spotify Setup](#spotify-setup)
+- [Service Setup & Integration](#service-setup--integration)
+  - [Spotify Integration](#spotify-integration)
 - [Customization & Management](#customization-settings--backup-management)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -186,12 +187,12 @@ Master your music collection with Aurras' **intelligent playlist ecosystem** tha
 
 - **Smart Auto-Creation**: Playlists are intelligently created when you first add songs, eliminating the need for manual setup and streamlining your workflow
 - **Fuzzy Name Matching**: Advanced fuzzy search corrects typos and variations in playlist names automatically, so `"My Favrites"` finds `"My Favorites"` seamlessly
-- **Batch Operations**: Perform bulk operations on multiple playlists simultaneously - create, delete, download, or import with single commands for efficient management
+- **Batch Operations**: Perform bulk operations on multiple playlists simultaneously — create, delete, download, or import with single commands for efficient management
 - **Metadata Intelligence**: Rich playlist metadata with descriptions, creation timestamps, update tracking, and download status for comprehensive organization
 - **Database-Backed Storage**: SQLite database ensures data integrity, fast retrieval, and reliable persistence across sessions
 - **Smart Search Engine**: Search playlists by song names, artist names, or playlist metadata with intelligent ranking and real-time suggestions
 
-*Create with ease: `aurras playlist --create "Workout Mix"` - your playlist is ready instantly*
+*Listen with ease: `aurras playlist my_playlist` — comes with offline playback priority*
 
 </details>
 
@@ -203,10 +204,9 @@ Master your music collection with Aurras' **intelligent playlist ecosystem** tha
 - **OAuth Authentication**: Secure, token-based authentication with automatic refresh ensures persistent access without repeated logins or credential exposure
 - **Complete Library Access**: Import entire Spotify library or select specific playlists with full metadata preservation including track names, artists, albums, and playlist descriptions  
 - **Intelligent Synchronization**: Smart sync engine detects changes in your Spotify playlists and automatically updates local copies while preserving your customizations
-- **Selective Import Options**: Choose exactly what to import - individual playlists, specific genres, or entire library with granular control over the import process
 - **Metadata Preservation**: Complete preservation of playlist structure, song order, descriptions, and creation dates for seamless migration experience
 
-*Bridge platforms effortlessly: `aurras playlist --import` - instant access to your entire Spotify collection*
+*Bridge platforms effortlessly: `aurras playlist --import` — instant access to your entire Spotify collection*
 
 </details>
 
@@ -233,7 +233,7 @@ Run `aurras playlist --help` to explore the complete playlist management suite.
 <details>
 <summary><b>7. Comprehensive Settings & Configuration</b></summary>
 
-Aurras believes in **"Your music, your way"** - and that philosophy extends deep into every configurable aspect of the application. To start, just run ```aurras settings --help```
+Aurras believes in **"Your music, your way"** — and that philosophy extends deep into every configurable aspect of the application. To start, just run ```aurras settings --help```
 
 Aurras uses `settings.yaml` file to store all your settings located at `~/.aurras/config/settings.yaml`
 
@@ -264,7 +264,7 @@ Aurras uses `settings.yaml` file to store all your settings located at `~/.aurra
 <details>
 <summary><b>Command and Shorthands</b></summary>
 
-### Commands:
+### Commands
 
 - `download-song` **download**
 - `play-offline` **offline**
@@ -283,7 +283,7 @@ Aurras uses `settings.yaml` file to store all your settings located at `~/.aurra
 - `toggle-lyrics` **lyrics**
 - `self-management` **self** (update, uninstall, version info, check dependencies)
 
-### Shorthands:
+### Shorthands
 
 - `download-song` **d**
 - `play-offline` **o**
@@ -356,7 +356,7 @@ Your musical journey is precious, and losing it should never be an option. Aurra
 **Never lose a beat with proactive backup automation.** Our intelligent backup system continuously monitors your data and automatically creates comprehensive backups based on configurable schedules, ensuring your musical universe is always protected without manual intervention.
 
 - **Timed Backup Scheduling**: Automatic backups every 24 hours (configurable) with intelligent timing that avoids disrupting your listening sessions
-- **Selective Item Backup**: Granular control over what gets backed up - settings, playlists, history, downloads, cache, and credentials with individual enable/disable options
+- **Selective Item Backup**: Granular control over what gets backed up — settings, playlists, history, downloads, cache, and credentials with individual enable/disable options
 - **Smart Backup Cleanup**: Automatic removal of old backups with configurable retention (default: 10 backups) to prevent storage bloat while maintaining sufficient history
 - **Background Processing**: Non-intrusive backup creation that runs silently in the background without affecting playback or system performance
 - **Platform-Specific Storage**: Intelligent backup location selection using OS-appropriate directories (Linux: `~/.local/share/aurras/backup`, macOS: `~/Library/Application Support/aurras/backup`, Windows: `%LOCALAPPDATA%\aurras\backup`)
@@ -528,15 +528,146 @@ For comprehensive guidelines on contributing to Aurras, please refer to our [Con
 
 Just run ```aurras --help``` to get started
 
-# Spotify Setup
+# Service Setup & Integration
 
-Complete Spotify Setup Guide
+**Connect your music universe** - Aurras currently provides Spotify integration with a flexible architecture designed to support additional music services as the community grows.
 
-**Setup Process:**
+## Available Services
 
-1. **Create Spotify App**: Visit [Spotify Developer Console](https://developer.spotify.com)
-2. **Get Credentials**: Note your Client ID and Secret
-3. **Configure Aurras**: Run the setup wizard
+Currently supported:
+
+- **Spotify**: Full playlist import and OAuth authentication
+
+```bash
+# View Spotify integration options
+aurras setup --spotify --help
+
+# Check current integration status  
+aurras setup --spotify --status
+```
+
+### Spotify Integration
+
+<details>
+<summary>View Details</summary>
+
+**Transform your Spotify experience** - Import your entire Spotify library with secure OAuth authentication and intelligent synchronization.
+
+### Quick Setup
+
+```bash
+# Run the interactive setup wizard
+aurras setup --spotify
+
+# Check Spotify integration status
+aurras setup --spotify --status
+
+# Import your playlists after setup
+aurras playlist --import
+```
+
+### Detailed Setup Process
+
+#### Step 1: Create Spotify App
+
+1. Visit the [Spotify Developer Console](https://developer.spotify.com/dashboard)
+2. Log in with your Spotify account
+3. Click **"CREATE APP"**
+4. Fill in the app details:
+   - **App name**: "Aurras Music Player" (or any name you prefer)
+   - **App description**: "Music player app"
+   - **Website**: Leave blank or add your preferred URL
+   - **Redirect URI**: `http://127.0.0.1:8080` *(must be exact)*
+5. Check the agreement checkbox and click **"CREATE"**
+6. Copy your **Client ID** from the app dashboard
+7. Click **"SHOW CLIENT SECRET"** and copy the **Client Secret**
+
+#### Step 2: Configure Aurras
+
+Run the setup wizard which will guide you through the process:
+
+```bash
+aurras setup --spotify
+```
+
+The wizard will:
+
+- Display step-by-step setup instructions
+- Prompt you to enter your Client ID and Client Secret
+- Open your browser for OAuth authentication
+- Automatically handle token management
+- Confirm successful setup
+
+#### Step 3: Import Your Playlists
+
+```bash
+# Import all your Spotify playlists
+aurras playlist --import
+
+# Then play any imported playlist
+aurras playlist "My Playlist Name"
+```
+
+### Management Commands
+
+```bash
+# Check if Spotify is configured and working
+aurras setup --spotify --status
+
+# Reset credentials and start over
+aurras setup --spotify --reset
+
+# Import playlists (auto-setup if needed)
+aurras playlist --import
+```
+
+### Features
+
+- **Secure OAuth Authentication**: Industry-standard OAuth with automatic token refresh
+- **Complete Library Import**: Import all playlists with full metadata preservation
+- **Local Storage**: Secure credential storage in `~/.aurras/credentials/`
+- **Auto-Setup**: Playlist import triggers setup if not configured
+- **Status Checking**: Easy verification of connection status
+
+### Troubleshooting
+
+#### Authentication Issues
+
+- **Invalid redirect URI**: Ensure redirect URI is exactly `http://127.0.0.1:8080`
+- **Invalid credentials**: Verify Client ID and Secret are correct
+- **Browser issues**: Authentication opens automatically in your default browser
+
+#### Import Problems  
+
+- **No playlists found**: Ensure you have playlists in your Spotify account
+- **Connection failed**: Check internet connection and try again
+- **Setup required**: Run `aurras setup --spotify` first
+
+#### Reset and Retry
+
+```bash
+# If experiencing issues, reset and try again
+aurras setup --spotify --reset
+aurras setup --spotify
+```
+
+*For detailed troubleshooting, see our [Spotify Integration Guide](/docs/spotify_integration.md)*
+
+## Future Services
+
+Aurras is designed with an extensible architecture to support additional music service integrations. **Potential future additions based on community interest:**
+
+- **YouTube Music**: Direct integration with YouTube Music libraries
+- **Last.fm**: Scrobbling and music discovery integration  
+- **Apple Music**: Library access and playlist synchronization
+- **Local Libraries**: Enhanced local music library management
+- **Other Platforms**: Community-requested integrations
+
+*Community-driven development: Want to see a specific service integrated? [Request it here](https://github.com/vedant-asati03/Aurras/issues) or contribute to the development!*
+
+</details>
+
+---
 
 # Customization, Settings & Backup Management
 
