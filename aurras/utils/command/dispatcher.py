@@ -308,6 +308,23 @@ def create_parser() -> Tuple[
         "--list", action="store_true", help="List all available themes"
     )
 
+    # Setup command
+    subparsers_dict["setup"] = subparsers.add_parser(
+        "setup",
+        help="Set up integrations and services",
+        description="Configure and manage various service integrations",
+        formatter_class=SmartFormatter,
+    )
+    subparsers_dict["setup"].add_argument(
+        "--spotify", action="store_true", help="Set up Spotify integration"
+    )
+    subparsers_dict["setup"].add_argument(
+        "--status", action="store_true", help="Check integration status"
+    )
+    subparsers_dict["setup"].add_argument(
+        "--reset", action="store_true", help="Reset service credentials"
+    )
+
     # Backup command
     subparsers_dict["backup"] = subparsers.add_parser(
         "backup",
@@ -392,6 +409,7 @@ def main():
                 "history",
                 "settings",
                 "theme",
+                "setup",
                 "backup",
                 "self",
             ]
@@ -527,6 +545,49 @@ def main():
                 else:
                     logger.info("No theme name provided, showing theme list")
                     return theme_processor.list_themes()
+
+            case "setup":
+                from aurras.utils.command.processors import spotify_processor
+
+                logger.debug("Executing setup command")
+
+                spotify_requested = getattr(args, "spotify", False)
+                status_requested = getattr(args, "status", False)
+                reset_requested = getattr(args, "reset", False)
+
+                if spotify_requested:
+                    if status_requested:
+                        logger.info("Checking Spotify integration status")
+                        return spotify_processor.check_spotify_status()
+                    elif reset_requested:
+                        logger.info("Resetting Spotify credentials")
+                        return spotify_processor.reset_spotify_credentials()
+                    else:
+                        logger.info("Setting up Spotify integration")
+                        return spotify_processor.setup_spotify()
+                elif status_requested or reset_requested:
+                    console.print_error(
+                        "Please specify a service (e.g., --spotify) with --status or --reset"
+                    )
+                    return 1
+                else:
+                    logger.info("No service specified for setup")
+                    # Show available setup options
+                    console.print_info("Available setup options:")
+                    console.print_info(
+                        "  --spotify              Set up Spotify integration"
+                    )
+                    console.print_info(
+                        "  --spotify --status     Check Spotify integration status"
+                    )
+                    console.print_info(
+                        "  --spotify --reset      Reset Spotify credentials"
+                    )
+                    console.print_info("\nExamples:")
+                    console.print_info("  aurras setup --spotify")
+                    console.print_info("  aurras setup --spotify --status")
+                    console.print_info("  aurras setup --spotify --reset")
+                    return 1
 
             case "backup":
                 from aurras.utils.command.processors import backup_processor
