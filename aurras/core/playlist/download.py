@@ -64,11 +64,30 @@ class DownloadPlaylist:
                     )
                     continue
 
-                self._download_songs(song_names, playlist, format, bitrate)
-
-                console.print_success(
-                    f"Success: Playlist '{playlist}' downloaded and saved"
+                download_success = self._download_songs(
+                    song_names, playlist, format, bitrate
                 )
+
+                if download_success:
+                    # Mark playlist as downloaded only after successful download
+                    from aurras.core.playlist.cache.updater import (
+                        UpdatePlaylistDatabase,
+                    )
+
+                    db_updater = UpdatePlaylistDatabase()
+                    db_updater.mark_playlist_as_downloaded(playlist)
+
+                    console.print_success(
+                        f"Success: Playlist '{playlist}' downloaded and saved"
+                    )
+                else:
+                    console.print_error(
+                        f"Error: Playlist '{playlist}' download failed or completed with errors"
+                    )
+                    logger.warning(
+                        f"Playlist '{playlist}' download failed - not marking as downloaded"
+                    )
+                    return False
 
             except Exception as e:
                 logger.error(
@@ -163,18 +182,26 @@ class DownloadPlaylist:
         playlist: str,
         format: Optional[str],
         bitrate: Optional[str],
-    ) -> None:
+    ) -> bool:
         """
         Download songs using the SongDownloader.
 
         Args:
             songs: List of song names
-            output_dir: Directory to save downloaded songs
+            playlist: Name of the playlist (for organizing downloads)
             format: Optional format for downloaded songs
             bitrate: Optional bitrate for downloaded songs
-        """
-        from aurras.utils.command.processors.player import processor
 
-        processor.download_song(
-            song_name=songs, playlist=playlist, format=format, bitrate=bitrate
+        Returns:
+            bool: True if download was successful, False otherwise
+        """
+        from aurras.utils.command.processors import player_processor
+
+        # Convert list of songs to comma-separated string format expected by player_processor
+        songs_str = ", ".join(songs) if songs else ""
+
+        result = player_processor.download_song(
+            song_name=songs_str, playlist=playlist, format=format, bitrate=bitrate
         )
+
+        return result == 0
