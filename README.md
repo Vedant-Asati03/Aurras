@@ -546,12 +546,7 @@ aurras setup --spotify --help
 aurras setup --spotify --status
 ```
 
-### Spotify Integration
-
-<details>
-<summary>View Details</summary>
-
-**Transform your Spotify experience** - Import your entire Spotify library with secure OAuth authentication and intelligent synchronization.
+## Spotify Integration
 
 ### Quick Setup
 
@@ -559,99 +554,33 @@ aurras setup --spotify --status
 # Run the interactive setup wizard
 aurras setup --spotify
 
-# Check Spotify integration status
-aurras setup --spotify --status
-
 # Import your playlists after setup
 aurras playlist --import
-```
 
-### Detailed Setup Process
-
-#### Step 1: Create Spotify App
-
-1. Visit the [Spotify Developer Console](https://developer.spotify.com/dashboard)
-2. Log in with your Spotify account
-3. Click **"CREATE APP"**
-4. Fill in the app details:
-   - **App name**: "Aurras Music Player" (or any name you prefer)
-   - **App description**: "Music player app"
-   - **Website**: Leave blank or add your preferred URL
-   - **Redirect URI**: `http://127.0.0.1:8080` *(must be exact)*
-5. Check the agreement checkbox and click **"CREATE"**
-6. Copy your **Client ID** from the app dashboard
-7. Click **"SHOW CLIENT SECRET"** and copy the **Client Secret**
-
-#### Step 2: Configure Aurras
-
-Run the setup wizard which will guide you through the process:
-
-```bash
-aurras setup --spotify
-```
-
-The wizard will:
-
-- Display step-by-step setup instructions
-- Prompt you to enter your Client ID and Client Secret
-- Open your browser for OAuth authentication
-- Automatically handle token management
-- Confirm successful setup
-
-#### Step 3: Import Your Playlists
-
-```bash
-# Import all your Spotify playlists
-aurras playlist --import
-
-# Then play any imported playlist
-aurras playlist "My Playlist Name"
-```
-
-### Management Commands
-
-```bash
-# Check if Spotify is configured and working
+# Check integration status
 aurras setup --spotify --status
-
-# Reset credentials and start over
-aurras setup --spotify --reset
-
-# Import playlists (auto-setup if needed)
-aurras playlist --import
 ```
 
-### Features
+### Setup Requirements
 
-- **Secure OAuth Authentication**: Industry-standard OAuth with automatic token refresh
-- **Complete Library Import**: Import all playlists with full metadata preservation
-- **Local Storage**: Secure credential storage in `~/.aurras/credentials/`
-- **Auto-Setup**: Playlist import triggers setup if not configured
-- **Status Checking**: Easy verification of connection status
+1. **Create Spotify App**: Visit [Spotify Developer Console](https://developer.spotify.com/dashboard)
+   - App name: "Aurras Music Player" 
+   - Redirect URI: `http://127.0.0.1:8080` *(must be exact)*
+   - Copy Client ID and Client Secret
 
-### Troubleshooting
+2. **Configure Aurras**: Run `aurras setup --spotify` and enter your credentials
 
-#### Authentication Issues
+3. **Import Playlists**: Run `aurras playlist --import` to access your Spotify library
 
-- **Invalid redirect URI**: Ensure redirect URI is exactly `http://127.0.0.1:8080`
-- **Invalid credentials**: Verify Client ID and Secret are correct
-- **Browser issues**: Authentication opens automatically in your default browser
-
-#### Import Problems  
-
-- **No playlists found**: Ensure you have playlists in your Spotify account
-- **Connection failed**: Check internet connection and try again
-- **Setup required**: Run `aurras setup --spotify` first
-
-#### Reset and Retry
+### Quick Commands
 
 ```bash
-# If experiencing issues, reset and try again
-aurras setup --spotify --reset
-aurras setup --spotify
+aurras setup --spotify --status    # Check connection status
+aurras setup --spotify --reset     # Reset credentials  
+aurras playlist --import            # Import playlists
 ```
 
-*For detailed troubleshooting, see our [Spotify Integration Guide](/docs/spotify_integration.md)*
+**Need help?** See the complete [Spotify Integration Guide](/docs/spotify_integration.md) for detailed instructions and troubleshooting.
 
 ## Future Services
 
