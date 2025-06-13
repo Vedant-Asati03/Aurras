@@ -123,11 +123,11 @@ class PlaylistManager:
     def import_playlist(self):
         """Import playlist from spotify."""
         try:
-            from aurras.services.spotify.connection import SetupSpotifyConnection
+            from aurras.services.spotify import SpotifyService
 
-            client = SetupSpotifyConnection()
+            spotify_service = SpotifyService()
 
-            if available_playlists := client.get_user_playlists():
+            if available_playlists := spotify_service.get_user_playlists():
                 return available_playlists
 
             console.print_success("Imported playlist from Spotify")
