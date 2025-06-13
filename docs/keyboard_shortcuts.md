@@ -1,74 +1,66 @@
 # Keyboard Shortcuts Guide
 
-This guide provides a comprehensive list of all keyboard shortcuts available in Aurras Music Player to help you navigate and control playback efficiently.
+This guide provides a comprehensive list of all keyboard shortcuts available in Aurras Music Player for efficient playback control and navigation.
 
-## Playback Controls
+## Player Controls
 
-| Key           | Function                                    |
-| ------------- | ------------------------------------------- |
-| `q`           | End current song playback                   |
-| `p`           | Pause/Resume playback                       |
-| `b`           | Play previous song from history             |
-| `n`           | Skip to next song in queue                  |
-| `t`           | Translate lyrics (if translation available) |
-| `UP`          | Increase volume                             |
-| `DOWN`        | Decrease volume                             |
-| `Mouse wheel` | Fine-tune volume adjustment                 |
+During playback, use these keyboard shortcuts to control the music player:
 
-## Command Access
+| Key             | Function                           |
+| --------------- | ---------------------------------- |
+| `SPACE`         | Play/Pause playback                |
+| `q`             | Quit player and return to command line |
+| `n`             | Skip to next track                 |
+| `b`             | Go to previous track               |
+| `UP` / `DOWN`   | Increase/Decrease volume           |
+| `LEFT` / `RIGHT`| Seek backward/forward              |
+| `l`             | Toggle lyrics display              |
+| `t`             | Toggle theme/appearance            |
+| `ESC`           | Cancel jump mode or current operation |
+
+## Interface Navigation
 
 | Key      | Function                           |
 | -------- | ---------------------------------- |
 | `>`      | Open command palette               |
-| `cmd`    | Open command palette (alternative) |
-| `?`      | Display options menu               |
+| `?`      | Display help/options menu          |
 | `Ctrl+C` | Exit current operation/application |
 
-## Playlist Command Shortcuts
+## Jump Mode Navigation
 
-| Shortcut                 | Function                           |
-| ------------------------ | ---------------------------------- |
-| `pl <playlist_name>`     | View contents of a playlist        |
-| `plp <playlist_name>`    | Play a playlist online             |
-| `spl <playlist_name>`    | Play a playlist in shuffle mode    |
-| `aps <playlist>, <song>` | Add a song to a playlist           |
-| `rps <playlist>, <song>` | Remove a song from a playlist      |
-| `pn <playlist_name>`     | Play a saved playlist online       |
-| `pf <playlist_name>`     | Play a downloaded playlist offline |
-| `rs <playlist_name>`     | Remove a saved playlist            |
-| `rd <playlist_name>`     | Remove a downloaded playlist       |
+For quick navigation through multiple tracks:
 
-## Queue Management Shortcuts
+| Key              | Function                                  |
+| ---------------- | ----------------------------------------- |
+| `1-9` + `n`      | Jump forward by the specified number of tracks |
+| `1-9` + `b`      | Jump backward by the specified number of tracks |
+| `ESC`            | Cancel jump mode                          |
 
-| Shortcut              | Function                                     |
-| --------------------- | -------------------------------------------- |
-| `queue`               | Display the current song queue               |
-| `add_to_queue <song>` | Add a song to the queue without playing      |
-| `clear_queue`         | Clear the current song queue                 |
-| `song1, song2, ...`   | Queue multiple songs for sequential playback |
+**Example**: Press `3` then `n` to skip forward 3 tracks, or `2` then `b` to go back 2 tracks.
 
-## During Song Playback
+## Command Line Interface
 
-When a song is playing, the following keys are available:
+While not keyboard shortcuts per se, these are commonly used text commands within the Aurras interface:
 
-- Use `p` to pause and resume playback
-- Use `q` to stop playback and return to the command line
-- Use `b` to go back to the previous song
-- Use `n` to skip to the next song
-- Use arrow keys for volume control
-- Use `t` to translate displayed lyrics
+- **Search and Play**: Simply type a song name to search and play
+- **Lyrics toggle**: Type `lyrics` to toggle on or off
+- **Playlist Operations**: Use `view <name>` or `v <name>` to view playlists, `playlist <name>` or `p <name>` to play them
+- **Download Options**: Use `d "song 1, song 2"` or `download "song 1, song 2"` or even download playlists `dp <name>` or `downploadp <name>`
 
 ## Tips for Efficient Usage
 
-1. **Quick Access to Command Palette**: Type `>` followed by a space and start typing a command name to quickly find and execute commands.
+1. **Quick Volume Control**: Use `UP`/`DOWN` arrow keys for volume adjustment during playback
 
-2. **Multiple Song Selection**: When you want to play or download multiple songs, separate them with commas:
-   ```
-   Shape of You, Blinding Lights, Starboy
-   ```
+2. **Seeking**: Use `LEFT`/`RIGHT` arrow keys to seek through the current track
 
-3. **Quick Navigation**: Use the up/down arrow keys to navigate through your command history.
+3. **Jump Mode**: Use number keys followed by `n` or `b` for quick multi-track navigation
 
-4. **Cancelling Operations**: Most operations can be cancelled with `Ctrl+C` or by selecting the "Cancel" option.
+4. **Command Palette**: Press `>` to quickly access all available commands
 
-5. **Quick Volume Control**: When a song is playing, use the mouse wheel for quick and precise volume adjustments.
+5. **Lyrics Toggle**: Press `l` to show/hide lyrics when available
+
+6. **Theme Switching**: Press `t` to cycle through available themes
+
+7. **Emergency Exit**: Use `Ctrl+C` to forcefully exit if needed
+
+> **Note**: These shortcuts are active during music playback. When in command input mode, normal text input takes precedence over these shortcuts.
