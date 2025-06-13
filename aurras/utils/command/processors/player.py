@@ -47,8 +47,12 @@ class PlayerProcessor:
         output_dir: str = None,
         format: str = None,
         bitrate: str = None,
-    ):
-        """Download a song or multiple songs using enhanced downloader."""
+    ) -> int:
+        """Download a song or multiple songs using enhanced downloader.
+
+        Returns:
+            int: 0 for success, 1 for error
+        """
         song_name_list = self._parse_args(song_name)
 
         if not song_name_list:
@@ -57,7 +61,8 @@ class PlayerProcessor:
 
         from aurras.core.downloader import SongDownloader
 
-        SongDownloader(
+        success = SongDownloader(
             song_name_list, playlist, output_dir, format, bitrate
         ).download_songs()
-        return 0
+
+        return 0 if success else 1
