@@ -27,26 +27,11 @@ class SpotifyProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        from aurras.services.spotify.setup import SpotifySetup
+        from aurras.services.spotify import SpotifyAuth
 
-        # Show a themed panel with instructions
-        instruction_panel = console.create_panel(
-            "You'll need to authenticate with Spotify to import your playlists and favorites.",
-            title="Spotify Setup",
-            style="info",
-        )
-        console.print(instruction_panel)
+        spotify_setup_handler = SpotifyAuth()
 
-        spotify_setup_handler = SpotifySetup()
-
-        # Use the progress method from ThemedConsole
-        with console.status(
-            console.style_text(
-                "Setting up Spotify authentication...", "primary", bold=True
-            ),
-            spinner="dots",
-        ):
-            result = spotify_setup_handler.setup_credentials()
+        result = spotify_setup_handler.setup_credentials()
 
         if not result:
             console.print_error("Failed to set up Spotify API credentials.")
@@ -63,45 +48,89 @@ class SpotifyProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        from aurras.services.spotify.fetcher import SpotifyUserDataRetriever
+        from aurras.services.spotify import SpotifyService
 
-        # Show styled info message while working
-        console.print_info("Starting import of Spotify playlists...")
+        service = SpotifyService()
 
-        # Create a progress bar for playlist import
-        progress = console.create_progress()
-
-        with progress:
-            task = progress.add_task("Importing playlists", total=100)
-
-            # Use a progress callback that the fetcher can call
-            def update_progress(percent):
-                progress.update(task, completed=percent)
-
-            fetcher = SpotifyUserDataRetriever()
-            available_playlists = fetcher.retrieve_user_playlists(
-                progress_callback=update_progress
+        if not service.is_setup():
+            console.print_warning(
+                "Spotify not configured. Setting up Spotify integration..."
             )
 
-        if not available_playlists:
+            setup_result = self.setup_spotify()
+            if setup_result != 0:
+                console.print_error(
+                    "Setup failed. Please run 'aurras setup --spotify' manually."
+                )
+                return 1
+
+            console.print_info("Setup completed! Proceeding with playlist import...")
+
+            service = SpotifyService()
+
+        imported_playlists = service.import_playlists()
+
+        if not imported_playlists:
             console.print_warning("No playlists found or import failed.")
             return 1
 
-        # Create a table to display the imported playlists
-        table = console.create_table("Imported Spotify Playlists")
-        table.add_column("Name")
-        table.add_column("Tracks")
-
-        for playlist in available_playlists[:10]:  # Show first 10 playlists
-            table.add_row(
-                playlist.get("name", "Unknown"), str(len(playlist.get("tracks", [])))
-            )
-
-        if len(available_playlists) > 10:
-            table.add_row("...", f"+ {len(available_playlists) - 10} more")
-
-        console.print(table)
         console.print_success(
-            f"Successfully imported {len(available_playlists)} playlists"
+            f"Successfully imported {len(imported_playlists)} playlists"
         )
         return 0
+
+    @with_error_handling
+    def check_spotify_status(self) -> int:
+        """
+        Check Spotify integration status.
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        from aurras.services.spotify import SpotifyService
+
+        service = SpotifyService()
+
+        if service.is_setup():
+            console.print_success(" Spotify is configured and ready to use")
+
+            user_info = service.get_user_info()
+            if user_info:
+                console.print_info(
+                    f"Connected as: {user_info.get('display_name', 'Unknown')}"
+                )
+                console.print_info(f"User ID: {user_info.get('id', 'Unknown')}")
+                console.print_success(" Connection to Spotify is working")
+            else:
+                console.print_warning(
+                    " Credentials configured but connection test failed"
+                )
+                console.print_info(
+                    "You may need to re-authenticate. Try: aurras setup --spotify"
+                )
+        else:
+            console.print_error(" Spotify is not configured")
+            console.print_info(
+                "Run 'aurras setup --spotify' to configure Spotify integration"
+            )
+
+        return 0
+
+    @with_error_handling
+    def reset_spotify_credentials(self) -> int:
+        """
+        Reset Spotify credentials and authentication.
+
+        Returns:
+            int: Exit code (0 for success, 1 for error)
+        """
+        from aurras.services.spotify import SpotifyService
+
+        service = SpotifyService()
+
+        success = service.reset_credentials()
+
+        if success:
+            return 0
+        else:
+            return 1
