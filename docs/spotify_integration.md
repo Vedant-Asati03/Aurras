@@ -1,100 +1,177 @@
 # Spotify Integration Guide
 
-This guide explains how to set up and use the Spotify integration in Aurras to import your playlists.
+This guide explains how to set up and use Aurras' Spotify integration to import your playlists and access your Spotify library through the command-line interface.
+
+## Overview
+
+Aurras provides seamless Spotify integration with secure OAuth authentication and comprehensive playlist import capabilities:
+
+- **CLI-First Design**: All functionality accessible through simple commands
+- **Secure Setup**: Interactive credential configuration with automatic setup detection
+- **OAuth Authentication**: Industry-standard OAuth with automatic token refresh
+- **Complete Library Import**: Import all playlists with full metadata preservation
+- **Status Management**: Easy verification, credential management, and reset capabilities
+
+## Quick Setup Commands
+
+Get started with Spotify integration in just a few commands:
+
+```bash
+# Set up Spotify integration
+aurras setup --spotify
+
+# Check integration status
+aurras setup --spotify --status
+
+# Import all your Spotify playlists
+aurras playlist --import
+
+# Play an imported playlist
+aurras playlist "My Playlist Name"
+```
 
 ## Setting Up Spotify API Credentials
 
-Before you can import playlists from Spotify, you need to set up API credentials:
+Before using Spotify integration, you need to create a Spotify app and configure API credentials:
+
+### Step 1: Create Spotify App
 
 1. Visit the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 2. Log in with your Spotify account
-3. Click "CREATE APP" button
-4. Fill in the following details:
-   - App name: "Aurras Music Player" (or any name you prefer)
-   - App description: "Music player app"
-   - Website: You can leave this blank
-   - **Redirect URI: `http://localhost:8080`** (this must be EXACTLY as shown)
-5. Check the agreement checkbox and click "CREATE"
-6. On your app page, note your "Client ID" 
-7. Click "SHOW CLIENT SECRET" and note your "Client Secret"
+3. Click **"CREATE APP"**
+4. Fill in the app details:
+   - **App name**: "Aurras Music Player" (or any name you prefer)
+   - **App description**: "Music player app"
+   - **Website**: Leave blank or add your preferred URL
+   - **Redirect URI**: `http://127.0.0.1:8080` *(must be exact)*
+5. Check the agreement checkbox and click **"CREATE"**
+6. Copy your **Client ID** from the app dashboard
+7. Click **"SHOW CLIENT SECRET"** and copy the **Client Secret**
 
-## Configuring in Aurras
+### Step 2: Configure Aurras
 
-1. In Aurras, use the `setup_spotify` command or select "Setup Spotify" from the command palette
-2. Enter the Client ID and Client Secret from your Spotify app
-3. Follow the authentication prompts when importing playlists
+Run the interactive setup command:
+
+```bash
+aurras setup --spotify
+```
+
+The setup wizard will:
+
+- Display detailed setup instructions
+- Prompt for your Client ID and Client Secret
+- Guide you through OAuth authentication
+- Automatically handle token management
+- Confirm successful configuration
 
 ## Importing Playlists
 
-To import playlists from Spotify:
+```bash
+# Import all your Spotify playlists
+aurras playlist --import
+```
 
-1. Run the `import_playlist` command
-2. If this is your first time, you'll need to authorize Aurras:
-   - A browser will open to the Spotify authorization page
-   - After authorizing, you'll be redirected to a page
-   - Copy the **FULL URL** from your browser's address bar (starting with `http://localhost:8080?code=...`)
-   - Paste this URL into Aurras when prompted
-3. For subsequent imports, authentication will happen automatically using the saved token
-4. Select which playlist you want to import from the list that appears
-5. Confirm any overwrite prompts if the playlist already exists
-6. Wait for the playlist to be imported
+If Spotify isn't configured yet, the import command will automatically guide you through the setup process.
 
-## Token Refreshing
+### After Import
 
-Aurras automatically stores and manages your Spotify access tokens:
+Once imported, you can use your Spotify playlists with any Aurras command:
 
-- The first time you use Spotify features, you'll need to complete the authorization process
-- For subsequent uses, Aurras will automatically use the saved token
-- If the token expires, Aurras will refresh it without requiring re-authorization
-- You will only need to go through the full authorization again if your refresh token expires or becomes invalid (usually after ~60 days of inactivity)
+```bash
+# Play an imported playlist
+aurras playlist "My Spotify Playlist"
 
-## Common Issues and Solutions
+# View playlist contents
+aurras playlist --list
 
-### "Invalid redirect URI" Error
+# Download playlist for offline use
+aurras playlist "My Playlist" --download
+```
 
-If you see this error, it means the redirect URI in your Spotify app doesn't exactly match what Aurras is using.
+## Managing Your Spotify Integration
 
-**Solution:**
-1. Go to your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Select your app
-3. Click "EDIT SETTINGS"
-4. Under "Redirect URIs", check that you have **EXACTLY** `http://localhost:8080`
-   - No trailing slash (not `http://localhost:8080/`)
-   - No extra characters
-   - Correct capitalization (all lowercase)
-5. Click "ADD" then "SAVE"
+### Check Status
 
-### "Invalid authorization code" Error
+```bash
+# Check if Spotify is configured and working
+aurras setup --spotify --status
+```
 
-This happens when:
-1. The code has expired (waited too long between authorization and submission)
-2. You provided the wrong URL (e.g., the original authorization URL instead of the redirect URL)
+This command will:
 
-**Solution:**
-- Try the import process again, completing it promptly
-- Make sure to copy the URL from your browser AFTER authorization completes
+- Verify credential configuration
+- Test connection to Spotify API
+- Display connected user information
+- Report any connection issues
 
-### Authentication Timeouts
+### Reset Credentials
 
-If the authentication process seems to hang indefinitely:
+```bash
+# Reset and start over with fresh credentials
+aurras setup --spotify --reset
+```
 
-**Solution:**
-1. Press Ctrl+C to cancel
-2. Run the authentication helper script: `python /home/vedant/.aurras/services/spotify/auth_helper.py`
-3. Try the import process again
+Use this when you need to change Spotify accounts, fix authentication issues, or start fresh after errors.
 
-## Manual Authentication
+## Troubleshooting
 
-If you continue to have issues with the standard authentication flow:
+### Setup Issues
 
-1. Go to your command palette (`>` or `cmd`)
-2. Select "Setup Spotify" to ensure credentials are correct
-3. Run the standalone authentication helper: `python /home/vedant/.aurras/services/spotify/auth_helper.py`
-4. Once authenticated, run `import_playlist` again
+#### "Invalid redirect URI" Error
 
-## Removing Stored Authentication
+Ensure your Spotify app has **exactly** `http://127.0.0.1:8080` as the redirect URI (no trailing slash, all lowercase).
 
-If you want to remove your stored Spotify authentication:
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Select your app → **"EDIT SETTINGS"** → "Redirect URIs"
+3. Add: `http://127.0.0.1:8080`
+4. Click **"ADD"** then **"SAVE"**
 
-1. Delete the token cache file: `rm ~/.aurras/.cache-spotify`
-2. You'll need to go through the full authentication process the next time you use Spotify features
+#### "Invalid credentials" or Connection Failed
+
+- Verify Client ID and Secret in your Spotify Developer Dashboard
+- Check internet connection
+- Reset and try again: `aurras setup --spotify --reset`
+
+### Import Issues
+
+#### "No playlists found" or Import Interrupted
+
+- Ensure you have playlists in your Spotify account
+- Check connection: `aurras setup --spotify --status`
+- For interrupted imports, run `aurras playlist --import` again (skips already imported playlists)
+
+#### Authentication Problems
+
+- **Browser not opening**: Check default browser settings
+- **Token expired**: Run `aurras setup --spotify --reset` and setup again
+
+### Quick Fixes
+
+Most issues can be resolved by resetting credentials:
+
+```bash
+aurras setup --spotify --reset
+aurras setup --spotify
+```
+
+## Technical Details
+
+### Authentication & Storage
+
+- **OAuth 2.0**: Secure authentication with automatic token refresh
+- **Credentials**: Stored locally in `~/.aurras/credentials/credentials.json`
+- **Playlists**: Imported to local database for offline access
+- **Privacy**: No data collection - everything stays on your device
+
+## Quick Reference
+
+| Command                           | Description              |
+| --------------------------------- | ------------------------ |
+| `aurras setup --spotify`          | Interactive setup wizard |
+| `aurras setup --spotify --status` | Check connection status  |
+| `aurras setup --spotify --reset`  | Reset credentials        |
+| `aurras playlist --import`        | Import all playlists     |
+| `aurras playlist "name"`          | Play specific playlist   |
+| `aurras playlist --list`          | List all playlists       |
+
+**Need help?** Use `aurras --help` or visit [GitHub Issues](https://github.com/vedant-asati03/Aurras/issues) for support.
