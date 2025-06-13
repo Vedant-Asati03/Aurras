@@ -173,7 +173,21 @@ class DownloadsDatabase:
 
         if playlist and songs_data:
             playlist_db = self._get_playlist_db()
-            playlist_db.batch_save_songs_to_playlist(playlist, songs_metadata_batch)
+
+            # Convert downloads format to playlist format
+            download_time = int(time.time())
+            playlist_songs_metadata = [
+                (
+                    data.get("name", ""),  # track_name
+                    data.get("artists", ""),  # artist_name
+                    "",  # placeholder for field 2
+                    "",  # placeholder for field 3
+                    download_time,  # added_at
+                )
+                for data in songs_data
+            ]
+
+            playlist_db.batch_save_songs_to_playlist(playlist, playlist_songs_metadata)
 
     def get_downloaded_songs(
         self,
@@ -384,7 +398,11 @@ class ExtractMetadata:
             data_batch: List of metadata records to update
         """
         if data_batch:
+            # Update downloads database and playlist database
             self.database.batch_save_songs(data_batch, self.playlist)
+
+            # Also update search cache database for consistency
+            self._update_search_cache_database(data_batch)
 
         else:
             console.print_warning("No metadata to update in batch")
@@ -415,10 +433,48 @@ class ExtractMetadata:
 
         file_path = output_dir / file_name if file_name else None
 
-        if file_path.exists():
+        if file_path and file_path.exists():
             self._file_path_cache[cache_key] = file_path
 
         return file_path if file_path and file_path.exists() else None
+
+    def _update_search_cache_database(self, data_batch: List[Dict[str, Any]]):
+        """
+        Update the search cache database with downloaded song metadata.
+        This ensures songs downloaded via playlists are also searchable.
+
+        Args:
+            data_batch: List of metadata records to add to search cache
+        """
+        try:
+            from aurras.core.cache.updater import UpdateSearchHistoryDatabase
+
+            search_updater = UpdateSearchHistoryDatabase()
+
+            for song_data in data_batch:
+                # Extract relevant fields for search cache
+                track_name = song_data.get("name", "")
+                artist_name = song_data.get("artists", "")
+                album_name = song_data.get("album_name", "")
+                file_path = song_data.get("file_path", "")
+
+                if track_name and file_path:
+                    # Use track name as the search query (what user would search for)
+                    search_updater.save_to_cache(
+                        song_user_searched=track_name,
+                        track_name=track_name,
+                        url=file_path,  # Local file path as URL for downloaded songs
+                        artist_name=artist_name,
+                        album_name=album_name,
+                        thumbnail_url="",  # No thumbnail for local files
+                        duration=song_data.get("duration", 0),
+                    )
+
+            logger.info(f"Updated search cache database with {len(data_batch)} songs")
+
+        except Exception as e:
+            logger.warning(f"Failed to update search cache database: {str(e)}")
+            # Don't raise the exception as this is a secondary operation
 
 
 class SongDownloader:
@@ -478,13 +534,16 @@ class SongDownloader:
             download_path if download_path is not None else SETTINGS.download_path
         ).expanduser()
 
-    def download_songs(self):
+    def download_songs(self) -> bool:
         """
         Download songs using subprocess for the actual download, but use SpotDL library for metadata.
+
+        Returns:
+            bool: True if download was successful, False otherwise
         """
         if not self.song_list_to_download:
             console.print_warning("Warning: No songs provided for download")
-            return
+            return False
 
         try:
             console.style_text(
@@ -497,17 +556,23 @@ class SongDownloader:
                 # This way if download fails, we dont extract metadata
                 with change_dir(self.download_path):
                     self.metadata_extractor.extract_metadata_from_spotdl_saved()
+                return True
+            else:
+                return False
 
         except KeyboardInterrupt:
             console.print_error("Download cancelled by user")
-            return
+            return False
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Subprocess error: {e}", exc_info=True)
             console.print_error(f"Error running spotdl: {str(e)}")
+            return False
 
         except Exception as e:
             logger.error(f"Failed to download songs: {e}", exc_info=True)
+            console.print_error(f"Error during download: {str(e)}")
+            return False
             console.print_error(f"Error during download: {str(e)}")
 
     def _download_with_subprocess(self):
