@@ -1,284 +1,211 @@
-# Theme Implementation Documentation
+# Aurras Theme System: Complete Guide
 
-This document provides a comprehensive overview of Aurras' sophisticated theme system architecture, explaining how the unified theme management works to deliver consistent styling across CLI and TUI interfaces.
+Welcome to the Aurras theme system! This guide will take you from basic theme usage to advanced theme development and system architecture. Whether you're a user wanting to customize themes or a contributor wanting to understand and extend the system, this document has you covered.
 
 ## Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Core Components](#core-components)
-- [Theme Flow](#theme-flow)
-- [Adapter System](#adapter-system)
-- [Color Management](#color-management)
-- [Theme Definitions](#theme-definitions)
-- [Integration Points](#integration-points)
-- [Performance Optimizations](#performance-optimizations)
-- [Code Examples](#code-examples)
+1. [Quick Start: Using Themes](#quick-start-using-themes)
+2. [Understanding the Theme System](#understanding-the-theme-system)
+3. [For Contributors: Code Tour](#for-contributors-code-tour)
+4. [Creating Custom Themes](#creating-custom-themes)
+5. [Advanced Integration](#advanced-integration)
+6. [Reference](#reference)
 
-## Architecture Overview
+---
 
-Aurras implements a **unified, adapter-based theme architecture** that seamlessly provides consistent styling across both CLI (Rich console) and TUI (Textual) interfaces. The system is designed around the principle of **single source of truth**, where one theme definition drives styling for all UI components.
+## Quick Start: Using Themes
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    User Interface Layer                     │
-│              (CLI Commands, TUI Screens)                    │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│                Theme Manager                                │
-│          (get_theme, set_current_theme)                     │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-            ┌─────────┴─────────┐
-            │                   │
-┌───────────▼──────────┐ ┌──────▼──────────────────┐
-│   Rich Adapter       │ │ Textual Adapter         │
-│(theme_to_rich_theme) │ │(theme_to_textual_theme) │
-└───────────┬──────────┘ └──────┬──────────────────┘
-            │                   │
-┌───────────▼──────────┐ ┌──────▼──────────┐
-│   Rich Console       │ │   Textual App   │
-│     Styling          │ │     Styling     │
-└──────────────────────┘ └─────────────────┘
+### Basic Theme Commands
+
+```bash
+# List all available themes
+aurras theme
+
+# Set a theme
+aurras theme galaxy
+aurras theme neon
+aurras theme ocean
 ```
 
-## Core Components
+### Available Built-in Themes
 
-### 1. ThemeDefinition (Core Data Structure)
+Aurras includes 10 carefully crafted themes:
 
-**Location**: `aurras/themes/definitions.py`
+| Theme | Category | Description |
+|-------|----------|-------------|
+| **Galaxy** | Dark | Deep space-inspired with rich purples and blues |
+| **Neon** | Vibrant | Bright digital visualization style |
+| **Cyberpunk** | Vibrant | Futuristic cyberpunk aesthetic |
+| **Ocean** | Natural | Calming blue oceanic palette |
+| **Forest** | Natural | Earthy green natural environment |
+| **Sunset** | Natural | Warm orange and pink sunset tones |
+| **Vintage** | Light | Warm retro vinyl player feel |
+| **Minimal** | Minimal | Clean distraction-free interface |
+| **Nightclub** | Vibrant | Bold party atmosphere colors |
+| **Monochrome** | Minimal | Classic black and white styling |
 
-The `ThemeDefinition` class serves as the central data structure that defines all theme properties. It provides a comprehensive color palette and metadata for consistent application styling.
+---
 
-**Key Responsibilities**:
-- Defining comprehensive color palettes
-- Managing theme metadata and categorization
-- Providing validation and normalization
-- Supporting extensibility through custom fields
+## Understanding the Theme System
 
-**Interface**:
+### High-Level Architecture
+
+```bash
+User Commands → Theme Manager → Adapters → UI Frameworks
+                     ↓              ↓
+                Theme Storage   Rich/Textual
+                                 Styling
+```
+
+The Aurras theme system is built on these core principles:
+
+1. **Single Source of Truth**: One theme definition works across CLI and TUI
+2. **Adapter Pattern**: Converts themes for different UI frameworks (Rich/Textual)
+3. **Performance First**: Smart caching and lazy loading
+4. **User Extensible**: Easy custom theme creation
+
+### Key Components Overview
+
+```bash
+aurras/themes/
+├── definitions.py     # ThemeDefinition and ThemeCategory classes
+├── colors.py         # ThemeColor class with transformations
+├── manager.py        # Central theme management API
+├── themes.py         # All built-in theme definitions
+├── utils.py          # Helper functions and caching
+└── adapters/
+    │
+    to Rich format
+    ├── rich_adapter.py     # Converts themes
+    to Textual format
+    └── textual_adapter.py  # Converts themes 
+```
+
+---
+
+## For Contributors: Code Tour
+
+Let's walk through the theme system step by step, perfect for new contributors!
+
+### Step 1: Understanding Theme Data Structure
+
+**File**: `aurras/themes/definitions.py`
+
+The heart of the system is the `ThemeDefinition` class:
+
 ```python
 @dataclass
 class ThemeDefinition:
-    # Metadata
-    name: str
-    display_name: str
-    description: str = ""
-    category: ThemeCategory = ThemeCategory.CUSTOM
-    dark_mode: bool = True
-
-    # Core colors
-    primary: Optional[ThemeColor] = None
-    secondary: Optional[ThemeColor] = None
-    accent: Optional[ThemeColor] = None
-
+    # Basic metadata
+    name: str                    # Unique identifier (e.g., "GALAXY")
+    display_name: str           # User-friendly name (e.g., "Galaxy")
+    description: str            # Brief description
+    category: ThemeCategory     # DARK, LIGHT, VIBRANT, etc.
+    dark_mode: bool            # True for dark themes
+    
+    # Core colors - the essential ones
+    primary: Optional[ThemeColor]      # Main brand color
+    secondary: Optional[ThemeColor]    # Secondary emphasis
+    accent: Optional[ThemeColor]       # Highlights and focus
+    
     # UI background colors
-    background: Optional[ThemeColor] = None
-    surface: Optional[ThemeColor] = None
-    panel: Optional[ThemeColor] = None
-
-    # Status colors
-    warning: Optional[ThemeColor] = None
-    error: Optional[ThemeColor] = None
-    success: Optional[ThemeColor] = None
-    info: Optional[ThemeColor] = None
-
+    background: Optional[ThemeColor]   # Main background
+    surface: Optional[ThemeColor]      # Cards, panels
+    panel: Optional[ThemeColor]        # Specific panel backgrounds
+    
+    # Status colors - for user feedback
+    warning: Optional[ThemeColor]      # Warning messages
+    error: Optional[ThemeColor]        # Error messages  
+    success: Optional[ThemeColor]      # Success messages
+    info: Optional[ThemeColor]         # Info messages
+    
     # Text colors
-    text: Optional[ThemeColor] = None
-    text_muted: Optional[ThemeColor] = None
-    border: Optional[ThemeColor] = None
+    text: Optional[ThemeColor]         # Main text
+    text_muted: Optional[ThemeColor]   # Secondary text
+    border: Optional[ThemeColor]       # Borders and dividers
+    
+    # Gradients - for enhanced visuals
+    title_gradient: Optional[List[str]]     # Song titles
+    artist_gradient: Optional[List[str]]    # Artist names
+    status_gradient: Optional[List[str]] = None     # System info
+    progress_gradient: Optional[List[str]] = None    # Progress bar
+    feedback_gradient: Optional[List[str]] = None    # Feedback
+    history_gradient: Optional[List[str]] = None     # History song names
 
-    # Gradients for enhanced visuals
-    title_gradient: Optional[List[str]] = None
-    artist_gradient: Optional[List[str]] = None
-    status_gradient: Optional[List[str]] = None
-    progress_gradient: Optional[List[str]] = None
-    feedback_gradient: Optional[List[str]] = None
-    history_gradient: Optional[List[str]] = None
+    # Special fields
+    dim: str = "#333333"
 ```
 
-### 2. Theme Manager
+**Why this design?**
 
-**Location**: `aurras/themes/manager.py`
+- Optional fields allow themes to define only what they need
+- Consistent structure across all themes
+- Type safety with dataclasses
+- Easy validation and defaults
 
-The theme manager provides the central API for theme operations throughout the application.
+### Step 2: Color Management
 
-**Key Functions**:
-- **Theme Retrieval**: Get themes by name or current theme
-- **Theme Switching**: Set current theme with validation
-- **Theme Discovery**: Find and load user-defined themes
-- **File Operations**: Load and save themes to/from JSON files
+**File**: `aurras/themes/colors.py`
 
-### 3. ThemeColor (Color Abstraction)
+The `ThemeColor` class handles all color operations:
 
-**Location**: `aurras/themes/colors.py`
-
-The `ThemeColor` class provides a rich color abstraction with support for transformations and gradients.
-
-**Features**:
-- **Hex Color Management**: Validates and normalizes hex color values
-- **Color Transformations**: Darken, lighten, and alpha adjustments
-- **Gradient Generation**: Automatic gradient creation
-- **Format Conversion**: RGB, HSV, and hex conversions
-
-## Theme Flow
-
-The theme system follows a **centralized configuration workflow** that ensures consistency across all UI components:
-
-### Stage 1: Theme Selection
-```
-User Input → Theme Validation → Theme Manager → Current Theme Update
-```
-
-### Stage 2: Adapter Conversion
-```
-ThemeDefinition → Rich Adapter → Rich Theme Objects
-                → Textual Adapter → Textual Theme Objects
-```
-
-### Stage 3: UI Application
-```
-Rich Theme → Console Styling → CLI Interface
-Textual Theme → App Styling → TUI Interface
-```
-
-### Stage 4: Live Updates
-```
-Theme Change → Adapter Refresh → UI Re-rendering → Instant Visual Update
-```
-
-## Adapter System
-
-The adapter system enables the unified theme definitions to work with different UI frameworks while maintaining consistency.
-
-### RichAdapter
-
-**Location**: `aurras/themes/adapters/rich_adapter.py`
-
-Converts theme definitions to Rich library compatible formats for CLI interfaces.
-
-**Features**:
-- **Style Mapping**: Maps theme colors to Rich style definitions
-- **Gradient Support**: Converts gradients to Rich-compatible formats
-- **Caching**: Performance optimization through intelligent caching
-- **Fallback Handling**: Graceful degradation with sensible defaults
-
-**Conversion Process**:
-1. Extract colors from ThemeDefinition
-2. Map to Rich style names with fallbacks
-3. Create Rich Theme object with computed styles
-4. Cache result for performance optimization
-
-**Style Mappings**:
 ```python
-style_mapping = {
-    "primary": (theme_def.primary.hex, [], "#FFFFFF"),
-    "secondary": (theme_def.secondary.hex, [fallback1], "#CCCCCC"),
-    "accent": (theme_def.accent.hex, [fallback1, fallback2], "#AAAAAA"),
-    "success": (theme_def.success.hex, [fallback1], "#00FF00"),
-    "warning": (theme_def.warning.hex, [], "#FFCC00"),
-    "error": (theme_def.error.hex, [], "#FF0000"),
-}
+@dataclass(frozen=True)
+class ThemeColor:
+    hex: str                              # "#FF5733"
+    gradient: Optional[List[str]] = None  # ["#FF5733", "#FF6644"]
+    
+    # Color transformations
+    def darken(self, amount: float) -> str:
+        """Make color darker by specified amount (0.0-1.0)"""
+        
+    def lighten(self, amount: float) -> str:
+        """Make color lighter by specified amount (0.0-1.0)"""
+        
+    def with_alpha(self, alpha: int) -> str:
+        """Add transparency (0-100)"""
+        
+    def generate_gradient(self, steps: int) -> List[str]:
+        """Generate a gradient with specified steps"""
 ```
 
-### TextualAdapter
+**Example usage:**
 
-**Location**: `aurras/themes/adapters/textual_adapter.py`
-
-Converts theme definitions to Textual library compatible formats for TUI interfaces.
-
-**Features**:
-- **Textual Theme Creation**: Builds Textual Theme objects
-- **Variable System**: Supports Textual's CSS variable system
-- **Text Area Themes**: Specialized themes for code editors
-- **Component Styling**: Maps theme colors to Textual components
-
-**Key Methods**:
 ```python
-def theme_to_textual_theme(theme_def: ThemeDefinition) -> TextualTheme:
-    """Convert ThemeDefinition to Textual Theme."""
-
-def theme_to_text_area_theme(theme_def: ThemeDefinition) -> TextAreaTheme:
-    """Create TextAreaTheme for code editors."""
-
-def theme_to_textual_variables(theme_def: ThemeDefinition) -> Dict[str, str]:
-    """Generate CSS variables from theme."""
-```
-
-## Color Management
-
-### ThemeColor Class
-
-**Location**: `aurras/themes/colors.py`
-
-Advanced color management with support for transformations and validations.
-
-**Core Features**:
-- **Validation**: Ensures valid hex color formats
-- **Normalization**: Standardizes color representations
-- **Transformations**: Darken, lighten, and alpha operations
-- **Gradient Generation**: Automatic gradient creation
-
-**Color Operations**:
-```python
-# Color transformations
 primary = ThemeColor("#FF5733")
-darker = primary.darken(0.2)      # "#CC451F"
-lighter = primary.lighten(0.1)    # "#FF6B4D"
-with_alpha = primary.with_alpha(50)  # "#FF5733 50%"
-
-# Gradient generation
-gradient = primary.generate_gradient(steps=4)
-# ["#FF5733", "#FF6B4D", "#FF7F66", "#FF9380"]
+darker = primary.darken(0.2)           # "#CC451F"
+lighter = primary.lighten(0.1)         # "#FF6B4D"
+transparent = primary.with_alpha(50)   # "#FF5733 50%"
 ```
 
-### ColorTriplet
+### Step 3: Theme Management
 
-**Location**: `aurras/themes/colors.py`
+**File**: `aurras/themes/manager.py`
 
-RGB color representation with validation and conversion utilities.
+This is the central API that everyone uses:
 
-**Features**:
-- **RGB Validation**: Ensures components are within 0-255 range
-- **Hex Conversion**: Bidirectional hex string conversion
-- **Immutable Design**: Thread-safe color representation
-
-### Color Utilities
-
-**Location**: `aurras/themes/utils.py`
-
-Comprehensive color utility functions for various operations.
-
-**Utility Functions**:
 ```python
-def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
-    """Convert hex color to RGB tuple."""
-
-def rgb_to_hex(r: int, g: int, b: int) -> str:
-    """Convert RGB values to hex string."""
-
-def is_light_color(hex_color: str) -> bool:
-    """Determine if a color is light or dark."""
-
-def validate_hex_color(hex_color: str) -> bool:
-    """Validate hex color format."""
+# Core functions
+def get_theme(theme_name: Optional[str] = None) -> ThemeDefinition
+def get_available_themes() -> List[str]
+def set_current_theme(theme_name: str) -> bool
+def get_current_theme() -> str
+def get_themes_by_category(category: Union[str, ThemeCategory]) -> Dict[str, ThemeDefinition]
 ```
 
-## Theme Definitions
+**How it works:**
 
-### Built-in Theme Collection
+1. Maintains a global `_current_theme` variable
+2. Loads themes on-demand from `AVAILABLE_THEMES`
+3. Handles case-insensitive theme lookups
+4. Provides category filtering
 
-**Location**: `aurras/themes/themes.py`
+### Step 4: Built-in Themes
 
-Aurras ships with a carefully curated collection of 10 built-in themes across different categories.
+**File**: `aurras/themes/themes.py`
 
-**Theme Categories**:
-- **Dark Themes**: Galaxy, Neon, Cyberpunk, Forest, Ocean
-- **Light Themes**: Vintage, Minimal
-- **Vibrant Themes**: Nightclub, Sunset
-- **Minimal Themes**: Monochrome
+This file defines all the built-in themes. Here's how a theme is structured:
 
-**Example Theme Definition**:
 ```python
 GALAXY: Final[ThemeDefinition] = ThemeDefinition(
     name="GALAXY",
@@ -286,377 +213,527 @@ GALAXY: Final[ThemeDefinition] = ThemeDefinition(
     description="Deep space-inspired theme with rich purples and blues",
     category=ThemeCategory.DARK,
     dark_mode=True,
+    
+    # Core colors
     primary=ThemeColor("#BD93F9"),      # Vibrant purple
     secondary=ThemeColor("#8BE9FD"),    # Bright cyan
     accent=ThemeColor("#FF79C6"),       # Pink
+    
+    # UI colors
     background=ThemeColor("#282A36"),   # Dark background
-    surface=ThemeColor("#383A59"),      # Slightly lighter surface
+    surface=ThemeColor("#383A59"),      # Slightly lighter
     panel=ThemeColor("#44475A"),        # Panel color
+    
+    # Status colors
     warning=ThemeColor("#FFB86C"),      # Soft orange
     error=ThemeColor("#FF5555"),        # Bright red
     success=ThemeColor("#50FA7B"),      # Bright green
+    
+    # Text colors
     text=ThemeColor("#F8F8F2"),         # Light text
     text_muted=ThemeColor("#BFBFBF"),   # Muted text
     border=ThemeColor("#6272A4"),       # Border color
+    
+    # Gradients for visual enhancement
     title_gradient=["#BD93F9", "#B899FA", "#B39FFB", "#AEA5FC"],
-    progress_gradient=[
-        "#40FA70", "#45FA74", "#4AFA78", "#50FA7B",
-        "#58FA81", "#60FA86", "#68FA8C", "#70FA91"
-    ],
-    dim="#333366",
+    progress_gradient=["#40FA70", "#45FA74", "#4AFA78", "#50FA7B"],
+    # ... more gradients
 )
 ```
 
-### Theme Categories
+**Key points:**
 
-**Location**: `aurras/themes/definitions.py`
+- Each theme is a `Final` constant for immutability
+- Colors are carefully chosen for accessibility and aesthetics
+- Gradients enhance visual appeal
+- All themes follow the same structure
 
-Themes are organized into logical categories for better organization and discovery.
+### Step 5: The Adapter System
+
+This is where the magic happens! Adapters convert our unified theme format to framework-specific formats.
+
+#### Rich Adapter (CLI)
+
+**File**: `aurras/themes/adapters/rich_adapter.py`
 
 ```python
-class ThemeCategory(Enum):
-    DARK = auto()          # Dark mode themes
-    LIGHT = auto()         # Light mode themes  
-    VIBRANT = auto()       # High contrast, colorful themes
-    MINIMAL = auto()       # Clean, distraction-free themes
-    RETRO = auto()         # Vintage, nostalgic themes
-    NATURAL = auto()       # Nature-inspired themes
-    FUTURISTIC = auto()    # Sci-fi, cyberpunk themes
-    CUSTOM = auto()        # User-defined themes
+def theme_to_rich_theme(theme_def: ThemeDefinition) -> RichTheme:
+    """Convert ThemeDefinition to Rich Theme"""
+    
+    # Define style mappings with fallbacks
+    style_mapping = {
+        "primary": (
+            theme_def.primary.hex if theme_def.primary else None,
+            [],  # No fallbacks for primary
+            "#FFFFFF",  # Default fallback
+        ),
+        "success": (
+            theme_def.success.hex if theme_def.success else None,
+            [theme_def.accent.hex if theme_def.accent else None],  # Try accent
+            "#00FF00",  # Default green
+        ),
+        # ... more mappings
+    }
 ```
 
-### User Theme Support
+**Why fallbacks?** If a theme doesn't define a `success` color, it tries `accent`, then falls back to default green.
 
-The system supports loading custom user themes from JSON files.
+#### Textual Adapter (TUI)
 
-**User Theme Directory**: `~/.aurras/themes/`
+**File**: `aurras/themes/adapters/textual_adapter.py`
 
-**Theme File Format**:
-```json
-{
-  "name": "MY_CUSTOM_THEME",
-  "display_name": "My Custom Theme",
-  "description": "A personalized theme",
-  "category": "CUSTOM",
-  "dark_mode": true,
-  "colors": {
-    "primary": {"hex": "#FF5733"},
-    "secondary": {"hex": "#33C3FF"},
-    "accent": {"hex": "#FFD700"}
-  },
-  "gradients": {
-    "title_gradient": ["#FF5733", "#FF6B4D", "#FF7F66"],
-    "progress_gradient": ["#33C3FF", "#4DD0E1", "#80DEEA"]
-  }
+Similar concept but converts to Textual's theme format for the TUI interface.
+
+### Step 6: Console Integration
+
+**File**: `aurras/utils/console/manager.py`
+
+The `ThemedConsole` class extends Rich's Console with theme awareness:
+
+```python
+class ThemedConsole(Console):
+    @property
+    def primary(self):
+        """Get primary color from current theme"""
+        return self.theme_obj.primary.hex
+    
+    def print_error(self, message: str, **kwargs):
+        """Print error with theme's error color"""
+        self.print_styled(message, "error", **kwargs)
+    
+    def print_success(self, message: str, **kwargs):
+        """Print success with theme's success color"""
+        self.print_styled(message, "success", **kwargs)
+```
+
+**Global Console Instance:**
+
+```python
+# In aurras/utils/console/__init__.py
+console = get_console()  # Global themed console
+```
+
+This means anywhere in the codebase, you can:
+
+```python
+from aurras.utils.console import console
+console.print_success("Theme applied successfully!")
+```
+
+### Step 7: User Theme Loading
+
+**File**: `aurras/themes/themes.py` (function `_load_user_themes`)
+
+```python
+def _load_user_themes() -> Dict[str, ThemeDefinition]:
+    """Load user themes from ~/.aurras/config/themes.yaml"""
+    
+    # Read YAML file
+    with open(USER_THEME_CONFIG_FILE, "r") as f:
+        themes_data = yaml.safe_load(f)
+    
+    # Convert each theme to ThemeDefinition
+    for theme_name, properties in themes_data.items():
+        theme_obj = ThemeDefinition.from_dict(properties)
+        user_themes[theme_obj.name] = theme_obj
+```
+
+**Integration:**
+
+```python
+# All themes (built-in + user) in one place
+AVAILABLE_THEMES = {
+    GALAXY.name: GALAXY,
+    NEON.name: NEON,
+    # ... all built-in themes
+    **{theme.name: theme for theme in user_themes.values()},  # User themes
 }
 ```
 
-## Integration Points
+---
 
-### CLI Integration
+## Creating Custom Themes
 
-**Location**: `aurras/utils/console/manager.py`
+### Step 1: Create the Theme File
 
-The theme system integrates with the CLI through the `ThemedConsole` class.
+Create `~/.aurras/config/themes.yaml`:
 
-**Features**:
-- **Themed Console**: Automatically styled Rich console
-- **Live Theme Switching**: Change themes without restart
-- **Gradient Text**: Apply theme gradients to text
-- **Style Mapping**: Automatic color mapping for UI elements
+```yaml
+DRACULA:
+  name: "DRACULA"
+  display_name: "Dracula"
+  description: "The famous dark theme with purple, pink, and cyan colors"
+  category: "CUSTOM"
+  dark_mode: true
 
-**Integration Process**:
-1. **Console Creation**: Initialize themed console with current theme
-2. **Style Application**: Apply Rich theme to console
-3. **Theme Updates**: Live theme switching updates console
-4. **Gradient Rendering**: Apply color gradients to text elements
+  # Core colors
+  primary: "#BD93F9"      # Purple
+  secondary: "#8BE9FD"    # Cyan
+  accent: "#FF79C6"       # Pink
 
-### TUI Integration
+  # UI background colors
+  background: "#282A36"   # Dark background
+  surface: "#44475A"      # Lighter surface
+  panel: "#6272A4"        # Panel color
 
-**Location**: `aurras/tui/app.py`, `aurras/tui/themes/theme_manager.py`
+  # Status colors
+  warning: "#FFB86C"      # Orange
+  error: "#FF5555"        # Red
+  success: "#50FA7B"      # Green
+  info: "#8BE9FD"         # Cyan
 
-The TUI system uses the unified theme definitions converted to Textual-compatible formats.
+  # Text colors
+  text: "#F8F8F2"         # Foreground
+  text_muted: "#6272A4"   # Comment
+  text_secondary: "#BFBFBF"
 
-**Integration Components**:
-- **Theme Loading**: Load and register themes at app startup
-- **Live Switching**: Change themes without app restart
-- **CSS Variables**: Generate CSS variables from theme colors
-- **Component Styling**: Style TUI widgets with theme colors
+  # Interactive colors
+  hover: "#6272A4"
+  selected: "#44475A"
+  focus: "#BD93F9"
 
-**TUI Theme Process**:
-1. **App Initialization**: Load all available themes
-2. **Theme Registration**: Register themes with Textual app
-3. **Current Theme Setting**: Set initial theme from settings
-4. **Live Updates**: Switch themes dynamically through settings
+  # Border colors
+  border: "#6272A4"
+  border_focus: "#BD93F9"
 
-### Settings Integration
+  # Progress colors
+  progress_bar: "#BD93F9"
+  progress_background: "#44475A"
 
-**Location**: `aurras/core/settings/updater.py`, `aurras/utils/command/processors/theme.py`
+  # Gradients for enhanced visuals
+  title_gradient: ["#BD93F9", "#FF79C6", "#8BE9FD"]
+  artist_gradient: ["#8BE9FD", "#50FA7B", "#FFB86C"]
+  progress_gradient: ["#BD93F9", "#FF79C6", "#50FA7B"]
+```
 
-Themes integrate with the settings system for persistence and management.
+### Step 2: Test Your Theme
 
-**Features**:
-- **Theme Persistence**: Save current theme to settings
-- **Settings Sync**: Automatic theme loading from settings
-- **Theme Commands**: CLI commands for theme management
-- **Live Updates**: Settings changes trigger theme updates
-
-**Command Integration**:
 ```bash
-# List available themes
-aurras theme list
+# Reload Aurras to pick up the new theme
+aurras theme
 
-# Set current theme
-aurras theme set galaxy
-
-# Display current theme
-aurras theme current
-
-# Preview theme (TUI only)
-aurras theme preview neon
+# Your theme should appear in the list
+aurras theme my_awesome_theme
 ```
 
-### Player Integration
+### Step 3: Theme Design Tips
 
-**Location**: `aurras/player/` (various components)
+1. **Start with core colors**: `primary`, `secondary`, `accent` are most important
+2. **Ensure contrast**: Text should be readable on backgrounds
+3. **Use gradients sparingly**: They enhance but shouldn't overwhelm
+4. **Test in both CLI and TUI**: Themes work across both interfaces
+5. **Consider accessibility**: Avoid red-green combinations for colorblind users
 
-The media player interface uses themed styling for consistent appearance.
+### Advanced Theme Features
 
-**Styled Components**:
-- **Now Playing Display**: Uses primary and accent colors
-- **Progress Bars**: Applies progress gradient colors
-- **Status Messages**: Uses status color palette
-- **Queue Display**: Themed list rendering
+#### Color Transformations
 
-## Performance Optimizations
-
-### 1. Intelligent Caching
-
-The theme system implements multi-level caching for optimal performance.
-
-**Adapter Caching**:
-```python
-# Rich theme cache
-_rich_theme_cache = ThemeValueCache[str, RichTheme]()
-
-# Gradient cache  
-_gradient_cache = ThemeValueCache[str, Dict[str, List[str]]]()
-
-# Usage with automatic caching
-def theme_to_rich_theme(theme_def: ThemeDefinition) -> RichTheme:
-    return _rich_theme_cache.get(theme_def.name, _compute_rich_theme, theme_def)
+```yaml
+MY_THEME:
+  # ... other properties
+  
+  # You can reference colors in gradients
+  title_gradient: 
+    - primary        # Reference to primary color
+    - "#FF8FB3"      # Custom color
+    - "primary-light" # Transformed color (if supported)
 ```
 
-**Cache Benefits**:
-- **Reduced Computation**: Avoid recomputing theme conversions
-- **Memory Efficiency**: LRU eviction of unused themes
-- **Performance**: Sub-millisecond theme switching
+#### Category Organization
 
-### 2. Lazy Loading
+```yaml
+MY_PROFESSIONAL_THEME:
+  category: "MINIMAL"   # Groups with other minimal themes
 
-Themes are loaded on-demand to minimize startup time.
+MY_GAMING_THEME:
+  category: "VIBRANT"   # Groups with other vibrant themes
+```
 
-**On-Demand Loading**:
-- **Theme Files**: Load user themes only when needed
-- **Adapter Conversion**: Convert themes only when used
-- **Gradient Computation**: Generate gradients on first use
+---
 
-### 3. Color Optimization
+## Advanced Integration
 
-**Pre-computed Values**:
-- **Color Triplets**: RGB values computed once during initialization
-- **Gradient Caching**: Expensive gradient calculations cached
-- **Validation**: Color validation performed once at creation
+### Using Themes in Your Code
 
-### 4. Thread Safety
-
-The theme system is designed to be thread-safe for concurrent access.
-
-**Thread-Safe Components**:
-- **Immutable Theme Definitions**: Thread-safe by design
-- **Cached Values**: Thread-safe cache implementations
-- **Atomic Updates**: Theme switching uses atomic operations
-
-## Code Examples
-
-### Basic Theme Usage
+#### Basic Usage
 
 ```python
-from aurras.themes import get_theme, set_current_theme, get_available_themes
+from aurras.utils.console import console
+
+# The console is automatically themed
+console.print("Hello World!", style="primary")
+console.print_error("Something went wrong!")
+console.print_success("Operation completed!")
+```
+
+#### Direct Theme Access
+
+```python
+from aurras.themes.manager import get_theme
 
 # Get current theme
-current_theme = get_theme()
-print(f"Using theme: {current_theme.display_name}")
+theme = get_theme()
+print(f"Primary color: {theme.primary.hex}")
+print(f"Theme name: {theme.display_name}")
 
-# List available themes
-themes = get_available_themes()
-for theme_name in themes:
-    theme = get_theme(theme_name)
-    print(f"{theme.display_name}: {theme.description}")
-
-# Switch theme
-success = set_current_theme("NEON")
-if success:
-    print("Theme switched successfully")
+# Get specific theme
+galaxy_theme = get_theme("GALAXY")
+darker_primary = galaxy_theme.primary.darken(0.2)
 ```
 
-### Creating Custom Themes
+#### Theme-Aware Components
 
 ```python
-from aurras.themes import ThemeDefinition, ThemeColor, ThemeCategory
+from aurras.utils.console import console
 
-# Create custom theme
-custom_theme = ThemeDefinition(
-    name="MY_THEME",
-    display_name="My Custom Theme",
-    description="A personalized theme",
-    category=ThemeCategory.CUSTOM,
-    dark_mode=True,
-    primary=ThemeColor("#FF5733"),
-    secondary=ThemeColor("#33C3FF"),
-    accent=ThemeColor("#FFD700"),
-    background=ThemeColor("#1A1A1A"),
-    text=ThemeColor("#FFFFFF"),
-    title_gradient=["#FF5733", "#FF6B4D", "#FF7F66"],
-)
-
-# Save theme to file
-from aurras.themes import save_theme_to_file
-save_theme_to_file(custom_theme, "~/.aurras/themes/my_theme.json")
+# Create themed Rich components
+table = console.create_table(title="My Data")
+panel = console.create_panel("Content", title="Info")
 ```
 
-### Rich Console Integration
+#### Custom Rich Console (Advanced)
 
 ```python
 from aurras.themes.adapters import theme_to_rich_theme
-from aurras.themes import get_theme
+from aurras.themes.manager import get_theme
 from rich.console import Console
 
-# Get themed console
-theme = get_theme("GALAXY")
+# Create custom console with specific theme
+theme = get_theme("CYBERPUNK")
 rich_theme = theme_to_rich_theme(theme)
-console = Console(theme=rich_theme)
+custom_console = Console(theme=rich_theme)
 
-# Use themed styling
-console.print("Primary text", style="primary")
-console.print("Success message", style="success")
-console.print("Error message", style="error")
-
-# Apply gradients
-from aurras.utils.console.manager import apply_gradient_to_text
-gradient_text = apply_gradient_to_text(
-    "Beautiful Gradient Text", 
-    theme.title_gradient
-)
-console.print(gradient_text)
+custom_console.print("Cyberpunk styled!", style="primary")
 ```
 
-### Textual TUI Integration
+#### Textual TUI Integration
 
 ```python
 from aurras.themes.adapters import theme_to_textual_theme
-from aurras.themes import get_theme
+from aurras.themes.manager import get_theme
 from textual.app import App
 
 class MyApp(App):
     def __init__(self):
         super().__init__()
         
-        # Apply theme
-        theme = get_theme("CYBERPUNK")
+        # Apply theme to TUI
+        theme = get_theme("NEON")
         textual_theme = theme_to_textual_theme(theme)
         self.theme = textual_theme.name
         self.register_theme(textual_theme)
-    
-    def switch_theme(self, theme_name: str):
-        """Switch theme dynamically."""
-        theme = get_theme(theme_name)
-        textual_theme = theme_to_textual_theme(theme)
-        self.register_theme(textual_theme)
-        self.theme = textual_theme.name
 ```
 
-### Color Manipulation
+### Performance Considerations
+
+The theme system includes several performance optimizations:
+
+1. **Caching**: Converted themes are cached to avoid recomputation
+2. **Lazy Loading**: Themes load only when needed
+3. **Immutable Objects**: Theme definitions are immutable for thread safety
+4. **LRU Eviction**: Cache automatically manages memory usage
+
+### Adding New Built-in Themes
+
+To add a new built-in theme:
+
+1. **Define the theme** in `aurras/themes/themes.py`:
 
 ```python
-from aurras.themes.colors import ThemeColor
-
-# Create and manipulate colors
-primary = ThemeColor("#BD93F9")
-
-# Color transformations
-darker = primary.darken(0.2)      # More subtle color
-lighter = primary.lighten(0.15)   # Brighter variant
-semi_transparent = primary.with_alpha(70)  # 70% opacity
-
-# Generate gradient
-gradient = primary.generate_gradient(steps=5)
-print(gradient)
-# ['#BD93F9', '#C8A6FA', '#D3B9FB', '#DECCFC', '#E9DFFD']
-
-# Create from different color spaces
-from_rgb = ThemeColor.from_rgb(189, 147, 249)
-from_hsv = ThemeColor.from_hsv(0.7, 0.4, 0.98)
-```
-
-### Theme Discovery and Management
-
-```python
-from aurras.themes.manager import (
-    discover_user_themes, 
-    get_themes_by_category,
-    register_user_theme
+MY_NEW_THEME: Final[ThemeDefinition] = ThemeDefinition(
+    name="MY_NEW_THEME",
+    display_name="My New Theme",
+    description="Description of the theme",
+    category=ThemeCategory.DARK,  # Choose appropriate category
+    # ... color definitions
 )
+```
 
-# Discover user themes
-user_themes = discover_user_themes("~/.aurras/themes/")
-for theme in user_themes:
-    register_user_theme(theme)
-    print(f"Loaded user theme: {theme.display_name}")
+2. **Add to available themes**:
 
-# Get themes by category
-dark_themes = get_themes_by_category("DARK")
-minimal_themes = get_themes_by_category("MINIMAL")
-
-# Theme filtering
-vibrant_themes = {
-    name: theme for name, theme in dark_themes.items() 
-    if theme.category == ThemeCategory.VIBRANT
+```python
+AVAILABLE_THEMES: Final[Dict[str, ThemeDefinition]] = {
+    # ... existing themes
+    MY_NEW_THEME.name: MY_NEW_THEME,
+    # ... rest of themes
 }
 ```
 
-### Advanced Adapter Usage
+3. **Test thoroughly** in both CLI and TUI modes
+
+### Extending Color Functionality
+
+To add new color transformation methods:
+
+1. **Add method to ThemeColor** in `aurras/themes/colors.py`:
 
 ```python
-from aurras.themes.adapters.rich_adapter import (
-    get_gradient_styles, 
-    create_rich_style_from_color
-)
+def saturate(self, amount: float) -> str:
+    """Increase color saturation"""
+    # Implementation here
+```
 
-# Get gradient styles for Rich
-theme = get_theme("OCEAN")
-gradient_styles = get_gradient_styles(theme)
+2. **Update adapters** if needed to use new functionality
 
-# Create custom Rich style
-color = ThemeColor("#03A9F4")
-rich_style = create_rich_style_from_color(color, bold=True)
+---
 
-# Apply to console
-console.print("Styled text", style=rich_style)
+## Reference
+
+### File Structure Complete
+
+```
+aurras/themes/
+├── __init__.py                    # Package initialization
+├── definitions.py                 # ThemeDefinition, ThemeCategory classes
+├── colors.py                     # ThemeColor class with transformations
+├── manager.py                    # Central theme management API
+├── themes.py                     # Built-in theme definitions
+├── utils.py                      # Helper functions, caching utilities
+└── adapters/
+    ├── __init__.py               # Adapter exports
+    ├── rich_adapter.py           # Rich framework adapter
+    └── textual_adapter.py        # Textual framework adapter
+
+aurras/utils/console/
+├── __init__.py                   # Console exports
+├── manager.py                    # ThemedConsole class
+├── formatting.py                 # Text formatting utilities
+└── renderer.py                   # UI component renderers
+
+aurras/tui/themes/
+├── __init__.py                   # TUI theme exports
+└── theme_manager.py              # TUI-specific theme management
+```
+
+### Core Classes Reference
+
+#### ThemeDefinition
+
+**Location**: `aurras/themes/definitions.py`
+
+**Purpose**: Central data structure for theme definitions
+
+**Key Attributes**:
+
+- `name: str` - Unique identifier (uppercase)
+- `display_name: str` - User-friendly name
+- `description: str` - Brief description
+- `category: ThemeCategory` - Theme category
+- `dark_mode: bool` - Whether it's a dark theme
+- Color attributes: `primary`, `secondary`, `accent`, `background`, etc.
+- Gradient attributes: `title_gradient`, `progress_gradient`, etc.
+
+#### ThemeColor
+
+**Location**: `aurras/themes/colors.py`
+
+**Purpose**: Color management with transformations
+
+**Key Methods**:
+
+- `darken(amount: float) -> str` - Make color darker
+- `lighten(amount: float) -> str` - Make color lighter  
+- `with_alpha(alpha: int) -> str` - Add transparency
+- `generate_gradient(steps: int) -> List[str]` - Create gradient
+
+#### ThemedConsole
+
+**Location**: `aurras/utils/console/manager.py`
+
+**Purpose**: Rich Console with automatic theme integration
+
+**Key Methods**:
+
+- `print_error(message)` - Print with error color
+- `print_success(message)` - Print with success color
+- `print_info(message)` - Print with info color
+- `style_text(text, style_key)` - Apply theme styling
+- Color properties: `primary`, `secondary`, `accent`, etc.
+
+### API Reference
+
+#### Theme Manager Functions
+
+```python
+# Get themes
+get_theme(theme_name: Optional[str]) -> ThemeDefinition
+get_available_themes() -> List[str]
+get_current_theme() -> str
+get_themes_by_category(category) -> Dict[str, ThemeDefinition]
+
+# Set themes
+set_current_theme(theme_name: str) -> bool
+```
+
+#### Adapter Functions
+
+```python
+# Rich adapter
+theme_to_rich_theme(theme_def: ThemeDefinition) -> RichTheme
+
+# Textual adapter  
+theme_to_textual_theme(theme_def: ThemeDefinition) -> TextualTheme
+```
+
+### Theme Categories
+
+- `ThemeCategory.DARK` - Dark themes
+- `ThemeCategory.LIGHT` - Light themes  
+- `ThemeCategory.VIBRANT` - High-contrast, colorful themes
+- `ThemeCategory.MINIMAL` - Clean, simple themes
+- `ThemeCategory.NATURAL` - Earth-inspired themes
+- `ThemeCategory.FUTURISTIC` - Tech/sci-fi themes
+- `ThemeCategory.RETRO` - Vintage-inspired themes
+- `ThemeCategory.CUSTOM` - User-created themes
+
+### Command Line Interface
+
+```bash
+# List all themes
+aurras theme
+
+# Set theme
+aurras theme <theme_name>
+
+# Examples
+aurras theme galaxy
+aurras theme neon
+aurras theme my_custom_theme
 ```
 
 ---
 
-## Summary
+## Troubleshooting
 
-The Aurras theme implementation represents a sophisticated, unified architecture that provides:
+### Common Issues
 
-- **Unified Theme Definition**: Single source of truth for all UI styling
-- **Multi-Framework Support**: Consistent themes across CLI and TUI interfaces
-- **Rich Color Management**: Advanced color operations and transformations
-- **Performance Optimization**: Intelligent caching and lazy loading
-- **Extensible Design**: Support for user themes and custom categories
-- **Live Theme Switching**: Dynamic theme changes without restart
-- **Comprehensive Integration**: Deep integration with all UI components
+1. **Theme not found**
+   - Check spelling: theme names are case-insensitive
+   - Verify theme exists: `aurras theme` to list all
 
-This architecture ensures that users get a consistent, beautiful interface across all application components while maintaining the flexibility to customize themes and optimize performance based on usage patterns. The unified approach eliminates theme inconsistencies and provides a seamless user experience throughout the application.
+2. **Custom theme not loading**
+   - Check file location: `~/.aurras/config/themes.yaml`
+   - Validate YAML syntax
+   - Check required fields: `name`, `display_name`
+
+3. **Colors not displaying correctly**
+   - Verify terminal supports colors
+   - Check color format: use `#RRGGBB` format
+   - Test with built-in themes first
+
+4. **Theme changes not persisting**
+   - Theme changes save automatically to settings
+   - Check file permissions on config directory
+
+### Development Tips
+
+1. **Testing themes**: Use both CLI and TUI modes
+2. **Color accessibility**: Test with colorblind simulators
+3. **Performance**: Profile theme switching in large applications
+4. **Debugging**: Enable debug logging for theme operations
+
+---
+
+This comprehensive guide should help you understand, use, and extend the Aurras theme system. Whether you're customizing your experience or contributing to the project, the theme system is designed to be powerful yet approachable.
+
+For questions or contributions, check out the [CONTRIBUTING.md](../CONTRIBUTING.md) guide!
