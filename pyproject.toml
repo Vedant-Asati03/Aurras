@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.12,<4.0.0"
-license = {files = ["LICENSE.txt"]}
+license = {file = "LICENSE.txt"}
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
@@ -44,15 +44,8 @@ aurras = "aurras.aurras_cli.__main__:main"
 aurras-tui = "aurras.aurras_tui.__main__:main"
 
 [build-system]
-requires = ["hatchling>=1.18.0"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["aurras"]
-exclude = [
-    "LICENSE.txt",
-    "LICENSE",
-]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 88
