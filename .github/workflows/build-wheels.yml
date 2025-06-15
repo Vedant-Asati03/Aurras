@@ -28,10 +28,10 @@ jobs:
           
           if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
-            echo "🔍 Detected pre-release version: $VERSION"
+            echo "Detected pre-release version: $VERSION"
           else
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
-            echo "🔍 Detected stable release version: $VERSION"
+            echo "Detected stable release version: $VERSION"
           fi
 
   build-windows:
@@ -103,10 +103,10 @@ jobs:
         
       - name: Verify wheel files
         run: |
-          echo "📦 Available wheels for publishing:"
+          echo "Available wheels for publishing:"
           ls -la windows-wheel/ universal-wheel/
           echo ""
-          echo "🔍 Wheel details:"
+          echo "Wheel details:"
           ls -lh windows-wheel/*.whl universal-wheel/*.whl
           
       - name: Publish to PyPI
@@ -115,12 +115,12 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           pip install twine
-          echo "🚀 Publishing wheels to PyPI..."
-          echo "📤 Windows wheel (with DLL):"
+          echo "Publishing wheels to PyPI..."
+          echo "Windows wheel (with DLL):"
           twine upload windows-wheel/*.whl --verbose
-          echo "📤 Universal wheel (no DLL):"
+          echo "Universal wheel (no DLL):"
           twine upload universal-wheel/*.whl --verbose
-          echo "✅ Publishing complete!"
+          echo "Publishing complete!"
           
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -166,9 +166,9 @@ jobs:
         run: |
           cd packaging/choco
           $package = Get-ChildItem -Filter "*.nupkg" | Select-Object -First 1
-          echo "📦 Publishing $($package.Name) to Chocolatey..."
+          echo "Publishing $($package.Name) to Chocolatey..."
           choco push $package.Name --api-key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
-          echo "✅ Chocolatey package published!"
+          echo "Chocolatey package published!"
         shell: powershell
 
   # Homebrew Formula Update (macOS Package Manager)
@@ -188,11 +188,11 @@ jobs:
         id: sha256
         run: |
           VERSION=${{ needs.detect-release.outputs.version }}
-          echo "📦 Downloading source tarball to calculate SHA256..."
+          echo "Downloading source tarball to calculate SHA256..."
           wget -q "https://files.pythonhosted.org/packages/source/a/aurras/aurras-${VERSION}.tar.gz"
           SHA256=$(sha256sum "aurras-${VERSION}.tar.gz" | cut -d' ' -f1)
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-          echo "✅ SHA256: $SHA256"
+          echo "SHA256: $SHA256"
           
       - name: Update Homebrew formula
         run: |
@@ -204,8 +204,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
         run: |
-          echo "🍺 Creating Homebrew formula update..."
-          echo "✅ Homebrew formula updated (manual PR creation needed)"
+          echo "Creating Homebrew formula update..."
+          echo "Homebrew formula updated (manual PR creation needed)"
           echo "Formula file ready at: packaging/homebrew/aurras.rb"
 
   # Arch User Repository (AUR) Package Update
@@ -263,4 +263,4 @@ jobs:
           git commit -m "Update to version $VERSION"
           git push
           
-          echo "✅ AUR package updated!"
+          echo "AUR package updated!"
