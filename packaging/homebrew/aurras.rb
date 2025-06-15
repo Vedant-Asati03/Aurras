@@ -9,6 +9,7 @@ class Aurras < Formula
 
   depends_on "python@3.12"
   depends_on "mpv"
+  depends_on "ffmpeg"
 
   def install
     virtualenv_install_with_resources

@@ -6,7 +6,7 @@ pkgdesc="A high-end command line music player"
 arch=('any')
 url="https://github.com/vedant-asati03/Aurras"
 license=('MIT')
-depends=('python>=3.12' 'python-pip' 'mpv')
+depends=('python>=3.12' 'python-pip' 'mpv' 'ffmpeg')
 makedepends=('python-build' 'python-installer' 'python-wheel')
 source=("https://files.pythonhosted.org/packages/source/a/aurras/aurras-${pkgver}.tar.gz")
 sha256sums=('SKIP')
