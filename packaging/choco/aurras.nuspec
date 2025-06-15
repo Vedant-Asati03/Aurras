@@ -2,21 +2,21 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>aurras</id>
-    <version>1.1.1</version>
+    <version>2.0.0</version>
     <packageSourceUrl>https://github.com/vedant-asati03/Aurras</packageSourceUrl>
     <owners>vedant-asati03</owners>
     <title>Aurras Music Player</title>
     <authors>vedant-asati03</authors>
     <projectUrl>https://github.com/vedant-asati03/Aurras</projectUrl>
     <iconUrl>https://raw.githubusercontent.com/vedant-asati03/Aurras/main/assets/aurras.png</iconUrl>
-    <copyright>2024 vedant-asati03</copyright>
+    <copyright>2025 vedant-asati03</copyright>
     <licenseUrl>https://github.com/vedant-asati03/Aurras/blob/main/LICENSE.txt</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/vedant-asati03/Aurras</projectSourceUrl>
     <docsUrl>https://github.com/vedant-asati03/Aurras/blob/main/README.md</docsUrl>
     <bugTrackerUrl>https://github.com/vedant-asati03/Aurras/issues</bugTrackerUrl>
     <tags>music player audio cli terminal youtube spotify</tags>
-    <summary>A high-end command line music player with YouTube and Spotify integration</summary>
+    <summary>A high-end command line music player</summary>
     <description>
 Aurras is a powerful command-line music player that supports:
 
