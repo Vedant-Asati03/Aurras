@@ -49,6 +49,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["aurras"]
+exclude = [
+    "LICENSE.txt",
+    "LICENSE",
+]
 
 [tool.black]
 line-length = 88
