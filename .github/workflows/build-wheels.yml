@@ -52,11 +52,11 @@ jobs:
       - name: Verify DLL exists
         run: |
           if (Test-Path "aurras/core/player/libmpv-2.dll") {
-            Write-Host "✅ DLL found - building Windows wheel with MPV library"
+            Write-Host "DLL found - building Windows wheel with MPV library"
             $dll_size = (Get-Item "aurras/core/player/libmpv-2.dll").Length / 1MB
-            Write-Host "📦 DLL size: $([math]::Round($dll_size, 1)) MB"
+            Write-Host "DLL size: $([math]::Round($dll_size, 1)) MB"
           } else {
-            Write-Host "❌ DLL not found!" -ForegroundColor Red
+            Write-Host "DLL not found!" -ForegroundColor Red
             exit 1
           }
         shell: powershell
