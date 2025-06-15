@@ -92,7 +92,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: universal-wheel
-          path: dist/*.whl  # PyPI Publishing
+          path: dist/*.whl
+
+  # PyPI Publishing
   publish:
     needs: [build-windows, build-universal, detect-release]
     runs-on: ubuntu-latest
