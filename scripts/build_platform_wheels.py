@@ -13,12 +13,12 @@ from pathlib import Path
 
 def build_windows_wheel():
     """Build wheel with Windows DLL included."""
-    print("🔨 Building Windows wheel (with libmpv-2.dll)...")
+    print("Building Windows wheel (with libmpv-2.dll)...")
 
     # Ensure DLL is present
     dll_path = Path("aurras/core/player/libmpv-2.dll")
     if not dll_path.exists():
-        print(f"❌ Error: {dll_path} not found!")
+        print(f"Error: {dll_path} not found!")
         return False
     # Backup original pyproject.toml
     pyproject_path = Path("pyproject.toml")
@@ -53,12 +53,12 @@ def build_windows_wheel():
             )
             new_wheel_path = Path(new_name)
             original_wheel.rename(new_wheel_path)
-            print(f"📦 Renamed wheel to: {new_wheel_path.name}")
+            print(f"Renamed wheel to: {new_wheel_path.name}")
 
-        print("✅ Windows wheel built successfully!")
+        print("Windows wheel built successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to build Windows wheel: {e}")
+        print(f"Failed to build Windows wheel: {e}")
         return False
     finally:
         # Restore original pyproject.toml
@@ -68,14 +68,14 @@ def build_windows_wheel():
 
 def build_universal_wheel():
     """Build wheel without Windows DLL for Linux/macOS."""
-    print("🔨 Building universal wheel (without libmpv-2.dll)...")
+    print("Building universal wheel (without libmpv-2.dll)...")
 
     dll_path = Path("aurras/core/player/libmpv-2.dll")
     temp_dll_path = None  # Temporarily move DLL if it exists
     if dll_path.exists():
         temp_dll_path = Path("libmpv-2.dll.tmp")
         shutil.move(str(dll_path), str(temp_dll_path))
-        print(f"📦 Temporarily moved DLL to {temp_dll_path}")
+        print(f"Temporarily moved DLL to {temp_dll_path}")
 
     try:
         # Build without DLL using uv
@@ -91,24 +91,24 @@ def build_universal_wheel():
             )
             new_wheel_path = Path(new_name)
             original_wheel.rename(new_wheel_path)
-            print(f"📦 Renamed wheel to: {new_wheel_path.name}")
+            print(f"Renamed wheel to: {new_wheel_path.name}")
 
-        print("✅ Universal wheel built successfully!")
+        print("Universal wheel built successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to build universal wheel: {e}")
+        print(f"Failed to build universal wheel: {e}")
         return False
     finally:
         # Restore DLL if it was moved
         if temp_dll_path and temp_dll_path.exists():
             shutil.move(str(temp_dll_path), str(dll_path))
-            print(f"📦 Restored DLL to {dll_path}")
+            print(f"Restored DLL to {dll_path}")
 
 
 def main():
     """Main build function."""
-    print("🚀 Building platform-specific wheels for Aurras")
-    print(f"📍 Platform: {platform.system()} ({platform.machine()})")
+    print("Building platform-specific wheels for Aurras")
+    print(f"Platform: {platform.system()} ({platform.machine()})")
 
     # Create dist directory if it doesn't exist
     dist_dir = Path("dist")
@@ -117,23 +117,23 @@ def main():
     # Clean up any existing wheels for fresh build
     for wheel in dist_dir.glob("*.whl"):
         wheel.unlink()
-        print(f"🗑️ Removed existing wheel: {wheel.name}")
+        print(f"Removed existing wheel: {wheel.name}")
 
     current_platform = platform.system().lower()
 
     if len(sys.argv) > 1 and sys.argv[1] == "--all":
         # Build both versions (useful for CI)
-        print("🏗️ Building all wheel variants...")
+        print("Building all wheel variants...")
         success = True
         success &= build_windows_wheel()
         success &= build_universal_wheel()
 
         if success:
-            print("🎉 All wheels built successfully!")
-            print("📦 Windows wheel includes libmpv-2.dll (117MB)")
-            print("📦 Universal wheel excludes libmpv-2.dll (smaller)")
+            print("All wheels built successfully!")
+            print("Windows wheel includes libmpv-2.dll (117MB)")
+            print("Universal wheel excludes libmpv-2.dll (smaller)")
         else:
-            print("💥 Some builds failed!")
+            print("Some builds failed!")
             sys.exit(1)
 
     elif current_platform == "windows":
@@ -145,8 +145,8 @@ def main():
         if not build_universal_wheel():
             sys.exit(1)
 
-    print("\n🏁 Build complete!")
-    print("ℹ️  To upload to PyPI:")
+    print("\nBuild complete!")
+    print("To upload to PyPI:")
     print("   twine upload dist/*")
 
 
