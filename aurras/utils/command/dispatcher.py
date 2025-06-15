@@ -10,6 +10,7 @@ import argparse
 import textwrap
 from typing import List, Dict, Tuple
 
+from aurras import __version__
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
 from aurras.utils.decorators import handle_exceptions
@@ -171,7 +172,7 @@ def create_parser() -> Tuple[
     )
 
     # Add version argument at the top level
-    parser.add_argument("-v", "--version", action="version", version="Aurras 1.1.1")
+    parser.add_argument("-v", "--version", action="version", version=f"Aurras {__version__}",)
 
     # Create subparsers for main commands - use dest="subcommand" to avoid conflict
     subparsers = parser.add_subparsers(dest="subcommand", help="Commands")
