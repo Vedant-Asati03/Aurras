@@ -8,6 +8,15 @@ on:
     tags:
       - 'v*'  # Trigger on version tags
   workflow_dispatch:  # Allow manual triggering
+    inputs:
+      run_publish:
+        description: 'Run publish steps (PyPI, Chocolatey, Homebrew, AUR)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 env:
   PYTHON_VERSION: '3.12'
@@ -98,7 +107,7 @@ jobs:
   publish:
     needs: [build-windows, build-universal, detect-release]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
@@ -137,7 +146,7 @@ jobs:
   publish-chocolatey:
     needs: [publish, detect-release]
     runs-on: windows-latest
-    if: startsWith(github.ref, 'refs/tags/') && needs.detect-release.outputs.is_prerelease == 'false'
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.detect-release.outputs.is_prerelease == 'false'
     steps:
       - uses: actions/checkout@v4
       
@@ -177,7 +186,7 @@ jobs:
   update-homebrew:
     needs: [publish, detect-release]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && needs.detect-release.outputs.is_prerelease == 'false'
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.detect-release.outputs.is_prerelease == 'false'
     steps:
       - uses: actions/checkout@v4
       
@@ -214,7 +223,7 @@ jobs:
   update-aur:
     needs: [publish, detect-release]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && needs.detect-release.outputs.is_prerelease == 'false'
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.detect-release.outputs.is_prerelease == 'false'
     steps:
       - uses: actions/checkout@v4
       
