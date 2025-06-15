@@ -2,16 +2,18 @@
 
 Elevate your music experience. Aurras transforms your terminal into a sophisticated, feature-rich music hub, letting your audio fill your space, uninterrupted and unburdened. **Seamlessly access both online streaming platforms and your local offline music library. Take command with robust playlist management and advanced queue controls for precise playback. Personalize your setup further with deep customizability and vibrant theme support, among many other powerful capabilities.**
 
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE.txt)
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue?style=flat-square)](https://www.python.org/)
-[![Player](https://img.shields.io/badge/player-mpv-orange?style=flat-square)](https://mpv.io/)
-[![PyPI version](https://img.shields.io/badge/version-1.1.1-blue?style=flat-square)](https://pypi.org/project/aurras/)
-[![Downloads](https://img.shields.io/badge/downloads-1k%2B-brightgreen?style=flat-square)](https://pypi.org/project/aurras/)
-[![Stars](https://img.shields.io/github/stars/vedant-asati03/Aurras?style=social)](https://github.com/vedant-asati03/Aurras)
+[![License](https://img.shields.io/badge/License-MIT-ff6b6b?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE.txt)
+[![Python](https://img.shields.io/badge/Python-3.12+-4285f4?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![MPV](https://img.shields.io/badge/Player-MPV-ff8c42?style=for-the-badge&logo=mpv&logoColor=white)](https://mpv.io/)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.1-34a853?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/aurras/)
+[![Downloads](https://img.shields.io/badge/Downloads-1K+-00d084?style=for-the-badge&logo=download&logoColor=white)](https://pypi.org/project/aurras/)
+[![Discord](https://img.shields.io/badge/Discord-Join_Chat-5865f2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/QDJqZneMVB)
+[![Issues](https://img.shields.io/github/issues/vedant-asati03/Aurras?style=for-the-badge&logo=github&logoColor=white&color=ea4a5a)](https://github.com/vedant-asati03/Aurras/issues)
+[![Forks](https://img.shields.io/github/forks/vedant-asati03/Aurras?style=for-the-badge&logo=github&logoColor=white&color=9333ea)](https://github.com/vedant-asati03/Aurras/network/members)
+[![Stars](https://img.shields.io/github/stars/vedant-asati03/Aurras?style=for-the-badge&logo=github&logoColor=white&color=f59e0b)](https://github.com/vedant-asati03/Aurras)
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
 - [Why AURRAS?](#why-choose-aurras)
 - [Core Features](#core-features)
 - [Installation Guide](#installation-guide-for-aurras)
@@ -23,22 +25,6 @@ Elevate your music experience. Aurras transforms your terminal into a sophistica
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
-
-# Quick Start
-
-```sh
-# Install via pip
-pip install aurras
-
-# Launch the interactive mode
-aurras
-
-# Or use command-line mode
-aurras "song name"
-
-# For more options and features
-aurras --help
-```
 
 # Why Choose Aurras?
 
@@ -394,95 +380,82 @@ Transform your listening experience into an immersive journey where every word c
 
 # Installation Guide for Aurras
 
-This guide provides comprehensive instructions for installing Aurras on various operating systems. Please ensure you meet the prerequisites before proceeding with the installation.
+This guide provides comprehensive instructions for installing Aurras on various operating systems.
 
-## Prerequisites
+## Option 1: Package Managers (Recommended)
 
-**Python 3.12 or newer**: Aurras is built on Python 3.12+ and requires this version for proper functionality. You can download the latest version of Python from the [official Python website](https://www.python.org/).
+When you install Aurras using a system-specific package manager, all necessary dependencies are handled automatically. This is the simplest and recommended method.
 
-## Operating System Specific Instructions
-
-### Windows
-
-No additional dependencies are required for Windows. Aurras comes bundled with all necessary MPV components, providing a seamless out-of-the-box experience.
-
-#### Recommended Installation Method: Python Package Index (pip)
-
-This is the preferred method for most users on Windows, offering easy installation and updates.
-
-```bash
-pip install aurras
-```
-
-#### Alternative Installation Method: Chocolatey (Package Manager)
-
-If you use Chocolatey, Windows' package manager, you can install Aurras via the command line:
+### Windows — Chocolatey
 
 ```bash
 choco install aurras
 ```
 
-### Linux & macOS
-
-Aurras on Linux and macOS relies on mpv as its audio playback engine. You'll need to install mpv separately before installing Aurras.
-
-#### Step 1: Install MPV (Audio Player Engine)
-
-Choose the command appropriate for your distribution or operating system:
-
-**Ubuntu/Debian:**
-
-```bash
-sudo apt update
-sudo apt install mpv
-```
-
-**Arch Linux:**
-
-```bash
-sudo pacman -S mpv
-```
-
-**Fedora/RHEL:**
-
-```bash
-sudo dnf install mpv
-```
-
-**macOS (via Homebrew):**
-
-```bash
-brew install mpv
-```
-
-#### Step 2: Install Aurras
-
-Once MPV is successfully installed, you can proceed with installing Aurras using one of the following methods:
-
-##### Recommended Installation Method: Python Package Index (pip)
-
-This is the most universal method for Python packages and is recommended for most users.
-
-```bash
-pip install aurras
-```
-
-##### Alternative Installation Method: Arch User Repository (AUR) - For Arch Linux Users Only
-
-If you are an Arch Linux user, you can install Aurras from the Arch User Repository. This typically requires an AUR helper like yay.
+### Linux — AUR (Arch Linux)
 
 ```bash
 yay -S aurras
 ```
 
-> If you do not have yay or another AUR helper, please consult the [Arch Wiki](https://wiki.archlinux.org/title/AUR_helpers) for instructions on installing an AUR helper.
+  > If you don't have `yay` or another AUR helper, consult the [Arch Wiki](https://wiki.archlinux.org/title/AUR_helpers) for installation instructions.
 
-##### Alternative Installation Method: Homebrew - For macOS Users
-
-macOS users can install Aurras directly via Homebrew:
+### macOS — Homebrew
 
 ```bash
 brew install aurras
+```
+
+## Option 2: Python Package Index (pip)
+
+When installing Aurras via pip, you'll need to manually ensure that certain external dependencies are present on your system. Aurras requires libmpv (MPV's shared library) for audio playback and ffmpeg for media processing.
+
+### Windows
+
+Aurras comes bundled with all necessary MPV components for Windows, but you will need to install **FFmpeg** separately.
+
+```bash
+choco install ffmpeg
+```
+
+Once FFmpeg is installed, you can proceed with installing Aurras:
+
+```bash
+pip install aurras
+```
+
+### Linux & macOS
+
+Before installing Aurras, you must first install MPV and FFmpeg using your system's package manager.
+
+**Ubuntu/Debian:**
+
+```bash
+sudo apt update && sudo apt install mpv ffmpeg
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S mpv ffmpeg
+```
+
+**Fedora/RHEL:**
+
+```bash
+sudo dnf install mpv ffmpeg
+```
+
+**macOS:**
+
+```bash
+brew install mpv ffmpeg
+```
+
+After ensuring MPV and FFmpeg are installed, you can install Aurras:
+
+```bash
+pip install aurras
 ```
 
 > **Technical Note**: Aurras requires `libmpv` (MPV's shared library) for audio playback. Installing the `mpv` package provides both the executable and the required `libmpv` library that Aurras uses through python-mpv bindings.
@@ -564,7 +537,7 @@ aurras setup --spotify --status
 ### Setup Requirements
 
 1. **Create Spotify App**: Visit [Spotify Developer Console](https://developer.spotify.com/dashboard)
-   - App name: "Aurras Music Player" 
+   - App name: "Aurras Music Player"
    - Redirect URI: `http://127.0.0.1:8080` *(must be exact)*
    - Copy Client ID and Client Secret
 
@@ -700,11 +673,13 @@ Encountering an issue? Here are solutions to some common problems. For more in-d
 
 - **mpv or libmpv not found**:
 
-  Aurras requires different setups depending on your platform:
+  **Windows**: Aurras includes bundled MPV DLLs, so this error shouldn't occur. If you see MPV-related errors, try reinstalling with `choco upgrade aurras`.
 
-  **Windows**: Aurras includes bundled MPV DLLs, so this error shouldn't occur. If you still see MPV-related errors, try reinstalling Aurras with `pip install --upgrade --force-reinstall aurras`.
+  **Linux/macOS**:
 
-  **Linux/macOS**: Install MPV via your package manager:
+  - If installed via **package manager** (AUR, Homebrew): This should not happen as dependencies are automatically managed. Try reinstalling: `yay -S aurras` or `brew reinstall aurras`
+  - If installed via **pip**: Install MPV manually first:
+
   ```bash
   # Fedora/RHEL
   sudo dnf install mpv
