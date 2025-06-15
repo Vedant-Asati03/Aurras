@@ -18,7 +18,6 @@ Elevate your music experience. Aurras transforms your terminal into a sophistica
 - [Core Features](#core-features)
 - [Installation Guide](#installation-guide-for-aurras)
   - [Development](#clone-and-setup)
-- [Demo Usage](#demo-usage)
 - [Service Setup & Integration](#service-setup--integration)
   - [Spotify Integration](#spotify-integration)
 - [Customization & Management](#customization-settings--backup-management)
@@ -480,26 +479,6 @@ aurras --help
 For comprehensive guidelines on contributing to Aurras, please refer to our [Contributions Guide](/CONTRIBUTING.md)
 
 </details>
-
----
-
-# Demo Usage
-
-## CLI Command-Line Demo
-
-<video width="600" height="300" controls>
-  <source src="/assets/cli-demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-## CLI Interactive-Mode Demo
-
-<video width="600" height="300" controls>
-  <source src="/assets/tui-mode.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-Just run ```aurras --help``` to get started
 
 # Service Setup & Integration
 
