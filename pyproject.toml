@@ -1,6 +1,6 @@
 [project]
 name = "aurras"
-version = "2.0.1"
+version = "2.0.2"
 description = "A high-end command line music player"
 authors = [
     {name = "vedant-asati03", email = "vedant.asati03@gmail.com"},

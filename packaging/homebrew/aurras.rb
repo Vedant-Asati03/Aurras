@@ -3,7 +3,7 @@ class Aurras < Formula
 
   desc "High-end command line music player"
   homepage "https://github.com/vedant-asati03/Aurras"
-  url "https://files.pythonhosted.org/packages/source/a/aurras/aurras-2.0.1.tar.gz"
+  url "https://files.pythonhosted.org/packages/source/a/aurras/aurras-2.0.2.tar.gz"
   sha256 "PLACEHOLDER_SHA256_HASH"  # Will be updated when v2.0.0 is published
   license "MIT"
 
