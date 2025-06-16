@@ -1,6 +1,6 @@
 [project]
 name = "aurras"
-version = "2.0.0"
+version = "2.0.1"
 description = "A high-end command line music player"
 authors = [
     {name = "vedant-asati03", email = "vedant.asati03@gmail.com"},
@@ -49,6 +49,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["aurras*"]
 exclude = ["assets*", "packaging*", "docs*", "tests*", "scripts*"]
+
+[tool.setuptools.package-data]
+"aurras.core.player" = ["*.dll"]
 
 [tool.black]
 line-length = 88
