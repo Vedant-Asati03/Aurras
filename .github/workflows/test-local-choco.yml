@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
       - name: Install Chocolatey
         run: |
           Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -183,7 +188,8 @@ jobs:
               Write-Host "`nLet's manually try to install aurras via pip:"
               
               try {
-                  pip install aurras==${{ github.event.inputs.version }}
+                  Write-Host "Trying to install from PyPI..."
+                  pip install aurras==${{ github.event.inputs.version }} --verbose
                   Write-Host "SUCCESS: Manual pip install completed"
                   
                   # Try again after manual install
@@ -192,7 +198,9 @@ jobs:
                   Write-Host "SUCCESS: aurras works after manual pip install!"
                   
               } catch {
-                  Write-Host "FAILED: Even manual pip install failed: $_"
+                  Write-Host "FAILED: Manual pip install failed: $_"
+                  Write-Host "This suggests the issue is that aurras v${{ github.event.inputs.version }} is not available on PyPI"
+                  Write-Host "or there's a Python version compatibility issue."
               }
           }
           
