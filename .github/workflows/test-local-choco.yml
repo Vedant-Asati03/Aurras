@@ -55,13 +55,56 @@ jobs:
           Write-Host "Current directory: $currentDir"
           
           # Install with both local source (for aurras) and public source (for dependencies)
-          choco install aurras --version="${{ github.event.inputs.version }}" --source="$currentDir;https://community.chocolatey.org/api/v2/" -y
+          # Add verbose flag to see what's happening
+          Write-Host "Running Chocolatey install with verbose output..."
+          choco install aurras --version="${{ github.event.inputs.version }}" --source="$currentDir;https://community.chocolatey.org/api/v2/" -y --verbose --debug
+        shell: powershell
+        
+      - name: Check Chocolatey logs
+        run: |
+          Write-Host "=== Chocolatey Installation Logs ==="
+          $logPath = "C:\ProgramData\chocolatey\logs\chocolatey.log"
+          if (Test-Path $logPath) {
+            Write-Host "Last 50 lines of Chocolatey log:"
+            Get-Content $logPath -Tail 50
+          } else {
+            Write-Host "Chocolatey log file not found at $logPath"
+          }
+          
+          Write-Host "`n=== Check if our install script was executed ==="
+          # Look for our script execution in the logs
+          if (Test-Path $logPath) {
+            $scriptLines = Get-Content $logPath | Select-String -Pattern "chocolateyinstall|pip install|aurras"
+            if ($scriptLines) {
+              Write-Host "Found script-related log entries:"
+              $scriptLines | ForEach-Object { Write-Host $_ }
+            } else {
+              Write-Host "No script execution found in logs - this indicates our chocolateyinstall.ps1 may not have run"
+            }
+          }
         shell: powershell
         
       - name: Test improved verification logic
         run: |
           Write-Host "=== Testing Improved Verification Logic ==="
           
+          # First, let's manually test our install script to see if it works
+          Write-Host "=== Manual Test of Install Script ==="
+          try {
+            Write-Host "Testing our chocolateyinstall.ps1 script manually..."
+            $scriptPath = "packaging/choco/tools/chocolateyinstall.ps1"
+            if (Test-Path $scriptPath) {
+              Write-Host "Found install script at: $scriptPath"
+              Write-Host "Running install script manually..."
+              & $scriptPath
+            } else {
+              Write-Host "Install script not found at: $scriptPath"
+            }
+          } catch {
+            Write-Host "Manual script execution failed: $_"
+          }
+          
+          Write-Host "`n=== Installation Diagnostics ==="
           # First, let's check what happened during the Chocolatey install
           Write-Host "=== Installation Diagnostics ==="
           Write-Host "Checking Python installation:"
