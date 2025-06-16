@@ -84,14 +84,7 @@ def build_universal_wheel():
         # Rename the wheel to indicate it's universal (no Windows DLL)
         wheel_files = list(Path("dist").glob("*-py3-none-any.whl"))
         if wheel_files:
-            original_wheel = wheel_files[-1]  # Get the most recent wheel
-            # Change from py3-none-any to py3-none-linux_x86_64 (or keep as any)
-            new_name = str(original_wheel).replace(
-                "-py3-none-any.whl", "-py3-none-universal.whl"
-            )
-            new_wheel_path = Path(new_name)
-            original_wheel.rename(new_wheel_path)
-            print(f"Renamed wheel to: {new_wheel_path.name}")
+            print(f"Universal wheel built: {wheel_files[-1].name}")
 
         print("Universal wheel built successfully!")
         return True
