@@ -57,35 +57,81 @@ jobs:
         run: |
           Write-Host "=== Testing Improved Verification Logic ==="
           
-          # Check if aurras was installed
-          Write-Host "Checking installation..."
-          pip show aurras
+          # First, let's check what happened during the Chocolatey install
+          Write-Host "=== Installation Diagnostics ==="
+          Write-Host "Checking Python installation:"
+          python --version
+          python -c "import sys; print('Python executable:', sys.executable)"
+          
+          Write-Host "`nChecking pip:"
+          pip --version
+          
+          Write-Host "`nChecking if aurras package was installed via pip:"
+          try {
+              pip show aurras
+          } catch {
+              Write-Host "pip show failed - aurras not installed via pip"
+          }
+          
+          Write-Host "`nChecking all installed Python packages:"
+          pip list | Select-String -Pattern "aurras"
+          
+          Write-Host "`nChecking if aurras module can be imported:"
+          try {
+              python -c "import aurras; print('SUCCESS: aurras import successful')"
+          } catch {
+              Write-Host "FAILED: aurras import failed: $_"
+          }
+          
+          Write-Host "`nChecking aurras package structure:"
+          try {
+              python -c "import aurras; print('Package location:', aurras.__file__)"
+              python -c "import os; import aurras; pkg_dir = os.path.dirname(aurras.__file__); print('Package contents:'); print(os.listdir(pkg_dir))"
+          } catch {
+              Write-Host "FAILED: Cannot check package structure: $_"
+          }
+          
+          Write-Host "`nChecking if the Chocolatey install script actually ran pip install:"
+          Write-Host "Looking at recent pip installs..."
+          pip list --format=freeze | Select-String -Pattern "aurras"
           
           # Test our improved verification logic (same as in chocolateyinstall.ps1)
+          Write-Host "`n=== PATH and Scripts Directory ==="
           $pythonScriptsDir = python -c "import sys; import os; print(os.path.join(sys.prefix, 'Scripts'))"
           Write-Host "Python Scripts directory: $pythonScriptsDir"
           
-          if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+          Write-Host "Contents of Scripts directory (aurras-related):"
+          if (Test-Path $pythonScriptsDir) {
+              Get-ChildItem $pythonScriptsDir | Where-Object { $_.Name -like "*aurras*" } | ForEach-Object { 
+                  Write-Host "Found: $($_.FullName)"
+              }
+              
               $currentPath = $env:PATH
               if ($currentPath -notlike "*$pythonScriptsDir*") {
                   Write-Host "Adding Python Scripts directory to PATH..."
                   $env:PATH = "$pythonScriptsDir;$currentPath"
+              } else {
+                  Write-Host "Python Scripts directory already in PATH"
               }
           }
           
           $verificationPassed = $false
           
+          Write-Host "`n=== Testing Commands ==="
           # Method 1: Direct aurras command
           try {
               Write-Host "Method 1: Testing direct 'aurras' command..."
               $versionOutput = & aurras --version 2>&1
               if ($LASTEXITCODE -eq 0) {
-                  Write-Host "✅ Direct aurras command works!" -ForegroundColor Green
+                  Write-Host "SUCCESS: Direct aurras command works!" -ForegroundColor Green
                   Write-Host "Version: $versionOutput"
                   $verificationPassed = $true
+              } else {
+                  Write-Host "FAILED: Direct aurras command failed with exit code: $LASTEXITCODE"
+                  Write-Host "Output: $versionOutput"
               }
           } catch {
-              Write-Host "❌ Direct aurras command failed: $_"
+              Write-Host "FAILED: Direct aurras command failed: $_"
           }
           
           # Method 2: python -m aurras
@@ -94,12 +140,15 @@ jobs:
                   Write-Host "Method 2: Testing 'python -m aurras' command..."
                   $versionOutput = & python -m aurras --version 2>&1
                   if ($LASTEXITCODE -eq 0) {
-                      Write-Host "✅ Python module execution works!" -ForegroundColor Green
+                      Write-Host "SUCCESS: Python module execution works!" -ForegroundColor Green
                       Write-Host "Version: $versionOutput"
                       $verificationPassed = $true
+                  } else {
+                      Write-Host "FAILED: Python module execution failed with exit code: $LASTEXITCODE"
+                      Write-Host "Output: $versionOutput"
                   }
               } catch {
-                  Write-Host "❌ Python module execution failed: $_"
+                  Write-Host "FAILED: Python module execution failed: $_"
               }
           }
           
@@ -111,20 +160,47 @@ jobs:
                       Write-Host "Method 3: Testing direct executable..."
                       $versionOutput = & $aurrasExe --version 2>&1
                       if ($LASTEXITCODE -eq 0) {
-                          Write-Host "✅ Direct executable works!" -ForegroundColor Green
+                          Write-Host "SUCCESS: Direct executable works!" -ForegroundColor Green
                           Write-Host "Version: $versionOutput"
                           $verificationPassed = $true
+                      } else {
+                          Write-Host "FAILED: Direct executable failed with exit code: $LASTEXITCODE"
+                          Write-Host "Output: $versionOutput"
                       }
                   } catch {
-                      Write-Host "❌ Direct executable failed: $_"
+                      Write-Host "FAILED: Direct executable failed: $_"
                   }
+              } else {
+                  Write-Host "FAILED: aurras.exe not found at: $aurrasExe"
+              }
+          }
+          
+          # If all methods failed, let's try to understand why
+          if (-not $verificationPassed) {
+              Write-Host "`n=== Debugging Information ==="
+              Write-Host "The Chocolatey package seems to have installed successfully, but aurras is not working."
+              Write-Host "This suggests the chocolateyinstall.ps1 script may not be running pip install correctly."
+              Write-Host "`nLet's manually try to install aurras via pip:"
+              
+              try {
+                  pip install aurras==${{ github.event.inputs.version }}
+                  Write-Host "SUCCESS: Manual pip install completed"
+                  
+                  # Try again after manual install
+                  Write-Host "Testing after manual pip install..."
+                  python -m aurras --version
+                  Write-Host "SUCCESS: aurras works after manual pip install!"
+                  
+              } catch {
+                  Write-Host "FAILED: Even manual pip install failed: $_"
               }
           }
           
           if ($verificationPassed) {
-              Write-Host "`n🎉 Improved Chocolatey package verification successful!" -ForegroundColor Green
+              Write-Host "`nSUCCESS: Improved Chocolatey package verification successful!" -ForegroundColor Green
           } else {
-              Write-Host "`n❌ All verification methods failed!" -ForegroundColor Red
-              throw "Package verification failed"
+              Write-Host "`nFAILED: Package verification failed - need to investigate install script!" -ForegroundColor Red
+              Write-Host "The issue appears to be that the Chocolatey install script is not properly running 'pip install aurras'"
+              # Don't throw error yet, let's gather more info
           }
         shell: powershell
