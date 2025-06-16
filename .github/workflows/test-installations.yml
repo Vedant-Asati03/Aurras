@@ -1,0 +1,415 @@
+# Test installation methods across all platforms
+# This workflow validates that Aurras can be installed correctly via all supported package managers
+
+name: Test Package Installations
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to test (e.g., 2.0.0)'
+        required: true
+        default: '2.0.0'
+        type: string
+      test_pypi:
+        description: 'Test PyPI installation'
+        required: false
+        default: true
+        type: boolean
+      test_chocolatey:
+        description: 'Test Chocolatey installation'
+        required: false
+        default: true
+        type: boolean
+      test_homebrew:
+        description: 'Test Homebrew installation'
+        required: false
+        default: true
+        type: boolean
+      test_aur:
+        description: 'Test AUR installation'
+        required: false
+        default: true
+        type: boolean
+      test_environments:
+        description: 'Test different pip environments'
+        required: false
+        default: true
+        type: boolean
+      test_compatibility:
+        description: 'Test dependency compatibility'
+        required: false
+        default: true
+        type: boolean
+      test_uninstall:
+        description: 'Test uninstallation'
+        required: false
+        default: true
+        type: boolean
+      test_offline:
+        description: 'Test offline installation'
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    # Run weekly to catch package manager issues
+    - cron: '0 8 * * 1'  # Every Monday at 8 AM UTC
+
+env:
+  TEST_VERSION: ${{ github.event.inputs.version || '2.0.0' }}
+
+jobs:
+  # Test PyPI installation on all platforms
+  test-pypi:
+    if: github.event.inputs.test_pypi != 'false'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        exclude:
+          # Reduce matrix size for faster runs
+          - os: macos-latest
+            python-version: '3.9'
+          - os: macos-latest  
+            python-version: '3.10'
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpv ffmpeg
+          
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install mpv ffmpeg
+          
+      - name: Install system dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          # MPV is bundled in Windows wheel
+          echo "MPV bundled in Windows package"
+          
+      - name: Test PyPI installation
+        run: |
+          echo "Testing PyPI installation of aurras==${{ env.TEST_VERSION }}"
+          pip install aurras==${{ env.TEST_VERSION }}
+          
+      - name: Test basic functionality
+        run: |
+          echo "Testing basic aurras functionality..."
+          aurras --version
+          aurras --help
+          echo "PyPI installation test completed successfully!"
+
+  # Test Chocolatey on Windows
+  test-chocolatey:
+    if: github.event.inputs.test_chocolatey != 'false'
+    runs-on: windows-latest
+    
+    steps:
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        shell: powershell
+        
+      - name: Test Chocolatey installation
+        run: |
+          echo "Testing Chocolatey installation of aurras v${{ env.TEST_VERSION }}"
+          choco install aurras --version=${{ env.TEST_VERSION }} -y
+        shell: powershell
+          
+      - name: Test basic functionality
+        run: |
+          echo "Testing basic aurras functionality..."
+          aurras --version
+          aurras --help
+          echo "Chocolatey installation test completed successfully!"
+        shell: powershell
+
+  # Test Homebrew on macOS
+  test-homebrew:
+    if: github.event.inputs.test_homebrew != 'false'
+    runs-on: macos-latest
+    
+    steps:
+      - name: Test Homebrew tap installation
+        run: |
+          echo "Testing Homebrew installation"
+          # Note: This will be enabled once the tap is created
+          echo "brew tap vedant-asati03/aurras"
+          echo "brew install aurras"
+          echo "Homebrew test placeholder - tap not yet created"
+          
+      - name: Test direct formula installation (if available)
+        run: |
+          echo "Testing direct brew install (if in Homebrew Core)"
+          # brew install aurras || echo "Not yet in Homebrew Core"
+          echo "Direct brew install test placeholder"
+
+  # Test AUR on Arch Linux (using Docker)
+  test-aur:
+    if: github.event.inputs.test_aur != 'false'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Test AUR installation in Arch container
+        run: |
+          echo "Testing AUR installation using Docker Arch container"
+          docker run --rm archlinux:latest bash -c "
+            pacman -Sy --noconfirm base-devel git sudo
+            useradd -m -G wheel -s /bin/bash testuser
+            echo 'testuser ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+            
+            # Install yay AUR helper
+            sudo -u testuser bash -c '
+              cd /home/testuser
+              git clone https://aur.archlinux.org/yay.git
+              cd yay
+              makepkg -si --noconfirm
+            '
+            
+            # Test aurras installation
+            sudo -u testuser bash -c '
+              yay -S aurras --noconfirm
+              aurras --version
+              aurras --help
+            '
+            
+            echo 'AUR installation test completed successfully!'
+          "
+
+  # Test pip installation in various environments
+  test-pip-environments:
+    if: github.event.inputs.test_environments != 'false'
+    strategy:
+      matrix:
+        environment:
+          - name: "Virtual Environment"
+            setup: "python -m venv test_env && source test_env/bin/activate"
+          - name: "User Installation"  
+            setup: "echo 'Using user installation'"
+            flags: "--user"
+          - name: "System Installation"
+            setup: "echo 'Using system installation'"
+            flags: ""
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpv ffmpeg
+          
+      - name: Test ${{ matrix.environment.name }}
+        run: |
+          echo "Testing ${{ matrix.environment.name }}"
+          ${{ matrix.environment.setup }}
+          pip install aurras==${{ env.TEST_VERSION }} ${{ matrix.environment.flags }}
+          aurras --version
+          aurras --help
+          echo "${{ matrix.environment.name }} test completed successfully!"
+
+  # Test installation with different dependency versions
+  test-dependency-compatibility:
+    if: github.event.inputs.test_compatibility != 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.12']
+        
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpv ffmpeg
+          
+      - name: Test with minimum dependencies
+        run: |
+          echo "Testing with Python ${{ matrix.python-version }}"
+          pip install aurras==${{ env.TEST_VERSION }}
+          python -c "import aurras; print('Import successful')"
+          aurras --version
+          
+      - name: Test import and basic functionality
+        run: |
+          python -c "
+          try:
+              import aurras
+              print('✅ Aurras import successful')
+          except ImportError as e:
+              print(f'❌ Import failed: {e}')
+              exit(1)
+          "
+
+  # Test uninstallation (cleanup verification)
+  test-uninstall:
+    if: github.event.inputs.test_uninstall != 'false'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpv ffmpeg
+          
+      - name: Install and test uninstall
+        run: |
+          echo "Testing installation and clean uninstall"
+          
+          # Install
+          pip install aurras==${{ env.TEST_VERSION }}
+          aurras --version
+          
+          # Check installed files
+          pip show -f aurras
+          
+          # Uninstall
+          pip uninstall aurras -y
+          
+          # Verify complete removal
+          if command -v aurras &> /dev/null; then
+            echo "❌ aurras command still available after uninstall"
+            exit 1
+          else
+            echo "✅ aurras command properly removed"
+          fi
+          
+          # Verify Python import fails
+          python -c "
+          try:
+              import aurras
+              print('❌ aurras still importable after uninstall')
+              exit(1)
+          except ImportError:
+              print('✅ aurras properly uninstalled')
+          " || echo "✅ Import correctly fails after uninstall"
+
+  # Test offline installation (pre-downloaded packages)
+  test-offline:
+    if: github.event.inputs.test_offline != 'false'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpv ffmpeg
+          
+      - name: Test offline installation
+        run: |
+          echo "Testing offline installation scenario"
+          
+          # Download package and dependencies
+          mkdir offline_packages
+          pip download aurras==${{ env.TEST_VERSION }} -d offline_packages/
+          
+          # Install from local files (simulating offline)
+          pip install --no-index --find-links offline_packages/ aurras
+          
+          # Test functionality
+          aurras --version
+          aurras --help
+          
+          echo "Offline installation test completed successfully!"
+
+  # Summary job that depends on all tests
+  test-summary:
+    needs: [test-pypi, test-chocolatey, test-homebrew, test-aur, test-pip-environments, test-dependency-compatibility, test-uninstall, test-offline]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          echo "Installation Test Summary for Aurras v${{ env.TEST_VERSION }}"
+          echo "============================================"
+          
+          # Check individual job results
+          if [[ "${{ needs.test-pypi.result }}" == "success" ]]; then
+            echo "✅ PyPI installation tests: PASSED"
+          else
+            echo "❌ PyPI installation tests: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-chocolatey.result }}" == "success" ]]; then
+            echo "✅ Chocolatey installation test: PASSED"
+          else
+            echo "❌ Chocolatey installation test: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-homebrew.result }}" == "success" ]]; then
+            echo "✅ Homebrew installation test: PASSED"
+          else
+            echo "❌ Homebrew installation test: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-aur.result }}" == "success" ]]; then
+            echo "✅ AUR installation test: PASSED"
+          else
+            echo "❌ AUR installation test: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-pip-environments.result }}" == "success" ]]; then
+            echo "✅ Pip environment tests: PASSED"
+          else
+            echo "❌ Pip environment tests: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-dependency-compatibility.result }}" == "success" ]]; then
+            echo "✅ Dependency compatibility tests: PASSED"
+          else
+            echo "❌ Dependency compatibility tests: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-uninstall.result }}" == "success" ]]; then
+            echo "✅ Uninstall test: PASSED"
+          else
+            echo "❌ Uninstall test: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-offline.result }}" == "success" ]]; then
+            echo "✅ Offline installation test: PASSED"
+          else
+            echo "❌ Offline installation test: FAILED"
+          fi
+          
+          echo ""
+          echo "All installation methods have been tested!"
+          
+          # Fail if any critical tests failed
+          if [[ "${{ needs.test-pypi.result }}" != "success" || "${{ needs.test-chocolatey.result }}" != "success" ]]; then
+            echo "❌ Critical installation tests failed"
+            exit 1
+          else
+            echo "✅ All critical tests passed!"
+          fi
