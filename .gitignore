@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 .cache-*
 .vscode/
+aurras/core/player/libmpv-2.dll
