@@ -369,13 +369,38 @@ jobs:
           
           cd aur-repo
           
-          # Skip .SRCINFO generation - AUR will handle this automatically
-          echo "Skipping .SRCINFO generation - AUR will handle this automatically"
+          # Generate .SRCINFO file - use a simpler approach
+          echo "Generating .SRCINFO file..."
+          
+          # Extract version from PKGBUILD
+          PKGVER=$(grep "^pkgver=" PKGBUILD | cut -d'=' -f2)
+          
+          # Create .SRCINFO content line by line
+          echo "pkgbase = aurras" > .SRCINFO
+          echo "	pkgdesc = A high-end command line music player" >> .SRCINFO
+          echo "	pkgver = $PKGVER" >> .SRCINFO
+          echo "	pkgrel = 1" >> .SRCINFO
+          echo "	url = https://github.com/vedant-asati03/Aurras" >> .SRCINFO
+          echo "	arch = any" >> .SRCINFO
+          echo "	license = MIT" >> .SRCINFO
+          echo "	makedepends = python-build" >> .SRCINFO
+          echo "	makedepends = python-installer" >> .SRCINFO
+          echo "	makedepends = python-wheel" >> .SRCINFO
+          echo "	depends = python>=3.12" >> .SRCINFO
+          echo "	depends = python-pip" >> .SRCINFO
+          echo "	depends = mpv" >> .SRCINFO
+          echo "	depends = ffmpeg" >> .SRCINFO
+          echo "	source = https://files.pythonhosted.org/packages/source/a/aurras/aurras-$PKGVER.tar.gz" >> .SRCINFO
+          echo "	sha256sums = SKIP" >> .SRCINFO
+          echo "" >> .SRCINFO
+          echo "pkgname = aurras" >> .SRCINFO
+          
+          echo "Generated .SRCINFO for version $PKGVER"
           
           # Commit and push
           git config user.name "Aurras Release Bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD
+          git add PKGBUILD .SRCINFO
           git commit -m "Update to version $VERSION"
           git push
           
