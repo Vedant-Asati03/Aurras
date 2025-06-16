@@ -5,7 +5,6 @@ Creates separate wheels for Windows (with DLL) and other platforms (without DLL)
 """
 
 import sys
-import shutil
 import platform
 import subprocess
 from pathlib import Path
@@ -20,27 +19,26 @@ def build_windows_wheel():
     if not dll_path.exists():
         print(f"Error: {dll_path} not found!")
         return False
+
     # Backup original pyproject.toml
     pyproject_path = Path("pyproject.toml")
 
     with open(pyproject_path, "r") as f:
         original_content = f.read()
 
-    # Create temporary pyproject.toml with DLL inclusion
-    windows_config = (
-        original_content
-        + """
-# Windows-specific DLL inclusion
-[tool.hatch.build.targets.wheel.force-include]
-"aurras/core/player/libmpv-2.dll" = "aurras/core/player/libmpv-2.dll"
-"""
+    # Temporarily add package-data configuration for Windows DLL
+    modified_content = original_content.replace(
+        'exclude = ["assets*", "packaging*", "docs*", "tests*", "scripts*"]',
+        'exclude = ["assets*", "packaging*", "docs*", "tests*", "scripts*"]\n\n[tool.setuptools.package-data]\n"aurras.core.player" = ["*.dll"]',
     )
 
+    # Write the modified pyproject.toml
+    with open(pyproject_path, "w") as f:
+        f.write(modified_content)
+    print("Temporarily added DLL package-data to pyproject.toml")
+
     try:
-        # Write modified config
-        with open(pyproject_path, "w") as f:
-            f.write(windows_config)
-        # Build with uv
+        # Build with uv (DLL will be included due to package-data config)
         subprocess.run(["uv", "build", "--wheel"], check=True)
 
         # Rename the wheel to indicate it's Windows-specific
@@ -64,18 +62,31 @@ def build_windows_wheel():
         # Restore original pyproject.toml
         with open(pyproject_path, "w") as f:
             f.write(original_content)
+        print("Restored original pyproject.toml")
 
 
 def build_universal_wheel():
     """Build wheel without Windows DLL for Linux/macOS."""
     print("Building universal wheel (without libmpv-2.dll)...")
 
+    # Temporarily move the DLL file so it's not included in the wheel
     dll_path = Path("aurras/core/player/libmpv-2.dll")
-    temp_dll_path = None  # Temporarily move DLL if it exists
+    temp_dll_path = Path("libmpv-2.dll.tmp")
+
+    dll_moved = False
     if dll_path.exists():
-        temp_dll_path = Path("libmpv-2.dll.tmp")
-        shutil.move(str(dll_path), str(temp_dll_path))
+        dll_path.rename(temp_dll_path)
+        dll_moved = True
         print(f"Temporarily moved DLL to {temp_dll_path}")
+
+    # Also need to clean any existing build directories to avoid cached files
+    build_dirs = ["build", "aurras.egg-info"]
+    for build_dir in build_dirs:
+        if Path(build_dir).exists():
+            import shutil
+
+            shutil.rmtree(build_dir)
+            print(f"Cleaned {build_dir} directory")
 
     try:
         # Build without DLL using uv
@@ -92,9 +103,9 @@ def build_universal_wheel():
         print(f"Failed to build universal wheel: {e}")
         return False
     finally:
-        # Restore DLL if it was moved
-        if temp_dll_path and temp_dll_path.exists():
-            shutil.move(str(temp_dll_path), str(dll_path))
+        # Restore the DLL
+        if dll_moved and temp_dll_path.exists():
+            temp_dll_path.rename(dll_path)
             print(f"Restored DLL to {dll_path}")
 
 
