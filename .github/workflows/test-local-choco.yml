@@ -45,10 +45,12 @@ jobs:
           $package = Get-ChildItem *.nupkg | Select-Object -First 1
           Write-Host "Installing from local package: $($package.Name)"
           
-          # Use the correct Chocolatey syntax for local packages
+          # Use the correct Chocolatey syntax for local packages with multiple sources
           $currentDir = Get-Location
           Write-Host "Current directory: $currentDir"
-          choco install aurras --version="${{ github.event.inputs.version }}" --source="$currentDir" -y
+          
+          # Install with both local source (for aurras) and public source (for dependencies)
+          choco install aurras --version="${{ github.event.inputs.version }}" --source="$currentDir;https://community.chocolatey.org/api/v2/" -y
         shell: powershell
         
       - name: Test improved verification logic
