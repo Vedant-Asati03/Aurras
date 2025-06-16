@@ -199,8 +199,24 @@ jobs:
         id: sha256
         run: |
           VERSION=${{ needs.detect-release.outputs.version }}
+          echo "Waiting for source tarball to be available on PyPI..."
+          sleep 60  # Wait for PyPI to generate source tarball
+          
           echo "Downloading source tarball to calculate SHA256..."
-          wget -q "https://files.pythonhosted.org/packages/source/a/aurras/aurras-${VERSION}.tar.gz"
+          for i in {1..5}; do
+            if wget -q "https://files.pythonhosted.org/packages/source/a/aurras/aurras-${VERSION}.tar.gz"; then
+              break
+            else
+              echo "Attempt $i failed, waiting 30 seconds..."
+              sleep 30
+            fi
+          done
+          
+          if [ ! -f "aurras-${VERSION}.tar.gz" ]; then
+            echo "Failed to download source tarball after multiple attempts"
+            exit 1
+          fi
+          
           SHA256=$(sha256sum "aurras-${VERSION}.tar.gz" | cut -d' ' -f1)
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
           echo "SHA256: $SHA256"
@@ -235,7 +251,7 @@ jobs:
       - name: Install makepkg (for AUR package building)
         run: |
           sudo apt-get update
-          sudo apt-get install -y base-devel
+          sudo apt-get install -y build-essential fakeroot
           
       - name: Setup SSH for AUR
         env:
