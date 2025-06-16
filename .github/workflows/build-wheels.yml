@@ -128,9 +128,9 @@ jobs:
           pip install twine==5.0.0
           echo "Publishing wheels to PyPI..."
           echo "Windows wheel (with DLL):"
-          twine upload windows-wheel/*.whl --verbose
+          twine upload windows-wheel/*.whl --verbose --skip-existing
           echo "Universal wheel (no DLL):"
-          twine upload universal-wheel/*.whl --verbose
+          twine upload universal-wheel/*.whl --verbose --skip-existing
           echo "Publishing complete!"
           
       - name: Create GitHub Release
