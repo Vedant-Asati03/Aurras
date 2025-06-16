@@ -337,10 +337,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
-      - name: Install makepkg (for AUR package building)
+      - name: Install AUR tools
         run: |
+          # Install basic tools for AUR package management
           sudo apt-get update
-          sudo apt-get install -y build-essential fakeroot
+          sudo apt-get install -y curl
           
       - name: Setup SSH for AUR
         env:
@@ -398,13 +399,13 @@ jobs:
           
           cd aur-repo
           
-          # Generate .SRCINFO
-          makepkg --printsrcinfo > .SRCINFO
+          # Skip .SRCINFO generation - AUR will handle this automatically
+          echo "Skipping .SRCINFO generation - AUR will handle this automatically"
           
           # Commit and push
           git config user.name "Aurras Release Bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD .SRCINFO
+          git add PKGBUILD
           git commit -m "Update to version $VERSION"
           git push
           
