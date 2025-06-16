@@ -1,0 +1,124 @@
+# Test Chocolatey package locally
+name: "Test Local Chocolatey Package"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to test'
+        required: true
+        default: '2.0.0'
+        type: string
+
+jobs:
+  test-local-choco:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        shell: powershell
+        
+      - name: Update package version for testing
+        run: |
+          # Update the nuspec with current version
+          $version = "${{ github.event.inputs.version }}"
+          (Get-Content packaging/choco/aurras.nuspec) -replace '<version>.*</version>', "<version>$version</version>" | Set-Content packaging/choco/aurras.nuspec
+        shell: powershell
+        
+      - name: Build local Chocolatey package
+        run: |
+          cd packaging/choco
+          choco pack aurras.nuspec
+          Write-Host "Created local package:"
+          Get-ChildItem *.nupkg
+        shell: powershell
+        
+      - name: Install from local package
+        run: |
+          cd packaging/choco
+          $package = Get-ChildItem *.nupkg | Select-Object -First 1
+          Write-Host "Installing from local package: $($package.Name)"
+          choco install $package.FullName -y -s .
+        shell: powershell
+        
+      - name: Test improved verification logic
+        run: |
+          Write-Host "=== Testing Improved Verification Logic ==="
+          
+          # Check if aurras was installed
+          Write-Host "Checking installation..."
+          pip show aurras
+          
+          # Test our improved verification logic (same as in chocolateyinstall.ps1)
+          $pythonScriptsDir = python -c "import sys; import os; print(os.path.join(sys.prefix, 'Scripts'))"
+          Write-Host "Python Scripts directory: $pythonScriptsDir"
+          
+          if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+              $currentPath = $env:PATH
+              if ($currentPath -notlike "*$pythonScriptsDir*") {
+                  Write-Host "Adding Python Scripts directory to PATH..."
+                  $env:PATH = "$pythonScriptsDir;$currentPath"
+              }
+          }
+          
+          $verificationPassed = $false
+          
+          # Method 1: Direct aurras command
+          try {
+              Write-Host "Method 1: Testing direct 'aurras' command..."
+              $versionOutput = & aurras --version 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                  Write-Host "✅ Direct aurras command works!" -ForegroundColor Green
+                  Write-Host "Version: $versionOutput"
+                  $verificationPassed = $true
+              }
+          } catch {
+              Write-Host "❌ Direct aurras command failed: $_"
+          }
+          
+          # Method 2: python -m aurras
+          if (-not $verificationPassed) {
+              try {
+                  Write-Host "Method 2: Testing 'python -m aurras' command..."
+                  $versionOutput = & python -m aurras --version 2>&1
+                  if ($LASTEXITCODE -eq 0) {
+                      Write-Host "✅ Python module execution works!" -ForegroundColor Green
+                      Write-Host "Version: $versionOutput"
+                      $verificationPassed = $true
+                  }
+              } catch {
+                  Write-Host "❌ Python module execution failed: $_"
+              }
+          }
+          
+          # Method 3: Direct executable path
+          if (-not $verificationPassed -and $pythonScriptsDir) {
+              $aurrasExe = Join-Path $pythonScriptsDir "aurras.exe"
+              if (Test-Path $aurrasExe) {
+                  try {
+                      Write-Host "Method 3: Testing direct executable..."
+                      $versionOutput = & $aurrasExe --version 2>&1
+                      if ($LASTEXITCODE -eq 0) {
+                          Write-Host "✅ Direct executable works!" -ForegroundColor Green
+                          Write-Host "Version: $versionOutput"
+                          $verificationPassed = $true
+                      }
+                  } catch {
+                      Write-Host "❌ Direct executable failed: $_"
+                  }
+              }
+          }
+          
+          if ($verificationPassed) {
+              Write-Host "`n🎉 Improved Chocolatey package verification successful!" -ForegroundColor Green
+          } else {
+              Write-Host "`n❌ All verification methods failed!" -ForegroundColor Red
+              throw "Package verification failed"
+          }
+        shell: powershell
