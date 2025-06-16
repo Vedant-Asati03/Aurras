@@ -131,9 +131,96 @@ jobs:
       - name: Test basic functionality
         run: |
           echo "Testing basic aurras functionality..."
-          aurras --version
-          aurras --help
-          echo "Chocolatey installation test completed successfully!"
+          
+          # First, get detailed system information
+          Write-Host "=== System Information ==="
+          Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+          Write-Host "Current PATH: $env:PATH"
+          
+          # Check Python installation
+          Write-Host "`n=== Python Information ==="
+          python --version
+          python -c "import sys; print(f'Python executable: {sys.executable}')"
+          python -c "import sys; import os; print(f'Scripts directory: {os.path.join(sys.prefix, \"Scripts\")}')"
+          
+          # Check if aurras package is installed
+          Write-Host "`n=== Package Information ==="
+          pip show aurras
+          
+          # Check Scripts directory contents
+          Write-Host "`n=== Scripts Directory Contents ==="
+          $pythonScripts = python -c "import sys; import os; print(os.path.join(sys.prefix, 'Scripts'))"
+          Write-Host "Python Scripts directory: $pythonScripts"
+          if (Test-Path $pythonScripts) {
+            Get-ChildItem $pythonScripts | Where-Object { $_.Name -like "*aurras*" } | ForEach-Object { 
+              Write-Host "Found: $($_.FullName)"
+            }
+          }
+          
+          # Try different ways to run aurras
+          Write-Host "`n=== Testing Aurras Commands ==="
+          $testPassed = $false
+          
+          # Method 1: Direct aurras command
+          Write-Host "Method 1: Direct 'aurras' command..."
+          try {
+            aurras --version
+            Write-Host "✅ Direct aurras command works!"
+            $testPassed = $true
+          } catch {
+            Write-Host "❌ Direct aurras command failed: $_"
+          }
+          
+          # Method 2: python -m aurras (if Method 1 failed)
+          if (-not $testPassed) {
+            Write-Host "Method 2: 'python -m aurras' command..."
+            try {
+              python -m aurras --version
+              Write-Host "✅ Python module execution works!"
+              $testPassed = $true
+            } catch {
+              Write-Host "❌ Python module execution failed: $_"
+            }
+          }
+          
+          # Method 3: Direct executable path (if Methods 1-2 failed)
+          if (-not $testPassed) {
+            Write-Host "Method 3: Direct executable path..."
+            $aurrasPath = Join-Path $pythonScripts "aurras.exe"
+            if (Test-Path $aurrasPath) {
+              try {
+                & $aurrasPath --version
+                Write-Host "✅ Direct executable path works!"
+                $testPassed = $true
+              } catch {
+                Write-Host "❌ Direct executable path failed: $_"
+              }
+            } else {
+              Write-Host "❌ aurras.exe not found at: $aurrasPath"
+            }
+          }
+          
+          # Method 4: Add Scripts to PATH and retry (if Methods 1-3 failed)
+          if (-not $testPassed) {
+            Write-Host "Method 4: Adding Scripts directory to PATH..."
+            $env:PATH = "$pythonScripts;$env:PATH"
+            Write-Host "Updated PATH: $env:PATH"
+            try {
+              aurras --version
+              Write-Host "✅ aurras works after PATH update!"
+              $testPassed = $true
+            } catch {
+              Write-Host "❌ aurras still doesn't work after PATH update: $_"
+            }
+          }
+          
+          # Final result
+          if ($testPassed) {
+            Write-Host "`n✅ Chocolatey installation test completed successfully!"
+          } else {
+            Write-Host "`n❌ All aurras execution methods failed!"
+            throw "aurras command not accessible after Chocolatey installation"
+          }
         shell: powershell
 
   # Test Homebrew on macOS
