@@ -44,7 +44,11 @@ jobs:
           cd packaging/choco
           $package = Get-ChildItem *.nupkg | Select-Object -First 1
           Write-Host "Installing from local package: $($package.Name)"
-          choco install $package.FullName -y -s .
+          
+          # Use the correct Chocolatey syntax for local packages
+          $currentDir = Get-Location
+          Write-Host "Current directory: $currentDir"
+          choco install aurras --version="${{ github.event.inputs.version }}" --source="$currentDir" -y
         shell: powershell
         
       - name: Test improved verification logic
