@@ -29,11 +29,27 @@ jobs:
       is_prerelease: ${{ steps.check.outputs.is_prerelease }}
       version: ${{ steps.check.outputs.version }}
     steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
+        
       - name: Check release type
         id: check
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # For manual triggers, get version from latest tag or pyproject.toml
+            if git describe --tags --exact-match HEAD 2>/dev/null; then
+              VERSION=$(git describe --tags --exact-match HEAD | sed 's/^v//')
+            else
+              # Fallback to pyproject.toml version
+              VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "//' | sed 's/"//')
+            fi
+          else
+            # For tag triggers, extract from tag
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
           
           if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
@@ -166,12 +182,33 @@ jobs:
         run: |
           python scripts/release_manager.py ${{ needs.detect-release.outputs.version }}
         
+      - name: Check if package exists on Chocolatey
+        id: check_choco
+        run: |
+          $version = "${{ needs.detect-release.outputs.version }}"
+          try {
+            $response = Invoke-RestMethod -Uri "https://community.chocolatey.org/api/v2/Packages?`$filter=Id%20eq%20%27aurras%27%20and%20Version%20eq%20%27$version%27" -Method Get
+            if ($response.feed.entry) {
+              echo "exists=true" >> $env:GITHUB_OUTPUT
+              echo "Package aurras $version already exists on Chocolatey"
+            } else {
+              echo "exists=false" >> $env:GITHUB_OUTPUT
+              echo "Package aurras $version does not exist on Chocolatey"
+            }
+          } catch {
+            echo "exists=false" >> $env:GITHUB_OUTPUT
+            echo "Could not check Chocolatey, assuming package does not exist"
+          }
+        shell: powershell
+        
       - name: Build Chocolatey package
+        if: steps.check_choco.outputs.exists == 'false'
         run: |
           cd packaging/choco
           choco pack aurras.nuspec
         
       - name: Publish to Chocolatey
+        if: steps.check_choco.outputs.exists == 'false'
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
         run: |
@@ -180,6 +217,12 @@ jobs:
           echo "Publishing $($package.Name) to Chocolatey..."
           choco push $package.Name --api-key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
           echo "Chocolatey package published!"
+        shell: powershell
+        
+      - name: Skip Chocolatey publish
+        if: steps.check_choco.outputs.exists == 'true'
+        run: |
+          echo "Skipping Chocolatey publish - package aurras ${{ needs.detect-release.outputs.version }} already exists"
         shell: powershell
 
   # Homebrew Formula Update (macOS Package Manager)
@@ -195,7 +238,30 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           
+      - name: Check if Homebrew formula needs update
+        id: check_homebrew
+        run: |
+          VERSION=${{ needs.detect-release.outputs.version }}
+          
+          # Check current version in Homebrew formula
+          if [ -f "packaging/homebrew/aurras.rb" ]; then
+            CURRENT_VERSION=$(grep -E 'version "[^"]*"' packaging/homebrew/aurras.rb | sed 's/.*version "\([^"]*\)".*/\1/')
+            echo "Current Homebrew formula version: $CURRENT_VERSION"
+            
+            if [ "$CURRENT_VERSION" = "$VERSION" ]; then
+              echo "needs_update=false" >> $GITHUB_OUTPUT
+              echo "Homebrew formula already at version $VERSION"
+            else
+              echo "needs_update=true" >> $GITHUB_OUTPUT
+              echo "Homebrew formula needs update from $CURRENT_VERSION to $VERSION"
+            fi
+          else
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Homebrew formula file not found, needs creation"
+          fi
+          
       - name: Calculate SHA256 for source tarball
+        if: steps.check_homebrew.outputs.needs_update == 'true'
         id: sha256
         run: |
           VERSION=${{ needs.detect-release.outputs.version }}
@@ -222,18 +288,25 @@ jobs:
           echo "SHA256: $SHA256"
           
       - name: Update Homebrew formula
+        if: steps.check_homebrew.outputs.needs_update == 'true'
         run: |
           python scripts/release_manager.py ${{ needs.detect-release.outputs.version }}
           # Update SHA256 in formula
           sed -i "s/sha256 \".*\"/sha256 \"${{ steps.sha256.outputs.sha256 }}\"/" packaging/homebrew/aurras.rb
           
       - name: Create Homebrew PR
+        if: steps.check_homebrew.outputs.needs_update == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
         run: |
           echo "Creating Homebrew formula update..."
           echo "Homebrew formula updated (manual PR creation needed)"
           echo "Formula file ready at: packaging/homebrew/aurras.rb"
+          
+      - name: Skip Homebrew update
+        if: steps.check_homebrew.outputs.needs_update == 'false'
+        run: |
+          echo "Skipping Homebrew update - formula already at version ${{ needs.detect-release.outputs.version }}"
 
   # Arch User Repository (AUR) Package Update
   update-aur:
@@ -253,7 +326,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential fakeroot
           
+      - name: Check if AUR package needs update
+        id: check_aur
+        run: |
+          VERSION=${{ needs.detect-release.outputs.version }}
+          
+          # Check current version in AUR PKGBUILD
+          if [ -f "packaging/aur/PKGBUILD" ]; then
+            CURRENT_VERSION=$(grep -E '^pkgver=' packaging/aur/PKGBUILD | cut -d'=' -f2)
+            echo "Current AUR package version: $CURRENT_VERSION"
+            
+            if [ "$CURRENT_VERSION" = "$VERSION" ]; then
+              echo "needs_update=false" >> $GITHUB_OUTPUT
+              echo "AUR package already at version $VERSION"
+            else
+              echo "needs_update=true" >> $GITHUB_OUTPUT
+              echo "AUR package needs update from $CURRENT_VERSION to $VERSION"
+            fi
+          else
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "AUR PKGBUILD file not found, needs creation"
+          fi
+          
       - name: Setup SSH for AUR
+        if: steps.check_aur.outputs.needs_update == 'true'
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
         run: |
@@ -266,6 +362,7 @@ jobs:
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
           
       - name: Update AUR package
+        if: steps.check_aur.outputs.needs_update == 'true'
         run: |
           VERSION=${{ needs.detect-release.outputs.version }}
           
@@ -291,3 +388,8 @@ jobs:
           git push
           
           echo "AUR package updated!"
+          
+      - name: Skip AUR update
+        if: steps.check_aur.outputs.needs_update == 'false'
+        run: |
+          echo "Skipping AUR update - package already at version ${{ needs.detect-release.outputs.version }}"
