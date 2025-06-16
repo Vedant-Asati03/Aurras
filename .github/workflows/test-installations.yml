@@ -125,7 +125,18 @@ jobs:
       - name: Test Chocolatey installation
         run: |
           echo "Testing Chocolatey installation of aurras v${{ env.TEST_VERSION }}"
-          choco install aurras --version=${{ env.TEST_VERSION }} -y
+          try {
+            choco install aurras --version=${{ env.TEST_VERSION }} -y
+            if ($LASTEXITCODE -ne 0) {
+              throw "Chocolatey install failed with exit code $LASTEXITCODE"
+            }
+            Write-Host "Chocolatey install completed successfully"
+          } catch {
+            Write-Host "Chocolatey install failed: $_"
+            Write-Host "Checking if package exists..."
+            choco search aurras --exact
+            throw "Chocolatey installation failed"
+          }
         shell: powershell
           
       - name: Test basic functionality
@@ -140,12 +151,16 @@ jobs:
           # Check Python installation
           Write-Host "`n=== Python Information ==="
           python --version
-          python -c "import sys; print(f'Python executable: {sys.executable}')"
-          python -c "import sys; import os; print(f'Scripts directory: {os.path.join(sys.prefix, \"Scripts\")}')"
+          python -c "import sys; print('Python executable: ' + sys.executable)"
+          python -c "import sys; import os; print('Scripts directory: ' + os.path.join(sys.prefix, 'Scripts'))"
           
           # Check if aurras package is installed
           Write-Host "`n=== Package Information ==="
-          pip show aurras
+          try {
+            pip show aurras
+          } catch {
+            Write-Host "pip show failed, package might not be installed via pip"
+          }
           
           # Check Scripts directory contents
           Write-Host "`n=== Scripts Directory Contents ==="
@@ -155,6 +170,8 @@ jobs:
             Get-ChildItem $pythonScripts | Where-Object { $_.Name -like "*aurras*" } | ForEach-Object { 
               Write-Host "Found: $($_.FullName)"
             }
+          } else {
+            Write-Host "Scripts directory not found!"
           }
           
           # Try different ways to run aurras
@@ -175,9 +192,14 @@ jobs:
           if (-not $testPassed) {
             Write-Host "Method 2: 'python -m aurras' command..."
             try {
-              python -m aurras --version
-              Write-Host "✅ Python module execution works!"
-              $testPassed = $true
+              $versionOutput = python -m aurras --version 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Python module execution works!"
+                Write-Host "Version: $versionOutput"
+                $testPassed = $true
+              } else {
+                throw "python -m aurras returned exit code $LASTEXITCODE"
+              }
             } catch {
               Write-Host "❌ Python module execution failed: $_"
             }
