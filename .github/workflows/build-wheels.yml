@@ -1,7 +1,7 @@
 # Comprehensive GitHub Actions workflow for Aurras music player
-# Builds platform-specific wheels and automates distribution to multiple package managers
+# Publishes to package managers after PyPI release is available
 
-name: Build Platform-Specific Wheels
+name: Publish to Package Managers
 
 on:
   push:
@@ -10,29 +10,34 @@ on:
   workflow_dispatch:  # Allow manual triggering
     inputs:
       run_publish:
-        description: 'Run publish steps (PyPI, Chocolatey, Homebrew, AUR)'
+        description: 'Run publish steps (Chocolatey, Homebrew, AUR)'
         required: false
         default: 'false'
         type: choice
         options:
           - 'false'
           - 'true'
+      wait_for_pypi:
+        description: 'Wait for PyPI propagation (minutes)'
+        required: false
+        default: '0'
+        type: string
 
 env:
   PYTHON_VERSION: '3.12'
 
 jobs:
-  # Detect release type for conditional publishing
-  detect-release:
+  # Detect release type and validate PyPI availability
+  validate-release:
     runs-on: ubuntu-latest
     outputs:
       is_prerelease: ${{ steps.check.outputs.is_prerelease }}
       version: ${{ steps.check.outputs.version }}
+      pypi_available: ${{ steps.pypi_check.outputs.available }}
     steps:
       - uses: actions/checkout@v4
-        if: github.event_name == 'workflow_dispatch'
         
-      - name: Check release type
+      - name: Detect version and release type
         id: check
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -58,111 +63,76 @@ jobs:
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
             echo "Detected stable release version: $VERSION"
           fi
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
           
-      - name: Install build dependencies
+      - name: Validate PyPI availability
+        id: pypi_check
         run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade uv twine hatchling build
+          VERSION="${{ steps.check.outputs.version }}"
+          WAIT_MINUTES="${{ github.event.inputs.wait_for_pypi || '0' }}"
           
-      - name: Verify DLL exists
-        run: |
-          if (Test-Path "aurras/core/player/libmpv-2.dll") {
-            Write-Host "DLL found - building Windows wheel with MPV library"
-            $dll_size = (Get-Item "aurras/core/player/libmpv-2.dll").Length / 1MB
-            Write-Host "DLL size: $([math]::Round($dll_size, 1)) MB"
-          } else {
-            Write-Host "DLL not found!" -ForegroundColor Red
-            exit 1
-          }
-        shell: powershell
+          if [ "$WAIT_MINUTES" -gt 0 ]; then
+            echo "⏳ Waiting $WAIT_MINUTES minutes for PyPI propagation..."
+            sleep $((WAIT_MINUTES * 60))
+          fi
           
-      - name: Build Windows wheel (with DLL)
-        run: python scripts/build_platform_wheels.py
-        
-      - name: Upload Windows wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-wheel
-          path: dist/*.whl
+          echo "Checking if aurras==$VERSION is available on PyPI..."
+          
+          # Check if version exists on PyPI (retry up to 3 times)
+          for i in {1..3}; do
+            if pip index versions aurras 2>/dev/null | grep -q "$VERSION"; then
+              echo "available=true" >> $GITHUB_OUTPUT
+              echo "✅ Version $VERSION found on PyPI"
+              exit 0
+            else
+              echo "❌ Attempt $i: Version $VERSION not yet available on PyPI"
+              if [ $i -lt 3 ]; then
+                echo "Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+            fi
+          done
+          
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "Available versions:"
+          pip index versions aurras || echo "Could not fetch versions"
 
-  build-universal:
+  # Create GitHub Release with PyPI links
+  create-github-release:
+    needs: validate-release
     runs-on: ubuntu-latest
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.validate-release.outputs.pypi_available == 'true'
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade uv twine hatchling build
-          
-      - name: Build universal wheel (no DLL)
-        run: python scripts/build_platform_wheels.py
-        
-      - name: Upload universal wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: universal-wheel
-          path: dist/*.whl
-
-  # PyPI Publishing
-  publish:
-    needs: [build-windows, build-universal, detect-release]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')
-    steps:
-      - name: Download all wheels
-        uses: actions/download-artifact@v4
-        
-      - name: Verify wheel files
-        run: |
-          echo "Available wheels for publishing:"
-          ls -la windows-wheel/ universal-wheel/
-          echo ""
-          echo "Wheel details:"
-          ls -lh windows-wheel/*.whl universal-wheel/*.whl
-          
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          pip install twine==5.0.0
-          echo "Publishing wheels to PyPI..."
-          echo "Windows wheel (with DLL):"
-          twine upload windows-wheel/*.whl --verbose --skip-existing
-          echo "Universal wheel (no DLL):"
-          twine upload universal-wheel/*.whl --verbose --skip-existing
-          echo "Publishing complete!"
-          
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            windows-wheel/*.whl
-            universal-wheel/*.whl
+          tag_name: v${{ needs.validate-release.outputs.version }}
+          name: Release v${{ needs.validate-release.outputs.version }}
+          body: |
+            ## 🎵 Aurras v${{ needs.validate-release.outputs.version }}
+            
+            **Installation:**
+            ```bash
+            pip install aurras==${{ needs.validate-release.outputs.version }}
+            ```
+            
+            **Package Manager Links:**
+            - 📦 [PyPI](https://pypi.org/project/aurras/${{ needs.validate-release.outputs.version }}/)
+            - 🍫 [Chocolatey](https://community.chocolatey.org/packages/aurras) (Windows)
+            - 🍺 [Homebrew](https://formulae.brew.sh/formula/aurras) (macOS)
+            - 📋 [AUR](https://aur.archlinux.org/packages/aurras) (Arch Linux)
+            
+            **Downloads:**
+            - [Universal Wheel](https://files.pythonhosted.org/packages/py3/a/aurras/aurras-${{ needs.validate-release.outputs.version }}-py3-none-any.whl)
+            - [Windows Wheel](https://files.pythonhosted.org/packages/py3/a/aurras/aurras-${{ needs.validate-release.outputs.version }}-py3-none-win_amd64.whl)
+            - [Source Distribution](https://files.pythonhosted.org/packages/source/a/aurras/aurras-${{ needs.validate-release.outputs.version }}.tar.gz)
           generate_release_notes: true
           draft: false
-          prerelease: ${{ needs.detect-release.outputs.is_prerelease == 'true' }}
+          prerelease: ${{ needs.validate-release.outputs.is_prerelease == 'true' }}
   # Chocolatey Publishing (Windows Package Manager)
   publish-chocolatey:
-    needs: [publish, detect-release]
+    needs: [validate-release]
     runs-on: windows-latest
-    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.detect-release.outputs.is_prerelease == 'false'
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.validate-release.outputs.is_prerelease == 'false' && needs.validate-release.outputs.pypi_available == 'true'
     steps:
       - uses: actions/checkout@v4
       
@@ -180,12 +150,12 @@ jobs:
         
       - name: Update Chocolatey package version
         run: |
-          python scripts/release_manager.py ${{ needs.detect-release.outputs.version }}
+          python scripts/release_manager.py ${{ needs.validate-release.outputs.version }}
         
       - name: Check if package exists on Chocolatey
         id: check_choco
         run: |
-          $version = "${{ needs.detect-release.outputs.version }}"
+          $version = "${{ needs.validate-release.outputs.version }}"
           try {
             $response = Invoke-RestMethod -Uri "https://community.chocolatey.org/api/v2/Packages?`$filter=Id%20eq%20%27aurras%27%20and%20Version%20eq%20%27$version%27" -Method Get
             if ($response.feed.entry) {
@@ -222,14 +192,14 @@ jobs:
       - name: Skip Chocolatey publish
         if: steps.check_choco.outputs.exists == 'true'
         run: |
-          echo "Skipping Chocolatey publish - package aurras ${{ needs.detect-release.outputs.version }} already exists"
+          echo "Skipping Chocolatey publish - package aurras ${{ needs.validate-release.outputs.version }} already exists"
         shell: powershell
 
   # Homebrew Formula Update (macOS Package Manager)
   update-homebrew:
-    needs: [publish, detect-release]
+    needs: [validate-release]
     runs-on: ubuntu-latest
-    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.detect-release.outputs.is_prerelease == 'false'
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.validate-release.outputs.is_prerelease == 'false' && needs.validate-release.outputs.pypi_available == 'true'
     steps:
       - uses: actions/checkout@v4
       
@@ -246,7 +216,7 @@ jobs:
       - name: Check if Homebrew formula needs update
         id: check_homebrew
         run: |
-          VERSION=${{ needs.detect-release.outputs.version }}
+          VERSION=${{ needs.validate-release.outputs.version }}
           
           # Check current version in Homebrew formula
           if [ -f "packaging/homebrew/aurras.rb" ]; then
@@ -269,7 +239,7 @@ jobs:
         if: steps.check_homebrew.outputs.needs_update == 'true'
         id: sha256
         run: |
-          VERSION=${{ needs.detect-release.outputs.version }}
+          VERSION=${{ needs.validate-release.outputs.version }}
           echo "Creating source tarball locally for SHA256 calculation..."
           
           # Create a source distribution locally
@@ -306,7 +276,7 @@ jobs:
       - name: Update Homebrew formula
         if: steps.check_homebrew.outputs.needs_update == 'true'
         run: |
-          python scripts/release_manager.py ${{ needs.detect-release.outputs.version }}
+          python scripts/release_manager.py ${{ needs.validate-release.outputs.version }}
           # Update SHA256 in formula
           sed -i "s/sha256 \".*\"/sha256 \"${{ steps.sha256.outputs.sha256 }}\"/" packaging/homebrew/aurras.rb
           
@@ -322,13 +292,13 @@ jobs:
       - name: Skip Homebrew update
         if: steps.check_homebrew.outputs.needs_update == 'false'
         run: |
-          echo "Skipping Homebrew update - formula already at version ${{ needs.detect-release.outputs.version }}"
+          echo "Skipping Homebrew update - formula already at version ${{ needs.validate-release.outputs.version }}"
 
   # Arch User Repository (AUR) Package Update
   update-aur:
-    needs: [publish, detect-release]
+    needs: [validate-release]
     runs-on: ubuntu-latest
-    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.detect-release.outputs.is_prerelease == 'false'
+    if: (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')) && needs.validate-release.outputs.is_prerelease == 'false' && needs.validate-release.outputs.pypi_available == 'true'
     steps:
       - uses: actions/checkout@v4
       
@@ -358,7 +328,7 @@ jobs:
       - name: Check if AUR package needs update
         id: check_aur
         run: |
-          VERSION=${{ needs.detect-release.outputs.version }}
+          VERSION=${{ needs.validate-release.outputs.version }}
           
           # Clone AUR repo to check current version
           echo "Cloning AUR repository to check current version..."
@@ -386,7 +356,7 @@ jobs:
       - name: Update AUR package
         if: steps.check_aur.outputs.needs_update == 'true'
         run: |
-          VERSION=${{ needs.detect-release.outputs.version }}
+          VERSION=${{ needs.validate-release.outputs.version }}
           
           # Update version in PKGBUILD
           python scripts/release_manager.py $VERSION
@@ -414,4 +384,4 @@ jobs:
       - name: Skip AUR update
         if: steps.check_aur.outputs.needs_update == 'false'
         run: |
-          echo "Skipping AUR update - package already at version ${{ needs.detect-release.outputs.version }}"
+          echo "Skipping AUR update - package already at version ${{ needs.validate-release.outputs.version }}"
