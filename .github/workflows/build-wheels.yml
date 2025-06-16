@@ -342,14 +342,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential fakeroot
           
+      - name: Setup SSH for AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          echo "Host aur.archlinux.org" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/aur" >> ~/.ssh/config
+          echo "  User aur" >> ~/.ssh/config
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          
       - name: Check if AUR package needs update
         id: check_aur
         run: |
           VERSION=${{ needs.detect-release.outputs.version }}
           
-          # Check current version in AUR PKGBUILD
-          if [ -f "packaging/aur/PKGBUILD" ]; then
-            CURRENT_VERSION=$(grep -E '^pkgver=' packaging/aur/PKGBUILD | cut -d'=' -f2)
+          # Clone AUR repo to check current version
+          echo "Cloning AUR repository to check current version..."
+          git clone ssh://aur@aur.archlinux.org/aurras.git aur-check
+          
+          if [ -f "aur-check/PKGBUILD" ]; then
+            CURRENT_VERSION=$(grep -E '^pkgver=' aur-check/PKGBUILD | cut -d'=' -f2)
             echo "Current AUR package version: $CURRENT_VERSION"
             
             if [ "$CURRENT_VERSION" = "$VERSION" ]; then
@@ -364,18 +379,8 @@ jobs:
             echo "AUR PKGBUILD file not found, needs creation"
           fi
           
-      - name: Setup SSH for AUR
-        if: steps.check_aur.outputs.needs_update == 'true'
-        env:
-          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$AUR_SSH_KEY" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-          echo "Host aur.archlinux.org" >> ~/.ssh/config
-          echo "  IdentityFile ~/.ssh/aur" >> ~/.ssh/config
-          echo "  User aur" >> ~/.ssh/config
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          # Clean up check repository
+          rm -rf aur-check
           
       - name: Update AUR package
         if: steps.check_aur.outputs.needs_update == 'true'
