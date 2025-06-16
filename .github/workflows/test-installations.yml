@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to test (e.g., 2.0.0)'
+        description: 'Version to test (e.g., 2.0.1)'
         required: true
-        default: '2.0.0'
+        default: '2.0.1'
         type: string
       test_pypi:
         description: 'Test PyPI installation'
@@ -56,7 +56,7 @@ on:
     - cron: '0 8 * * 1'  # Every Monday at 8 AM UTC
 
 env:
-  TEST_VERSION: ${{ github.event.inputs.version || '2.0.0' }}
+  TEST_VERSION: ${{ github.event.inputs.version || '2.0.1' }}
 
 jobs:
   # Test PyPI installation on all platforms
@@ -65,13 +65,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-        exclude:
-          # Reduce matrix size for faster runs
-          - os: macos-latest
-            python-version: '3.9'
-          - os: macos-latest  
-            python-version: '3.10'
+        python-version: ['3.12', '3.13']
     runs-on: ${{ matrix.os }}
     
     steps:
@@ -339,7 +333,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.12']
+        python-version: ['3.12', '3.13']
         
     steps:
       - name: Set up Python ${{ matrix.python-version }}
