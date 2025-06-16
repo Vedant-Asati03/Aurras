@@ -50,9 +50,6 @@ build-backend = "setuptools.build_meta"
 include = ["aurras*"]
 exclude = ["assets*", "packaging*", "docs*", "tests*", "scripts*"]
 
-[tool.setuptools.package-data]
-"aurras.core.player" = ["*.dll"]
-
 [tool.black]
 line-length = 88
 
