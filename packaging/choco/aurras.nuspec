@@ -32,7 +32,6 @@ The Windows version includes a bundled MPV library for zero-configuration audio 
     </description>
     <releaseNotes>https://github.com/vedant-asati03/Aurras/releases</releaseNotes>
     <dependencies>
-      <dependency id="python3" version="3.12.0" />
       <dependency id="ffmpeg" />
     </dependencies>
   </metadata>

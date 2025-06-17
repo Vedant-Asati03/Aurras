@@ -4,7 +4,11 @@ $ErrorActionPreference = 'Stop'
 $packageName = 'aurras'
 $toolsDir = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 
-Write-Host "Starting Aurras installation..."
+Write-Host     if ($LASTEXITCODE -eq 0) {
+        Write-Host "Aurras installed successfully!" -ForegroundColor Green
+        Write-Host "Version: $versionOutput"
+        $verificationPassed = $true
+    } else {ting Aurras installation..."
 Write-Host "Package: $packageName"
 Write-Host "Tools directory: $toolsDir"
 Write-Host "Current working directory: $(Get-Location)"
@@ -18,8 +22,12 @@ try {
     Write-Host "Package parameters received: $($packageParameters.Keys -join ', ')"
 } catch {
     Write-Warning "Could not get package parameters (this is normal outside Chocolatey context): $_"
-    # Default empty parameters for manual testing
-    $packageParameters = @{}
+    # Default parameters for better compatibility
+    $packageParameters = @{
+        'SkipPythonCheck' = $false
+        'IgnoreInstallErrors' = $false
+        'PythonTimeout' = 300
+    }
 }
 
 # Check if Python is available with timeout
@@ -36,12 +44,16 @@ try {
         $pythonExe = Get-Command python3 -ErrorAction SilentlyContinue
     }
     if (-not $pythonExe) {
-        Write-Host "Neither 'python' nor 'python3' found in PATH"
+        Write-Host "Python not found in PATH. Please install Python 3.8+ manually:" -ForegroundColor Yellow
+        Write-Host "  Option 1: choco install python312" -ForegroundColor Cyan
+        Write-Host "  Option 2: Download from https://python.org" -ForegroundColor Cyan
+        Write-Host "  Option 3: Use --params '/SkipPythonCheck' if Python is installed elsewhere" -ForegroundColor Cyan
+        
         if ($packageParameters.SkipPythonCheck) {
             Write-Warning "Python not found but SkipPythonCheck specified. Continuing..."
             $pythonExe = @{ Source = "python" }
         } else {
-            throw "Python not found in PATH"
+            throw "Python not found in PATH. Install Python first or use --params '/SkipPythonCheck'"
         }
     } else {
         Write-Host "Found Python executable: $($pythonExe.Source)"
@@ -59,6 +71,11 @@ try {
     }
 } catch {
     Write-Host "Python detection failed: $_" -ForegroundColor Red
+    Write-Host "Solutions:" -ForegroundColor Yellow
+    Write-Host "  1. Install Python: choco install python312" -ForegroundColor Cyan
+    Write-Host "  2. Restart PowerShell after Python installation" -ForegroundColor Cyan
+    Write-Host "  3. Use: choco install aurras --params '/SkipPythonCheck'" -ForegroundColor Cyan
+    
     if (-not $packageParameters.SkipPythonCheck) {
         Write-Error "Python is required but not found. Use --params '/SkipPythonCheck' to bypass this check."
         throw "Python dependency not satisfied"
@@ -186,7 +203,7 @@ if (-not $verificationPassed) {
         }
         
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Aurras installed successfully (via python -m)!" -ForegroundColor Green
+            Write-Host "Aurras installed successfully (via python -m)!" -ForegroundColor Green
             Write-Host "Version: $versionOutput"
             Write-Host "Note: Use 'python -m aurras' if direct 'aurras' command doesn't work"
             $verificationPassed = $true
@@ -206,7 +223,7 @@ if (-not $verificationPassed -and $pythonScriptsDir) {
             Write-Host "Testing aurras executable directly from Scripts directory..."
             $versionOutput = & $aurrasExe --version 2>&1
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Aurras executable found and working!" -ForegroundColor Green
+                Write-Host "Aurras executable found and working!" -ForegroundColor Green
                 Write-Host "Version: $versionOutput"
                 Write-Host "Path: $aurrasExe"
                 $verificationPassed = $true
