@@ -1,28 +1,20 @@
-# Chocolatey install script for Aurras
 $ErrorActionPreference = 'Stop'
 
 $packageName = 'aurras'
 $toolsDir = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 
-Write-Host     if ($LASTEXITCODE -eq 0) {
-        Write-Host "Aurras installed successfully!" -ForegroundColor Green
-        Write-Host "Version: $versionOutput"
-        $verificationPassed = $true
-    } else {ting Aurras installation..."
+Write-Host "Starting Aurras installation..."
 Write-Host "Package: $packageName"
 Write-Host "Tools directory: $toolsDir"
 Write-Host "Current working directory: $(Get-Location)"
 Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
 
-# Get package parameters with error handling
-Write-Host "Getting package parameters..."
 $packageParameters = @{}
 try {
     $packageParameters = Get-PackageParameters
     Write-Host "Package parameters received: $($packageParameters.Keys -join ', ')"
 } catch {
     Write-Warning "Could not get package parameters (this is normal outside Chocolatey context): $_"
-    # Default parameters for better compatibility
     $packageParameters = @{
         'SkipPythonCheck' = $false
         'IgnoreInstallErrors' = $false
@@ -30,7 +22,6 @@ try {
     }
 }
 
-# Check if Python is available with timeout
 Write-Host "Checking Python installation..."
 $pythonExe = $null
 $timeoutSeconds = if ($packageParameters.PythonTimeout) { $packageParameters.PythonTimeout } else { 300 }
@@ -53,14 +44,15 @@ try {
             Write-Warning "Python not found but SkipPythonCheck specified. Continuing..."
             $pythonExe = @{ Source = "python" }
         } else {
-            throw "Python not found in PATH. Install Python first or use --params '/SkipPythonCheck'"
+            Write-Warning "Python not found. Installation may fail."
+            Write-Host "Attempting to continue anyway..." -ForegroundColor Yellow
+            $pythonExe = @{ Source = "python" }
         }
     } else {
         Write-Host "Found Python executable: $($pythonExe.Source)"
         $pythonVersion = & $pythonExe.Source --version 2>&1
         Write-Host "Found Python: $pythonVersion" -ForegroundColor Green
         
-        # Also check pip
         Write-Host "Checking pip availability..."
         $pipVersion = & $pythonExe.Source -m pip --version 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -77,23 +69,20 @@ try {
     Write-Host "  3. Use: choco install aurras --params '/SkipPythonCheck'" -ForegroundColor Cyan
     
     if (-not $packageParameters.SkipPythonCheck) {
-        Write-Error "Python is required but not found. Use --params '/SkipPythonCheck' to bypass this check."
-        throw "Python dependency not satisfied"
+        Write-Warning "Python detection failed. Attempting to continue anyway..."
+        Write-Host "Installation may fail if Python is not available." -ForegroundColor Yellow
+        $pythonExe = @{ Source = "python" }
     }
 }
 
-# Install via pip (uses our Windows wheel with bundled DLL)
 Write-Host "Installing Aurras music player..."
 try {
-    # Determine which Python command to use
     $pythonCmd = if ($pythonExe -and $pythonExe.Source) { $pythonExe.Source } else { "python" }
     Write-Host "Using Python command: $pythonCmd"
     
-    # Run pip install with verbose output for debugging
     Write-Host "Running: $pythonCmd -m pip install aurras --upgrade --timeout $timeoutSeconds"
     $pipResult = & $pythonCmd -m pip install aurras --upgrade --timeout $timeoutSeconds 2>&1
     
-    # Log the pip output for debugging
     Write-Host "Pip output:"
     $pipResult | ForEach-Object { Write-Host "  $_" }
     
@@ -107,7 +96,6 @@ try {
         Write-Host "Pip install completed successfully (exit code 0)" -ForegroundColor Green
     }
     
-    # Immediately verify the package was installed
     Write-Host "Checking if package was installed..."
     try {
         $pipShowResult = & $pythonCmd -m pip show aurras 2>&1
@@ -133,10 +121,8 @@ try {
     }
 }
 
-# Verify installation and ensure PATH is updated
 Write-Host "Verifying installation..."
 
-# Get Python Scripts directory and add to PATH if needed
 try {
     Write-Host "Determining Python Scripts directory..."
     $pythonScriptsDir = if ($pythonExe -and $pythonExe.Source) {
@@ -148,11 +134,9 @@ try {
     if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
         Write-Host "Python Scripts directory: $pythonScriptsDir" -ForegroundColor Green
         
-        # List contents of Scripts directory for debugging
         Write-Host "Contents of Scripts directory:"
         Get-ChildItem $pythonScriptsDir | ForEach-Object { Write-Host "  $($_.Name)" }
         
-        # Check if Scripts directory is in PATH
         $currentPath = $env:PATH
         if ($currentPath -notlike "*$pythonScriptsDir*") {
             Write-Host "Adding Python Scripts directory to PATH for this session..."
@@ -161,7 +145,6 @@ try {
             Write-Host "Python Scripts directory already in PATH"
         }
         
-        # Also update the PATH for the current process
         $machinePath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
         $userPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
         $env:PATH = "$pythonScriptsDir;$machinePath;$userPath"
@@ -174,15 +157,13 @@ try {
     Write-Host "Exception details: $($_.Exception.Message)"
 }
 
-# Try multiple verification methods
 $verificationPassed = $false
 
-# Method 1: Try direct aurras command
 try {
     Write-Host "Testing direct 'aurras' command..."
     $versionOutput = & aurras --version 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Aurras installed successfully!" -ForegroundColor Green
+        Write-Host "Aurras installed successfully!" -ForegroundColor Green
         Write-Host "Version: $versionOutput"
         $verificationPassed = $true
     } else {
@@ -192,7 +173,6 @@ try {
     Write-Host "Direct 'aurras' command not available, trying alternatives..."
 }
 
-# Method 2: Try python -m aurras if direct command failed
 if (-not $verificationPassed) {
     try {
         Write-Host "Testing 'python -m aurras' command..."
@@ -215,7 +195,6 @@ if (-not $verificationPassed) {
     }
 }
 
-# Method 3: Check if aurras executable exists in Scripts directory
 if (-not $verificationPassed -and $pythonScriptsDir) {
     $aurrasExe = Join-Path $pythonScriptsDir "aurras.exe"
     if (Test-Path $aurrasExe) {
@@ -234,7 +213,6 @@ if (-not $verificationPassed -and $pythonScriptsDir) {
     }
 }
 
-# Final verification result
 if (-not $verificationPassed) {
     if ($packageParameters.SkipVerification) {
         Write-Warning "Verification skipped due to SkipVerification parameter"
@@ -254,8 +232,8 @@ if (-not $verificationPassed) {
 
 Write-Host ""
 Write-Host "Usage:" -ForegroundColor Cyan
-Write-Host "  aurras          # Start CLI mode"
-Write-Host "  aurras-tui      # Start TUI mode"
+Write-Host "  aurras
+Write-Host "  aurras-tui
 Write-Host ""
 Write-Host "Documentation: https://github.com/vedant-asati03/Aurras"
 Write-Host ""

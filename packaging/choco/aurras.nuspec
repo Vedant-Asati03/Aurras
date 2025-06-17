@@ -36,6 +36,6 @@ The Windows version includes a bundled MPV library for zero-configuration audio 
     </dependencies>
   </metadata>
   <files>
-    <file src="tools\**" target="tools" />
+    <file src="tools/**" target="tools" />
   </files>
 </package>

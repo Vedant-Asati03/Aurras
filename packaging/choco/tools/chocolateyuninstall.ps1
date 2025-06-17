@@ -3,7 +3,6 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host "Uninstalling Aurras music player..."
 
-# Find Python executable
 $pythonExe = $null
 try {
     $pythonExe = Get-Command python -ErrorAction SilentlyContinue
