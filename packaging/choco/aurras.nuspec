@@ -29,9 +29,14 @@ Aurras is a powerful command-line music player that supports:
 * Cross-platform support (Windows, Linux, macOS)
 
 The Windows version includes a bundled MPV library for zero-configuration audio playback.
+
+Dependencies:
+* Python 3.12+ (installed automatically via python312 package)
+* FFmpeg (installed automatically)
     </description>
     <releaseNotes>https://github.com/vedant-asati03/Aurras/releases</releaseNotes>
     <dependencies>
+      <dependency id="python312" />
       <dependency id="ffmpeg" />
     </dependencies>
   </metadata>
