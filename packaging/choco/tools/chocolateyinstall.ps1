@@ -24,7 +24,7 @@ try {
 
 Write-Host "Checking Python installation..."
 $pythonExe = $null
-$timeoutSeconds = if ($packageParameters.PythonTimeout) { $packageParameters.PythonTimeout } else { 300 }
+$timeoutSeconds = if ($packageParameters.PythonTimeout) { $packageParameters.PythonTimeout } else { 600 }
 Write-Host "Using timeout: $timeoutSeconds seconds"
 
 try {
@@ -128,6 +128,135 @@ try {
     }
 }
 
+function Install-AurrasPackage {
+    param(
+        [string]$PythonCommand,
+        [int]$TimeoutSeconds = 600,
+        [hashtable]$PackageParameters = @{}
+    )
+    
+    Write-Host "Installing aurras..."
+    
+    # Verify Python actually works, not just exists
+    try {
+        Write-Host "Verifying Python functionality..."
+        $pythonWorking = & $PythonCommand -c "print('OK')" 2>&1
+        if ($pythonWorking -notlike "*OK*") {
+            throw "Python not responding correctly: $pythonWorking"
+        }
+        Write-Host "Python verification passed" -ForegroundColor Green
+    } catch {
+        Write-Error "Python executable found but not working: $_"
+        return $false
+    }
+    
+    # Primary installation method with network configuration for corporate environments
+    try {
+        $pipArgs = @(
+            '-m', 'pip', 'install', 
+            'aurras', 
+            '--upgrade',
+            '--user',  # Install to user directory to avoid permission issues
+            '--timeout', $TimeoutSeconds,
+            '--no-cache-dir',  # Avoid cache-related issues
+            '--trusted-host', 'pypi.org',
+            '--trusted-host', 'pypi.python.org', 
+            '--trusted-host', 'files.pythonhosted.org'
+        )
+        
+        Write-Host "Running: $PythonCommand $($pipArgs -join ' ')"
+        
+        # Use retry logic for antivirus/file access issues
+        $installSuccess = Install-WithRetry -ScriptBlock {
+            & $PythonCommand @pipArgs
+            if ($LASTEXITCODE -ne 0) {
+                throw "pip install failed with exit code $LASTEXITCODE"
+            }
+        }
+        
+        if ($installSuccess) {
+            Write-Host "Aurras installed successfully!" -ForegroundColor Green
+            return $true
+        }
+        
+    } catch {
+        Write-Warning "Primary installation failed: $_"
+        
+        # Fallback method - try system-wide installation without --user flag
+        try {
+            Write-Host "Attempting fallback installation (system-wide)..." -ForegroundColor Yellow
+            $fallbackArgs = @(
+                '-m', 'pip', 'install', 'aurras', '--upgrade', 
+                '--timeout', $TimeoutSeconds,
+                '--trusted-host', 'pypi.org',
+                '--trusted-host', 'pypi.python.org', 
+                '--trusted-host', 'files.pythonhosted.org'
+            )
+            
+            Write-Host "Running: $PythonCommand $($fallbackArgs -join ' ')"
+            
+            $fallbackSuccess = Install-WithRetry -ScriptBlock {
+                & $PythonCommand @fallbackArgs
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Fallback installation failed with exit code $LASTEXITCODE"
+                }
+            }
+            
+            if ($fallbackSuccess) {
+                Write-Host "Fallback installation succeeded!" -ForegroundColor Green
+                return $true
+            }
+            
+        } catch {
+            Write-Error "Both installation methods failed: $_"
+            Write-Host "Troubleshooting tips:" -ForegroundColor Yellow
+            Write-Host "  1. Check internet connection and firewall settings" -ForegroundColor Cyan
+            Write-Host "  2. Try manually: $PythonCommand -m pip install aurras" -ForegroundColor Cyan
+            Write-Host "  3. Use parameter: --params '/IgnoreInstallErrors'" -ForegroundColor Cyan
+            return $false
+        }
+    }
+    return $false
+}
+
+function Install-WithRetry {
+    param(
+        [scriptblock]$ScriptBlock, 
+        [int]$MaxRetries = 3
+    )
+    
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            & $ScriptBlock
+            return $true
+        } catch {
+            if ($i -eq $MaxRetries) { 
+                Write-Error "All $MaxRetries attempts failed: $_"
+                return $false
+            }
+            Write-Warning "Attempt $i failed, retrying in 2 seconds... ($_)"
+            Start-Sleep -Seconds 2
+        }
+    }
+    return $false
+}
+
+function Test-AurrasInstallation {
+    param([string]$PythonCommand)
+    
+    try {
+        # Verify package is installed
+        & $PythonCommand -m pip show aurras | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Package verification successful!" -ForegroundColor Green
+            return $true
+        }
+    } catch {
+        Write-Warning "Package verification failed: $_"
+    }
+    return $false
+}
+
 Write-Host "Installing Aurras music player..."
 
 if (-not $pythonExe -and -not $packageParameters.SkipPythonCheck) {
@@ -145,50 +274,20 @@ if (-not $pythonExe -and -not $packageParameters.SkipPythonCheck) {
     throw "Python dependency not satisfied. Please install Python first."
 }
 
-try {
-    # Use the detected Python command (could be python, python3, py, py -3.12, or full path)
-    $pythonCmd = if ($pythonExe -and $pythonExe.Source) { $pythonExe.Source } else { "python" }
-    Write-Host "Using Python command: $pythonCmd"
-    
-    Write-Host "Running: $pythonCmd -m pip install aurras --upgrade --timeout $timeoutSeconds"
-    $pipResult = & $pythonCmd -m pip install aurras --upgrade --timeout $timeoutSeconds 2>&1
-    
-    Write-Host "Pip output:"
-    $pipResult | ForEach-Object { Write-Host "  $_" }
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Pip install returned exit code $LASTEXITCODE"
-        Write-Warning "Full pip output: $pipResult"
-        if (-not $packageParameters.IgnoreInstallErrors) {
-            throw "pip install failed with exit code $LASTEXITCODE"
-        }
-    } else {
-        Write-Host "Pip install completed successfully (exit code 0)" -ForegroundColor Green
-    }
-    
-    Write-Host "Checking if package was installed..."
-    try {
-        $pipShowResult = & $pythonCmd -m pip show aurras 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Package verification successful:" -ForegroundColor Green
-            $pipShowResult | ForEach-Object { Write-Host "  $_" }
-        } else {
-            Write-Warning "Package verification failed - pip show returned exit code $LASTEXITCODE"
-            $pipShowResult | ForEach-Object { Write-Warning "  $_" }
-        }
-    } catch {
-        Write-Warning "Could not verify package installation: $_"
-    }
-} catch {
-    Write-Host "Exception during pip install: $_" -ForegroundColor Red
-    Write-Host "Exception type: $($_.Exception.GetType().FullName)"
-    if ($packageParameters.IgnoreInstallErrors) {
-        Write-Warning "Installation may have failed: $_"
-        Write-Warning "Continuing anyway due to IgnoreInstallErrors parameter"
-    } else {
-        Write-Error "Failed to install Aurras via pip: $_"
-        throw "Aurras pip installation failed"
-    }
+# Use the detected Python command
+$pythonCmd = if ($pythonExe -and $pythonExe.Source) { $pythonExe.Source } else { "python" }
+Write-Host "Using Python command: $pythonCmd"
+
+# Install Aurras using the new simplified approach
+$installSuccess = Install-AurrasPackage -PythonCommand $pythonCmd -TimeoutSeconds $timeoutSeconds -PackageParameters $packageParameters
+
+if (-not $installSuccess -and -not $packageParameters.IgnoreInstallErrors) {
+    throw "Aurras installation failed"
+}
+
+# Verify installation
+if ($installSuccess) {
+    Test-AurrasInstallation -PythonCommand $pythonCmd
 }
 
 Write-Host "Verifying installation..."
@@ -234,17 +333,28 @@ try {
         Write-Host "Contents of Scripts directory:"
         Get-ChildItem $pythonScriptsDir | ForEach-Object { Write-Host "  $($_.Name)" }
         
-        $currentPath = $env:PATH
-        if ($currentPath -notlike "*$pythonScriptsDir*") {
-            Write-Host "Adding Python Scripts directory to PATH for this session..."
-            $env:PATH = "$pythonScriptsDir;$currentPath"
+        # Use Chocolatey helper if available for proper PATH management
+        if (Get-Command Install-ChocolateyPath -ErrorAction SilentlyContinue) {
+            Write-Host "Using Chocolatey PATH helper..."
+            Install-ChocolateyPath -PathToInstall $pythonScriptsDir -PathType 'User'
+            
+            if (Get-Command Update-SessionEnvironment -ErrorAction SilentlyContinue) {
+                Write-Host "Refreshing environment variables..."
+                Update-SessionEnvironment
+            }
         } else {
-            Write-Host "Python Scripts directory already in PATH"
+            Write-Host "Chocolatey helpers not available, using manual PATH update..."
+            $currentPath = $env:PATH
+            if ($currentPath -notlike "*$pythonScriptsDir*") {
+                Write-Host "Adding Python Scripts directory to PATH for this session..."
+                $env:PATH = "$pythonScriptsDir;$currentPath"
+            } else {
+                Write-Host "Python Scripts directory already in PATH"
+            }
         }
         
-        $machinePath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
-        $userPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
-        $env:PATH = "$pythonScriptsDir;$machinePath;$userPath"
+        # Ensure PATH is updated for current session regardless of method
+        $env:PATH = "$pythonScriptsDir;$env:PATH"
         Write-Host "Updated PATH for current session"
     } else {
         Write-Warning "Python Scripts directory not found or doesn't exist: $pythonScriptsDir"
@@ -342,4 +452,31 @@ Write-Host ""
 if ($packageParameters.Count -gt 0) {
     Write-Host "Available parameters for next install:" -ForegroundColor Yellow
     Write-Host "  --params '/SkipPythonCheck /SkipVerification /IgnoreInstallErrors /PythonTimeout:600'"
+}
+
+# Debug information for Chocolatey test environment
+if ($env:ChocolateyEnvironmentDebug -eq 'true' -or $env:CHOCOLATEY_VERSION) {
+    Write-Host ""
+    Write-Host "=== CHOCOLATEY DEBUG INFO ===" -ForegroundColor Yellow
+    Write-Host "Python Path: $pythonCmd"
+    if ($pythonScriptsDir) {
+        Write-Host "Scripts Dir: $pythonScriptsDir"
+    }
+    Write-Host "Current PATH contains Scripts dir: $($env:PATH -like "*$pythonScriptsDir*")"
+    Write-Host "Environment Variables:"
+    Write-Host "  CHOCOLATEY_VERSION: $env:CHOCOLATEY_VERSION"
+    Write-Host "  ChocolateyInstall: $env:ChocolateyInstall"
+    
+    try {
+        Write-Host "Aurras installation location:"
+        $aurrasLocation = & $pythonCmd -c "import aurras; print(aurras.__file__)" 2>&1
+        Write-Host "  $aurrasLocation"
+        
+        Write-Host "Available aurras commands:"
+        $aurrasHelp = & $pythonCmd -m aurras --help 2>&1 | Select-Object -First 5
+        $aurrasHelp | ForEach-Object { Write-Host "  $_" }
+    } catch {
+        Write-Warning "Could not get debug info: $_"
+    }
+    Write-Host "=== END DEBUG INFO ===" -ForegroundColor Yellow
 }
