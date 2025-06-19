@@ -8,9 +8,11 @@ credential setup, and client creation.
 from typing import Dict, Optional, Any, Tuple
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import CacheFileHandler
 
 from aurras.utils.console import console
 from aurras.utils.logger import get_logger
+from aurras.utils.path_manager import _path_manager
 
 logger = get_logger("aurras.services.spotify.auth", log_to_console=False)
 
@@ -164,12 +166,15 @@ class SpotifyAuth:
         Returns:
             SpotifyOAuth: The OAuth manager
         """
+        cache_handler = CacheFileHandler(cache_path=str(_path_manager.oauth_cache_file))
+
         return SpotifyOAuth(
             client_id=client_id,
             client_secret=client_secret,
             redirect_uri=REDIRECT_URI,
             scope=SCOPE,
             open_browser=True,
+            cache_handler=cache_handler,
         )
 
     def get_cached_token(self) -> Optional[Dict[str, Any]]:
