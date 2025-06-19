@@ -74,7 +74,7 @@ class GenerateQueue(InitializeOfflinePlayer):
             song_names: List[str] = []
             queue: List[str] = []
 
-            for song_info in metadata:
+            for _, song_info in metadata.items():
                 # Extract the song name and URL from the metadata
                 song_name = song_info.get("track_name")
                 song_url = song_info.get("url")
