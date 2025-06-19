@@ -24,11 +24,6 @@ class Settings(BaseModel):
     maximum_volume: str = "130"
     default_volume: str = "100"
 
-    # Authentication
-    require_authentication: str = "yes"
-    automatic_authentication: str = "yes"
-    authentication_timeout_seconds: str = "7200"
-
     # Download settings
     playlist_path: str = str(_path_manager.playlists_dir)
     download_path: str = str(_path_manager.downloaded_songs_dir)
