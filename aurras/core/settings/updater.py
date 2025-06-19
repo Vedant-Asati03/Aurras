@@ -8,6 +8,12 @@ from aurras.core.settings.io import save_settings
 from aurras.core.settings import Settings, SETTINGS
 
 
+class SettingsValidationError(Exception):
+    """Raised when trying to update an invalid settings key."""
+
+    pass
+
+
 class SettingsUpdater:
     """Class for updating specific settings using dot notation."""
 
@@ -15,6 +21,13 @@ class SettingsUpdater:
         self.key = key_to_update.replace("-", "_")  # support kebab-case
         self.current_value = self._get_nested_value(SETTINGS, self.key)
         self.new_value = None
+
+    def _validate_key_exists(self):
+        """Validate that the key exists in the settings model."""
+        if self.current_value is None:
+            raise SettingsValidationError(
+                f"Setting key '{self.key.replace('_', '-')}' does not exist."
+            )
 
     def _get_nested_value(self, model, dotted_key: str):
         """Get a nested value from a Pydantic model using dot notation."""
@@ -55,6 +68,7 @@ class SettingsUpdater:
 
     def update_directly(self, value: str):
         """Set the new value programmatically."""
+        self._validate_key_exists()
         self.new_value = value
         self.apply_update()
 
