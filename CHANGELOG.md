@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disco mode feature
 - Discover feature for music exploration
 
+## [2.1.0] - 2025-06-20
+
+### Changed
+
+- Removed authentication dependencies for cleaner architecture
+- Added settings validation and key existence checking
+- Enhanced OAuth cache management for Spotify integration
+
 ## [2.0.0] - 2024-12-15
 
 ### Added
