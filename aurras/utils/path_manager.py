@@ -114,6 +114,11 @@ class PathManager:
         return self._credentials_dir / "credentials.json"
 
     @property
+    def oauth_cache_file(self):
+        """Path to the OAuth cache file."""
+        return self._credentials_dir / "oauth_cache.json"
+
+    @property
     def cache_db(self):
         """Path to the unified cache database."""
         return self._database_dir / "cache.db"
