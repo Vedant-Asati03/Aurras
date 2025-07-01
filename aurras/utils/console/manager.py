@@ -137,7 +137,11 @@ class ThemedConsole(Console):
             **kwargs: Additional arguments passed to Console.print
         """
         try:
-            color = getattr(self.theme_obj, style_key).hex
+            # Special handling for 'dim' which is a string, not a ThemeColor
+            if style_key == "dim":
+                color = getattr(self.theme_obj, style_key)
+            else:
+                color = getattr(self.theme_obj, style_key).hex
             bold_prefix = "bold " if bold else ""
             self.print(f"[{bold_prefix}{color}]{message}[/]", **kwargs)
         except AttributeError:
@@ -187,7 +191,11 @@ class ThemedConsole(Console):
             Styled text string ready for Rich (always returned even if printed)
         """
         try:
-            color = getattr(self.theme_obj, style_key).hex
+            # Special handling for 'dim' which is a string, not a ThemeColor
+            if style_key == "dim":
+                color = getattr(self.theme_obj, style_key)
+            else:
+                color = getattr(self.theme_obj, style_key).hex
             style = f"{text_style} " if text_style else ""
             styled_text = f"[{style}{color}]{text}[/]"
 
@@ -345,7 +353,11 @@ class ThemedConsole(Console):
         from rich.prompt import Prompt
 
         try:
-            style = getattr(self.theme_obj, style_key).hex
+            # Special handling for 'dim' which is a string, not a ThemeColor
+            if style_key == "dim":
+                style = getattr(self.theme_obj, style_key)
+            else:
+                style = getattr(self.theme_obj, style_key).hex
             return Prompt.ask(f"[{style}]{prompt_text}[/]", console=self, **kwargs)
         except AttributeError:
             logger.warning(f"Unknown style key '{style_key}', using default")
@@ -366,7 +378,11 @@ class ThemedConsole(Console):
         from rich.prompt import Confirm
 
         try:
-            style = getattr(self.theme_obj, style_key).hex
+            # Special handling for 'dim' which is a string, not a ThemeColor
+            if style_key == "dim":
+                style = getattr(self.theme_obj, style_key)
+            else:
+                style = getattr(self.theme_obj, style_key).hex
             return Confirm.ask(f"[{style}]{prompt_text}[/]", console=self, **kwargs)
         except AttributeError:
             logger.warning(f"Unknown style key '{style_key}', using default")
