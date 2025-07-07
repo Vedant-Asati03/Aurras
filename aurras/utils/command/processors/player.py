@@ -10,7 +10,7 @@ from aurras.utils.console import console
 from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 
-logger = get_logger("aurras.command.processors.player", log_to_console=False)
+logger = get_logger("aurras.command.processors.player")
 
 
 class PlayerProcessor:
@@ -27,17 +27,34 @@ class PlayerProcessor:
     @with_error_handling
     def play_song(self, song_name: str, show_lyrics=True):
         """Play a song or multiple songs."""
-        song_name_list = self._parse_args(song_name)
+        with logger.operation_context(operation="song_playback"):
+            song_name_list = self._parse_args(song_name)
 
-        if not song_name_list:
-            console.print_error("Please specify a song to play.")
-            return 1
+            if not song_name_list:
+                logger.warning(
+                    "No song specified for playback",
+                    extra={"operation": "song_playback"},
+                )
+                console.print_error("Please specify a song to play.")
+                return 1
 
-        from aurras.core.player.online import SongStreamHandler
+            logger.info(
+                "Starting song playback",
+                extra={
+                    "operation": "song_playback",
+                    "song_count": len(song_name_list),
+                    "show_lyrics": show_lyrics,
+                },
+            )
 
-        logger.info(f"Command-line song argument: '{', '.join(song_name_list)}'")
-        SongStreamHandler(song_name_list).listen_song_online(show_lyrics=show_lyrics)
-        return 0
+            from aurras.core.player.online import SongStreamHandler
+
+            with logger.profile_context("song_playback"):
+                SongStreamHandler(song_name_list).listen_song_online(
+                    show_lyrics=show_lyrics
+                )
+
+            return 0
 
     @with_error_handling
     def download_song(
@@ -53,16 +70,49 @@ class PlayerProcessor:
         Returns:
             int: 0 for success, 1 for error
         """
-        song_name_list = self._parse_args(song_name)
+        with logger.operation_context(operation="song_download"):
+            song_name_list = self._parse_args(song_name)
 
-        if not song_name_list:
-            console.print_error("Please specify a song to download.")
-            return 1
+            if not song_name_list:
+                logger.warning(
+                    "No song specified for download",
+                    extra={"operation": "song_download"},
+                )
+                console.print_error("Please specify a song to download.")
+                return 1
 
-        from aurras.core.downloader import SongDownloader
+            logger.info(
+                "Starting song download",
+                extra={
+                    "operation": "song_download",
+                    "song_count": len(song_name_list),
+                    "format": format,
+                    "bitrate": bitrate,
+                },
+            )
 
-        success = SongDownloader(
-            song_name_list, playlist, output_dir, format, bitrate
-        ).download_songs()
+            from aurras.core.downloader import SongDownloader
 
-        return 0 if success else 1
+            with logger.profile_context("song_download"):
+                success = SongDownloader(
+                    song_name_list, playlist, output_dir, format, bitrate
+                ).download_songs()
+
+            if success:
+                logger.info(
+                    "Song download completed successfully",
+                    extra={
+                        "operation": "song_download",
+                        "song_count": len(song_name_list),
+                    },
+                )
+            else:
+                logger.error(
+                    "Song download failed",
+                    extra={
+                        "operation": "song_download",
+                        "song_count": len(song_name_list),
+                    },
+                )
+
+            return 0 if success else 1

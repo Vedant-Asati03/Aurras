@@ -11,7 +11,7 @@ from aurras.utils.logger import get_logger
 from aurras.utils.decorators import with_error_handling
 from aurras.core.settings import SETTINGS, SettingsUpdater
 
-logger = get_logger("aurras.command.processors.settings", log_to_console=False)
+logger = get_logger("aurras.command.processors.settings")
 
 
 class SettingsProcessor:
@@ -28,26 +28,36 @@ class SettingsProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        schema = SETTINGS.model_json_schema()
-        categories = self._build_categories_from_schema(schema)
+        with logger.operation_context(operation="settings_display"):
+            schema = SETTINGS.model_json_schema()
+            categories = self._build_categories_from_schema(schema)
 
-        all_items: List[Tuple[str, str]] = []
+            all_items: List[Tuple[str, str]] = []
 
-        non_empty_categories = {k: v for k, v in categories.items() if v}
-        for category, fields in non_empty_categories.items():
-            styled_category = console.style_text(category, "accent", bold=True)
-            all_items.append((styled_category, ""))
+            non_empty_categories = {k: v for k, v in categories.items() if v}
 
-            for field_path in fields:
-                # Get the parent setting name if this is a nested setting
-                parts = field_path.split(".")
-                parent_path = parts[0] if len(parts) > 1 else None
+            logger.info(
+                "Retrieved settings for display",
+                extra={
+                    "operation": "settings_display",
+                    "category_count": len(non_empty_categories),
+                },
+            )
 
-                # Skip if this is a nested setting and we'll process it with its parent
-                if len(parts) > 1 and parent_path in fields:
-                    continue
+            for category, fields in non_empty_categories.items():
+                styled_category = console.style_text(category, "accent", bold=True)
+                all_items.append((styled_category, ""))
 
-                value = self._get_nested_value(SETTINGS, field_path)
+                for field_path in fields:
+                    # Get the parent setting name if this is a nested setting
+                    parts = field_path.split(".")
+                    parent_path = parts[0] if len(parts) > 1 else None
+
+                    # Skip if this is a nested setting and we'll process it with its parent
+                    if len(parts) > 1 and parent_path in fields:
+                        continue
+
+                    value = self._get_nested_value(SETTINGS, field_path)
                 display_key = field_path.replace("_", "-")
 
                 # Process complex objects (dictionaries, models, etc.)
@@ -303,11 +313,29 @@ class SettingsProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        settings_updater = SettingsUpdater(key)
-        settings_updater.update_directly(value)
+        with logger.operation_context(operation="setting_update"):
+            logger.info(
+                "Updating setting",
+                extra={
+                    "operation": "setting_update",
+                    "setting_key": key,
+                    "new_value": value,
+                },
+            )
 
-        console.print_success(f"Setting '{key}' updated to '{value}'")
-        return 0
+            settings_updater = SettingsUpdater(key)
+            settings_updater.update_directly(value)
+
+            logger.info(
+                "Setting updated successfully",
+                extra={
+                    "operation": "setting_update",
+                    "setting_key": key,
+                },
+            )
+
+            console.print_success(f"Setting '{key}' updated to '{value}'")
+            return 0
 
     @with_error_handling
     def reset_settings(self) -> int:
@@ -317,13 +345,24 @@ class SettingsProcessor:
         Returns:
             int: Exit code (0 for success, 1 for error)
         """
-        from aurras.core.settings import default_settings
-        from aurras.core.settings.io import save_settings
+        with logger.operation_context(operation="settings_reset"):
+            logger.info(
+                "Resetting all settings to defaults",
+                extra={"operation": "settings_reset"},
+            )
 
-        save_settings(default_settings)
+            from aurras.core.settings import default_settings
+            from aurras.core.settings.io import save_settings
 
-        console.print_success("Settings reset to default values")
-        return 0
+            save_settings(default_settings)
+
+            logger.info(
+                "Settings reset completed successfully",
+                extra={"operation": "settings_reset"},
+            )
+
+            console.print_success("Settings reset to default values")
+            return 0
 
     @with_error_handling
     def toggle_setting(self) -> int:
